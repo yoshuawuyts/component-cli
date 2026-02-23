@@ -104,7 +104,7 @@ async fn run_manager(
         match event {
             AppEvent::Quit => break,
             AppEvent::RequestPackages => {
-                if let Ok(packages) = manager.list_all() {
+                if let Ok(packages) = manager.list_all().await {
                     sender.send(ManagerEvent::PackagesList(packages)).await.ok();
                 }
             }
@@ -119,7 +119,7 @@ async fn run_manager(
                 };
                 sender.send(ManagerEvent::PullResult(result)).await.ok();
                 // Refresh the packages list after pull (only if it was newly inserted)
-                if let Ok(packages) = manager.list_all() {
+                if let Ok(packages) = manager.list_all().await {
                     sender.send(ManagerEvent::PackagesList(packages)).await.ok();
                 }
             }
@@ -134,12 +134,12 @@ async fn run_manager(
                 };
                 sender.send(ManagerEvent::DeleteResult(result)).await.ok();
                 // Refresh the packages list after delete
-                if let Ok(packages) = manager.list_all() {
+                if let Ok(packages) = manager.list_all().await {
                     sender.send(ManagerEvent::PackagesList(packages)).await.ok();
                 }
             }
             AppEvent::SearchPackages(query) => {
-                if let Ok(packages) = manager.search_packages(&query) {
+                if let Ok(packages) = manager.search_packages(&query).await {
                     sender
                         .send(ManagerEvent::SearchResults(packages))
                         .await
@@ -147,7 +147,7 @@ async fn run_manager(
                 }
             }
             AppEvent::RequestKnownPackages => {
-                if let Ok(packages) = manager.list_known_packages() {
+                if let Ok(packages) = manager.list_known_packages().await {
                     sender
                         .send(ManagerEvent::KnownPackagesList(packages))
                         .await
@@ -163,12 +163,9 @@ async fn run_manager(
                             let tag_count = tags.len();
                             // Store all fetched tags as known packages
                             for tag in tags {
-                                let _ = manager.add_known_package(
-                                    &registry,
-                                    &repository,
-                                    Some(&tag),
-                                    None,
-                                );
+                                let _ = manager
+                                    .add_known_package(&registry, &repository, Some(&tag), None)
+                                    .await;
                             }
                             Ok(tag_count)
                         }
@@ -181,7 +178,7 @@ async fn run_manager(
                     .await
                     .ok();
                 // Refresh known packages list after updating tags
-                if let Ok(packages) = manager.list_known_packages() {
+                if let Ok(packages) = manager.list_known_packages().await {
                     sender
                         .send(ManagerEvent::KnownPackagesList(packages))
                         .await
@@ -189,7 +186,7 @@ async fn run_manager(
                 }
             }
             AppEvent::RequestWitInterfaces => {
-                if let Ok(interfaces) = manager.list_wit_interfaces_with_components() {
+                if let Ok(interfaces) = manager.list_wit_interfaces_with_components().await {
                     sender
                         .send(ManagerEvent::WitInterfacesList(interfaces))
                         .await

@@ -1,4 +1,5 @@
 mod config;
+mod entities;
 mod models;
 mod store;
 mod wit_parser;

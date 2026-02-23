@@ -7,7 +7,7 @@ use super::models::{ImageEntry, InsertResult, KnownPackage, Migrations, TagType,
 use super::wit_parser::extract_wit_metadata;
 use futures_concurrency::prelude::*;
 use oci_client::{Reference, client::ImageData};
-use rusqlite::Connection;
+use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement, Value};
 
 /// Calculate the total size of a directory recursively
 async fn dir_size(path: &Path) -> u64 {
@@ -33,7 +33,7 @@ async fn dir_size(path: &Path) -> u64 {
 #[derive(Debug)]
 pub(crate) struct Store {
     pub(crate) state_info: StateInfo,
-    conn: Connection,
+    conn: DatabaseConnection,
 }
 
 impl Store {
@@ -46,9 +46,6 @@ impl Store {
         let db_dir = data_dir.join("db");
         let metadata_file = db_dir.join("metadata.db3");
 
-        // TODO: remove me once we're done testing
-        // tokio::fs::remove_dir_all(&data_dir).await?;
-
         let a = tokio::fs::create_dir_all(&data_dir);
         let b = tokio::fs::create_dir_all(&store_dir);
         let c = tokio::fs::create_dir_all(&db_dir);
@@ -57,10 +54,11 @@ impl Store {
             .await
             .context("Could not create config directories on disk")?;
 
-        let conn = Connection::open(&metadata_file)?;
-        Migrations::run_all(&conn)?;
+        let db_url = format!("sqlite://{}?mode=rwc", metadata_file.display());
+        let conn = Database::connect(&db_url).await?;
+        Migrations::run_all(&conn).await?;
 
-        let migration_info = Migrations::get(&conn)?;
+        let migration_info = Migrations::get(&conn).await?;
         let store_size = dir_size(&store_dir).await;
         let metadata_size = tokio::fs::metadata(&metadata_file)
             .await
@@ -72,7 +70,7 @@ impl Store {
 
         // Re-scan known package tags after migrations to ensure derived data is up-to-date
         // Suppress errors as they shouldn't prevent the store from opening
-        if let Err(e) = store.rescan_known_package_tags() {
+        if let Err(e) = store.rescan_known_package_tags().await {
             eprintln!("Warning: Failed to re-scan known package tags: {}", e);
         }
 
@@ -98,7 +96,8 @@ impl Store {
             digest.as_deref(),
             &manifest_str,
             size_on_disk,
-        )?;
+        )
+        .await?;
 
         // Only store layers if this is a new entry
         if result == InsertResult::Inserted {
@@ -119,7 +118,7 @@ impl Store {
 
                     // Try to extract WIT interface from this layer
                     if let Some(image_id) = image_id {
-                        self.try_extract_wit_interface(image_id, data);
+                        self.try_extract_wit_interface(image_id, data).await;
                     }
                 }
             }
@@ -129,7 +128,7 @@ impl Store {
 
     /// Attempt to extract WIT interface from wasm component bytes.
     /// This is best-effort - if extraction fails, we silently skip.
-    fn try_extract_wit_interface(&self, image_id: i64, wasm_bytes: &[u8]) {
+    async fn try_extract_wit_interface(&self, image_id: i64, wasm_bytes: &[u8]) {
         let Some(metadata) = extract_wit_metadata(wasm_bytes) else {
             return; // Not a valid wasm component, skip
         };
@@ -142,25 +141,27 @@ impl Store {
             Some(&metadata.world_name),
             metadata.import_count,
             metadata.export_count,
-        ) {
+        )
+        .await
+        {
             Ok(id) => id,
             Err(_) => return, // Failed to insert, skip
         };
 
         // Link to image
-        let _ = WitInterface::link_to_image(&self.conn, image_id, wit_id);
+        let _ = WitInterface::link_to_image(&self.conn, image_id, wit_id).await;
     }
 
     /// Returns all currently stored images and their metadata.
-    pub(crate) fn list_all(&self) -> anyhow::Result<Vec<ImageEntry>> {
-        ImageEntry::get_all(&self.conn)
+    pub(crate) async fn list_all(&self) -> anyhow::Result<Vec<ImageEntry>> {
+        ImageEntry::get_all(&self.conn).await
     }
 
     /// Deletes an image by its reference.
     /// Only removes cached layers if no other images reference them.
     pub(crate) async fn delete(&self, reference: &Reference) -> anyhow::Result<bool> {
         // Get all images to find which layers are still needed
-        let all_entries = ImageEntry::get_all(&self.conn)?;
+        let all_entries = ImageEntry::get_all(&self.conn).await?;
 
         // Find the entry we're deleting to get its layer digests
         let entry_to_delete = all_entries.iter().find(|e| {
@@ -207,27 +208,31 @@ impl Store {
             reference.tag(),
             reference.digest(),
         )
+        .await
     }
 
     /// Search for known packages by query string.
-    pub(crate) fn search_known_packages(&self, query: &str) -> anyhow::Result<Vec<KnownPackage>> {
-        KnownPackage::search(&self.conn, query)
+    pub(crate) async fn search_known_packages(
+        &self,
+        query: &str,
+    ) -> anyhow::Result<Vec<KnownPackage>> {
+        KnownPackage::search(&self.conn, query).await
     }
 
     /// Get all known packages.
-    pub(crate) fn list_known_packages(&self) -> anyhow::Result<Vec<KnownPackage>> {
-        KnownPackage::get_all(&self.conn)
+    pub(crate) async fn list_known_packages(&self) -> anyhow::Result<Vec<KnownPackage>> {
+        KnownPackage::get_all(&self.conn).await
     }
 
     /// Add or update a known package.
-    pub(crate) fn add_known_package(
+    pub(crate) async fn add_known_package(
         &self,
         registry: &str,
         repository: &str,
         tag: Option<&str>,
         description: Option<&str>,
     ) -> anyhow::Result<()> {
-        KnownPackage::upsert(&self.conn, registry, repository, tag, description)
+        KnownPackage::upsert(&self.conn, registry, repository, tag, description).await
     }
 
     /// Re-scan known package tags to update derived data after migrations.
@@ -235,18 +240,25 @@ impl Store {
     /// - Tags ending in ".sig" are classified as "signature"
     /// - Tags ending in ".att" are classified as "attestation"
     /// - All other tags are classified as "release"
-    pub(crate) fn rescan_known_package_tags(&self) -> anyhow::Result<usize> {
+    pub(crate) async fn rescan_known_package_tags(&self) -> anyhow::Result<usize> {
         // Get all unique package IDs and their tags
-        let mut stmt = self.conn.prepare(
-            "SELECT DISTINCT kpt.known_package_id, kpt.tag 
-             FROM known_package_tag kpt",
-        )?;
+        let rows = self
+            .conn
+            .query_all(Statement::from_sql_and_values(
+                DbBackend::Sqlite,
+                "SELECT DISTINCT kpt.known_package_id, kpt.tag FROM known_package_tag kpt",
+                vec![],
+            ))
+            .await?;
 
-        let tags: Vec<(i64, String)> = stmt
-            .query_map([], |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
+        let tags: Vec<(i64, String)> = rows
+            .iter()
+            .filter_map(|row| {
+                let id: i64 = row.try_get_by_index(0).ok()?;
+                let tag: String = row.try_get_by_index(1).ok()?;
+                Some((id, tag))
+            })
+            .collect();
 
         let mut updated_count = 0;
 
@@ -256,14 +268,23 @@ impl Store {
             let tag_type = TagType::from_tag(&tag).as_str();
 
             // Update the tag type if needed
-            let rows_affected = self.conn.execute(
-                "UPDATE known_package_tag 
-                 SET tag_type = ?1 
-                 WHERE known_package_id = ?2 AND tag = ?3 AND tag_type != ?1",
-                (tag_type, package_id, &tag),
-            )?;
+            let result = self
+                .conn
+                .execute(Statement::from_sql_and_values(
+                    DbBackend::Sqlite,
+                    "UPDATE known_package_tag 
+                     SET tag_type = ? 
+                     WHERE known_package_id = ? AND tag = ? AND tag_type != ?",
+                    vec![
+                        Value::from(tag_type.to_string()),
+                        Value::from(package_id),
+                        Value::from(tag),
+                        Value::from(tag_type.to_string()),
+                    ],
+                ))
+                .await?;
 
-            if rows_affected > 0 {
+            if result.rows_affected() > 0 {
                 updated_count += 1;
             }
         }
@@ -273,14 +294,14 @@ impl Store {
 
     /// Get all WIT interfaces.
     #[allow(dead_code)]
-    pub(crate) fn list_wit_interfaces(&self) -> anyhow::Result<Vec<WitInterface>> {
-        WitInterface::get_all(&self.conn)
+    pub(crate) async fn list_wit_interfaces(&self) -> anyhow::Result<Vec<WitInterface>> {
+        WitInterface::get_all(&self.conn).await
     }
 
     /// Get all WIT interfaces with their associated component references.
-    pub(crate) fn list_wit_interfaces_with_components(
+    pub(crate) async fn list_wit_interfaces_with_components(
         &self,
     ) -> anyhow::Result<Vec<(WitInterface, String)>> {
-        WitInterface::get_all_with_images(&self.conn)
+        WitInterface::get_all_with_images(&self.conn).await
     }
 }

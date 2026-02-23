@@ -1,5 +1,5 @@
 use anyhow::Context;
-use rusqlite::Connection;
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement};
 
 /// A migration that can be applied to the database.
 struct MigrationDef {
@@ -56,35 +56,44 @@ pub struct Migrations {
     pub total: u32,
 }
 
+/// Execute a SQL string that may contain multiple statements separated by semicolons.
+async fn execute_batch(conn: &DatabaseConnection, sql: &str) -> anyhow::Result<()> {
+    for statement in sql.split(';') {
+        let stmt = statement.trim();
+        if !stmt.is_empty() {
+            conn.execute_unprepared(stmt)
+                .await
+                .with_context(|| format!("Failed to execute SQL: {stmt}"))?;
+        }
+    }
+    Ok(())
+}
+
 impl Migrations {
     /// Initialize the migrations table and run all pending migrations.
-    pub(crate) fn run_all(conn: &Connection) -> anyhow::Result<()> {
+    pub(crate) async fn run_all(conn: &DatabaseConnection) -> anyhow::Result<()> {
         // Create the migrations table if it doesn't exist
-        conn.execute_batch(include_str!("../migrations/00_migrations.sql"))?;
+        execute_batch(conn, include_str!("../migrations/00_migrations.sql")).await?;
 
         // Get the current migration version
-        let current_version: u32 = conn
-            .query_row(
-                "SELECT COALESCE(MAX(version), 0) FROM migrations",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap_or(0);
+        let current_version = Self::current_version(conn).await;
 
         // Run all migrations that haven't been applied yet
         for migration in MIGRATIONS {
             if migration.version > current_version {
-                conn.execute_batch(migration.sql).with_context(|| {
+                execute_batch(conn, migration.sql).await.with_context(|| {
                     format!(
                         "Failed to run migration {}: {}",
                         migration.version, migration.name
                     )
                 })?;
 
-                conn.execute(
-                    "INSERT INTO migrations (version) VALUES (?1)",
-                    [migration.version],
-                )?;
+                conn.execute(Statement::from_sql_and_values(
+                    DbBackend::Sqlite,
+                    "INSERT INTO migrations (version) VALUES (?)",
+                    [sea_orm::Value::from(migration.version as i32)],
+                ))
+                .await?;
             }
         }
 
@@ -92,65 +101,85 @@ impl Migrations {
     }
 
     /// Returns information about the current migration state.
-    pub(crate) fn get(conn: &Connection) -> anyhow::Result<Self> {
-        let current: u32 = conn
-            .query_row(
-                "SELECT COALESCE(MAX(version), 0) FROM migrations",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap_or(0);
+    pub(crate) async fn get(conn: &DatabaseConnection) -> anyhow::Result<Self> {
+        let current = Self::current_version(conn).await;
         let total = MIGRATIONS.last().map(|m| m.version).unwrap_or(0);
         Ok(Self { current, total })
+    }
+
+    /// Get the current migration version from the database.
+    async fn current_version(conn: &DatabaseConnection) -> u32 {
+        conn.query_one(Statement::from_string(
+            DbBackend::Sqlite,
+            "SELECT COALESCE(MAX(version), 0) FROM migrations".to_owned(),
+        ))
+        .await
+        .ok()
+        .flatten()
+        .and_then(|row| row.try_get_by_index::<i32>(0).ok())
+        .map(|v| v as u32)
+        .unwrap_or(0)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sea_orm::Database;
 
-    #[test]
-    fn test_migrations_run_all_creates_tables() {
-        let conn = Connection::open_in_memory().unwrap();
-        Migrations::run_all(&conn).unwrap();
+    async fn setup_test_conn() -> DatabaseConnection {
+        Database::connect("sqlite::memory:").await.unwrap()
+    }
 
-        // Verify migrations table exists
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM migrations", [], |row| row.get(0))
+    #[tokio::test]
+    async fn test_migrations_run_all_creates_tables() {
+        let conn = setup_test_conn().await;
+        Migrations::run_all(&conn).await.unwrap();
+
+        // Verify migrations table exists and has records
+        let result = conn
+            .query_one(Statement::from_string(
+                DbBackend::Sqlite,
+                "SELECT COUNT(*) FROM migrations".to_owned(),
+            ))
+            .await
+            .unwrap()
             .unwrap();
+        let count: i32 = result.try_get_by_index(0).unwrap();
         assert!(count > 0);
 
-        // Verify image table exists
-        conn.execute("SELECT 1 FROM image LIMIT 1", []).ok();
-
-        // Verify known_package table exists
-        conn.execute("SELECT 1 FROM known_package LIMIT 1", []).ok();
-
-        // Verify known_package_tag table exists
-        conn.execute("SELECT 1 FROM known_package_tag LIMIT 1", [])
+        // Verify tables exist by running queries
+        conn.execute_unprepared("SELECT 1 FROM image LIMIT 1")
+            .await
+            .ok();
+        conn.execute_unprepared("SELECT 1 FROM known_package LIMIT 1")
+            .await
+            .ok();
+        conn.execute_unprepared("SELECT 1 FROM known_package_tag LIMIT 1")
+            .await
             .ok();
     }
 
-    #[test]
-    fn test_migrations_run_all_idempotent() {
-        let conn = Connection::open_in_memory().unwrap();
+    #[tokio::test]
+    async fn test_migrations_run_all_idempotent() {
+        let conn = setup_test_conn().await;
 
         // Run migrations multiple times
-        Migrations::run_all(&conn).unwrap();
-        Migrations::run_all(&conn).unwrap();
-        Migrations::run_all(&conn).unwrap();
+        Migrations::run_all(&conn).await.unwrap();
+        Migrations::run_all(&conn).await.unwrap();
+        Migrations::run_all(&conn).await.unwrap();
 
         // Should still work correctly
-        let info = Migrations::get(&conn).unwrap();
+        let info = Migrations::get(&conn).await.unwrap();
         assert_eq!(info.current, info.total);
     }
 
-    #[test]
-    fn test_migrations_get_info() {
-        let conn = Connection::open_in_memory().unwrap();
-        Migrations::run_all(&conn).unwrap();
+    #[tokio::test]
+    async fn test_migrations_get_info() {
+        let conn = setup_test_conn().await;
+        Migrations::run_all(&conn).await.unwrap();
 
-        let info = Migrations::get(&conn).unwrap();
+        let info = Migrations::get(&conn).await.unwrap();
 
         // Current should equal total after running all migrations
         assert_eq!(info.current, info.total);
@@ -159,15 +188,16 @@ mod tests {
         assert_eq!(info.total, expected_total);
     }
 
-    #[test]
-    fn test_migrations_get_before_running() {
-        let conn = Connection::open_in_memory().unwrap();
+    #[tokio::test]
+    async fn test_migrations_get_before_running() {
+        let conn = setup_test_conn().await;
 
         // Create migrations table manually to test get() on fresh db
-        conn.execute_batch(include_str!("../migrations/00_migrations.sql"))
+        execute_batch(&conn, include_str!("../migrations/00_migrations.sql"))
+            .await
             .unwrap();
 
-        let info = Migrations::get(&conn).unwrap();
+        let info = Migrations::get(&conn).await.unwrap();
 
         // Current should be 0 before running migrations
         assert_eq!(info.current, 0);

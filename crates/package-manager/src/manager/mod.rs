@@ -74,22 +74,26 @@ impl Manager {
         let result = self.store.insert(&reference, image).await?;
 
         // Add to known packages when pulling (with tag if present)
-        self.store.add_known_package(
-            reference.registry(),
-            reference.repository(),
-            reference.tag(),
-            None,
-        )?;
+        self.store
+            .add_known_package(
+                reference.registry(),
+                reference.repository(),
+                reference.tag(),
+                None,
+            )
+            .await?;
 
         // Fetch all related tags and store them as known packages
         if let Ok(tags) = self.client.list_tags(&reference).await {
             for tag in tags {
-                self.store.add_known_package(
-                    reference.registry(),
-                    reference.repository(),
-                    Some(&tag),
-                    None,
-                )?;
+                self.store
+                    .add_known_package(
+                        reference.registry(),
+                        reference.repository(),
+                        Some(&tag),
+                        None,
+                    )
+                    .await?;
             }
         }
 
@@ -97,8 +101,8 @@ impl Manager {
     }
 
     /// List all stored images and their metadata.
-    pub fn list_all(&self) -> anyhow::Result<Vec<ImageEntry>> {
-        self.store.list_all()
+    pub async fn list_all(&self) -> anyhow::Result<Vec<ImageEntry>> {
+        self.store.list_all().await
     }
 
     /// Get data from the store
@@ -107,6 +111,7 @@ impl Manager {
     }
 
     /// Get information about the current state of the package manager.
+    #[must_use]
     pub fn state_info(&self) -> StateInfo {
         self.store.state_info.clone()
     }
@@ -118,17 +123,17 @@ impl Manager {
 
     /// Search for known packages by query string.
     /// Searches in both registry and repository fields.
-    pub fn search_packages(&self, query: &str) -> anyhow::Result<Vec<KnownPackage>> {
-        self.store.search_known_packages(query)
+    pub async fn search_packages(&self, query: &str) -> anyhow::Result<Vec<KnownPackage>> {
+        self.store.search_known_packages(query).await
     }
 
     /// Get all known packages.
-    pub fn list_known_packages(&self) -> anyhow::Result<Vec<KnownPackage>> {
-        self.store.list_known_packages()
+    pub async fn list_known_packages(&self) -> anyhow::Result<Vec<KnownPackage>> {
+        self.store.list_known_packages().await
     }
 
     /// Add or update a known package entry.
-    pub fn add_known_package(
+    pub async fn add_known_package(
         &self,
         registry: &str,
         repository: &str,
@@ -137,6 +142,7 @@ impl Manager {
     ) -> anyhow::Result<()> {
         self.store
             .add_known_package(registry, repository, tag, description)
+            .await
     }
 
     /// List all tags for a given reference from the registry.
@@ -146,7 +152,7 @@ impl Manager {
     pub async fn list_tags(&self, reference: &Reference) -> anyhow::Result<Vec<String>> {
         if self.offline {
             // Return cached tags from known packages
-            return self.list_cached_tags(reference);
+            return self.list_cached_tags(reference).await;
         }
         self.client.list_tags(reference).await
     }
@@ -156,8 +162,8 @@ impl Manager {
     /// This is a private helper method used by `list_tags` when in offline mode.
     /// Returns all cached tags (release, signature, and attestation) for the given
     /// reference from the local known packages database.
-    fn list_cached_tags(&self, reference: &Reference) -> anyhow::Result<Vec<String>> {
-        let known_packages = self.store.list_known_packages()?;
+    async fn list_cached_tags(&self, reference: &Reference) -> anyhow::Result<Vec<String>> {
+        let known_packages = self.store.list_known_packages().await?;
         let tags: Vec<String> = known_packages
             .into_iter()
             .filter(|pkg| {
@@ -178,14 +184,14 @@ impl Manager {
     /// This should be called after migrations that affect tag classification logic
     /// (e.g., when tag type rules change from .sig/.att suffixes).
     /// Returns the number of tags that were updated.
-    pub fn rescan_known_package_tags(&self) -> anyhow::Result<usize> {
-        self.store.rescan_known_package_tags()
+    pub async fn rescan_known_package_tags(&self) -> anyhow::Result<usize> {
+        self.store.rescan_known_package_tags().await
     }
 
     /// Get all WIT interfaces with their associated component references.
-    pub fn list_wit_interfaces_with_components(
+    pub async fn list_wit_interfaces_with_components(
         &self,
     ) -> anyhow::Result<Vec<(WitInterface, String)>> {
-        self.store.list_wit_interfaces_with_components()
+        self.store.list_wit_interfaces_with_components().await
     }
 }
