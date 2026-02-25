@@ -55,6 +55,9 @@ impl Opts {
             let (progress_tx, progress_rx) = tokio::sync::mpsc::channel::<ProgressEvent>(64);
             let multi = MultiProgress::new();
 
+            // Print the OCI URL above the progress bars
+            multi.println(self.reference.whole())?;
+
             // Spawn progress rendering task
             let progress_handle = tokio::task::spawn(run_progress_bars(multi, progress_rx));
 
@@ -166,14 +169,23 @@ async fn run_progress_bars(
                 index,
                 ref digest,
                 total_bytes,
+                ref title,
+                ref media_type,
             } => {
-                // Use short digest as prefix
+                // Use short digest for differentiation
                 let short_digest = digest
                     .strip_prefix("sha256:")
                     .unwrap_or(digest)
-                    .get(..12)
+                    .get(..5)
                     .unwrap_or(digest);
-                let prefix = format!("{short_digest}:");
+
+                // Prefer title annotation, fall back to media type
+                let label = if let Some(t) = title {
+                    t.clone()
+                } else {
+                    media_type.clone()
+                };
+                let prefix = format!("{label} ({short_digest}):");
 
                 let pb = if let Some(total) = total_bytes {
                     let pb = multi.add(ProgressBar::new(total));

@@ -186,6 +186,11 @@ impl Manager {
                         index,
                         digest: layer_descriptor.digest.clone(),
                         total_bytes,
+                        title: layer_descriptor
+                            .annotations
+                            .as_ref()
+                            .and_then(|a| a.get("org.opencontainers.image.title").cloned()),
+                        media_type: layer_descriptor.media_type.clone(),
                     })
                     .await;
 
