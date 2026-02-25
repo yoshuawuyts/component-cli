@@ -47,6 +47,12 @@ impl Opts {
             Manager::open().await?
         };
 
+        let start_time = std::time::Instant::now();
+
+        // Print initial installing message
+        let tag_display = self.reference.tag().unwrap_or("latest").to_string();
+        println!("Installing {} [{}]", self.reference.whole(), tag_display);
+
         // Install the package with progress reporting
         let result = if offline {
             // No progress bars in offline mode
@@ -54,11 +60,9 @@ impl Opts {
         } else {
             let (progress_tx, progress_rx) = tokio::sync::mpsc::channel::<ProgressEvent>(64);
             let multi = MultiProgress::new();
-            let reference_str = self.reference.whole().to_string();
 
             // Spawn progress rendering task
-            let progress_handle =
-                tokio::task::spawn(run_progress_bars(multi, progress_rx, reference_str));
+            let progress_handle = tokio::task::spawn(run_progress_bars(multi, progress_rx));
 
             let result = manager
                 .install_with_progress(self.reference.clone(), &vendor_dir, &progress_tx)
@@ -122,21 +126,9 @@ impl Opts {
         // Write updated lockfile
         write_lock_file(&lockfile_path, &lockfile).await?;
 
-        // Print success message
-        let vendored: Vec<_> = result
-            .vendored_files
-            .iter()
-            .map(|p| p.display().to_string())
-            .collect();
-        if vendored.is_empty() {
-            println!("Installed '{}'", self.reference.whole());
-        } else {
-            println!(
-                "Installed '{}' -> {}",
-                self.reference.whole(),
-                vendored.join(", ")
-            );
-        }
+        // Print completion message with elapsed time
+        let elapsed = start_time.elapsed();
+        println!("Finished installation in {:.1}s", elapsed.as_secs_f64());
 
         Ok(())
     }
@@ -146,40 +138,34 @@ impl Opts {
 async fn run_progress_bars(
     multi: MultiProgress,
     mut rx: tokio::sync::mpsc::Receiver<ProgressEvent>,
-    reference: String,
 ) {
     let mut bars: Vec<ProgressBar> = Vec::new();
     let mut layer_count: usize = 0;
 
-    // In-progress style: yellow tree prefix + bar + bytes + eta
+    // In-progress style: yellow bar + yellow bytes + eta
     let bar_style_progress = ProgressStyle::with_template(
-        "{prefix:.yellow} {bar:12.yellow} {bytes}/{total_bytes} {eta}",
+        "{prefix} {bar:12.yellow} {bytes:.yellow}/{total_bytes:.yellow} {eta}",
     )
     .expect("valid progress bar template")
     .progress_chars("━━┄");
 
     // In-progress spinner style (unknown size)
     let bar_style_spinner =
-        ProgressStyle::with_template("{prefix:.yellow} {spinner:.yellow} {bytes}")
+        ProgressStyle::with_template("{prefix} {spinner:.yellow} {bytes:.yellow}")
             .expect("valid progress bar template");
 
-    // Completed style: green tree prefix + checkmark + total bytes
-    let bar_style_done = ProgressStyle::with_template("{prefix:.green} ✓ {bytes:.green}")
-        .expect("valid progress bar template");
+    // Completed style: green filled bar + green bytes
+    let bar_style_done =
+        ProgressStyle::with_template("{prefix} {bar:12.green} {total_bytes:.green}")
+            .expect("valid progress bar template")
+            .progress_chars("━━━");
 
     while let Some(event) = rx.recv().await {
         match event {
             ProgressEvent::ManifestFetched {
-                layer_count: count,
-                ref image_digest,
+                layer_count: count, ..
             } => {
                 layer_count = count;
-                let short_digest = image_digest
-                    .strip_prefix("sha256:")
-                    .unwrap_or(image_digest)
-                    .get(..5)
-                    .unwrap_or(image_digest);
-                let _ = multi.println(format!("{reference} [{short_digest}]"));
             }
             ProgressEvent::LayerStarted {
                 index,
