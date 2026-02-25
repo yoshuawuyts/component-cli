@@ -50,19 +50,32 @@ impl Opts {
         let start_time = std::time::Instant::now();
 
         // Print initial installing message
-        println!(
-            "{:>12} {}",
-            console::style("Installing").green().bold(),
-            self.reference.whole(),
-        );
+        let reference_display = self.reference.whole().to_string();
 
         // Install the package with progress reporting
         let result = if offline {
-            // No progress bars in offline mode
+            // No progress bars in offline mode — just print the line
+            println!(
+                "{:>12} {}",
+                console::style("Installing").cyan().bold(),
+                reference_display,
+            );
             manager.install(self.reference.clone(), &vendor_dir).await?
         } else {
             let (progress_tx, progress_rx) = tokio::sync::mpsc::channel::<ProgressEvent>(64);
             let multi = MultiProgress::new();
+
+            // Add a header line managed by the multi-progress so it
+            // stays above the per-layer bars and can be rewritten.
+            let header = multi.add(ProgressBar::new_spinner());
+            header.set_style(
+                ProgressStyle::with_template("{msg}").expect("valid progress bar template"),
+            );
+            header.set_message(format!(
+                "{:>12} {}",
+                console::style("Installing").cyan().bold(),
+                reference_display,
+            ));
 
             // Spawn progress rendering task
             let progress_handle = tokio::task::spawn(run_progress_bars(multi, progress_rx));
@@ -76,6 +89,14 @@ impl Opts {
 
             // Wait for progress bars to finish rendering
             let _ = progress_handle.await;
+
+            // Rewrite the header line: blue → green
+            header.set_message(format!(
+                "{:>12} {}",
+                console::style("Installing").green().bold(),
+                reference_display,
+            ));
+            header.finish();
 
             result?
         };
@@ -149,15 +170,15 @@ async fn run_progress_bars(
     let mut bars: Vec<ProgressBar> = Vec::new();
     let mut layer_count: usize = 0;
 
-    // In-progress style: yellow bar + yellow bytes + eta
+    // In-progress style: blue bar + blue bytes + eta
     let bar_style_progress = ProgressStyle::with_template(
-        "{prefix} {bar:12.yellow} {bytes:.yellow}/{total_bytes:.yellow} {eta}",
+        "{prefix} {bar:12.blue} {bytes:.blue}/{total_bytes:.blue} {eta}",
     )
     .expect("valid progress bar template")
     .progress_chars("━━┄");
 
     // In-progress spinner style (unknown size)
-    let bar_style_spinner = ProgressStyle::with_template("{prefix} {spinner:.yellow} {bytes}")
+    let bar_style_spinner = ProgressStyle::with_template("{prefix} {spinner:.blue} {bytes}")
         .expect("valid progress bar template");
 
     // Completed style: green filled bar + green bytes
@@ -194,7 +215,7 @@ async fn run_progress_bars(
 
                 // Prefer title annotation, fall back to media type
                 let label = title.as_deref().unwrap_or(media_type);
-                let prefix = format!("{tree_glyph} [{short_digest}] {label}");
+                let prefix = format!("   {tree_glyph} [{short_digest}] {label}");
 
                 let pb = match total_bytes {
                     Some(total) => {
