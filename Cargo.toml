@@ -10,7 +10,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 documentation = "https://github.com/yoshuawuyts/wasm"
 repository = "https://github.com/yoshuawuyts/wasm"
 edition = "2024"
@@ -36,9 +36,9 @@ unneeded_field_pattern = "deny"
 [workspace.dependencies]
 
 # local dependencies
-wasm-manifest = { path = "crates/manifest", version = "0.1.0" }
-wasm-package-manager = { path = "crates/package-manager", version = "0.1.0" }
-wasm-detector = { path = "crates/wasm-detector", version = "0.1.0" }
+wasm-manifest = { path = "crates/manifest", version = "0.2.0" }
+wasm-package-manager = { path = "crates/package-manager", version = "0.2.0" }
+wasm-detector = { path = "crates/wasm-detector", version = "0.2.0" }
 
 # shared dependencies
 anyhow = "1.0.100"
