@@ -1,19 +1,34 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use wasm_manifest::Lockfile;
 
-pub(crate) async fn run() -> anyhow::Result<()> {
-    tokio::fs::create_dir_all("deps/vendor/wit").await?;
-    tokio::fs::create_dir_all("deps/vendor/wasm").await?;
+/// Options for the `init` command.
+#[derive(clap::Parser)]
+pub(crate) struct Opts {
+    /// The directory in which to create the wasm package files.
+    ///
+    /// Defaults to the current directory.
+    #[arg(default_value = ".")]
+    path: PathBuf,
+}
 
-    let manifest = wasm_manifest::Manifest::default();
-    let manifest = toml::to_string_pretty(&manifest)?;
-    tokio::fs::write("deps/wasm.toml", manifest.as_bytes()).await?;
+impl Opts {
+    pub(crate) async fn run(self) -> anyhow::Result<()> {
+        let base = &self.path;
+        let deps = base.join("deps");
 
-    let lockfile = wasm_manifest::Lockfile::default();
-    write_lock_file("deps/wasm.lock.toml", &lockfile).await?;
+        tokio::fs::create_dir_all(deps.join("vendor/wit")).await?;
+        tokio::fs::create_dir_all(deps.join("vendor/wasm")).await?;
 
-    Ok(())
+        let manifest = wasm_manifest::Manifest::default();
+        let manifest = toml::to_string_pretty(&manifest)?;
+        tokio::fs::write(deps.join("wasm.toml"), manifest.as_bytes()).await?;
+
+        let lockfile = wasm_manifest::Lockfile::default();
+        write_lock_file(deps.join("wasm.lock.toml"), &lockfile).await?;
+
+        Ok(())
+    }
 }
 
 async fn write_lock_file<P: AsRef<Path>>(path: P, lock: &Lockfile) -> std::io::Result<()> {

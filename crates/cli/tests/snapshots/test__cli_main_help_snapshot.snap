@@ -8,6 +8,7 @@ Usage: wasm [OPTIONS] [COMMAND]
 
 Commands:
   run      Execute a Wasm Component
+  init     Create a new wasm component in an existing directory
   inspect  Inspect a Wasm Component
   convert  Convert a Wasm Component to another format
   local    Detect and manage local WASM files
