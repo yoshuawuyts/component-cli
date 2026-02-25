@@ -2,6 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
+/// The current revision of the lockfile.
+pub const LOCKFILE_VERSION: u32 = 1;
+
 /// The root lockfile structure for a WASM package.
 ///
 /// The lockfile (`deps/wasm.lock`) is auto-generated and tracks resolved dependencies
@@ -22,12 +25,20 @@ use serde::{Deserialize, Serialize};
 #[must_use]
 pub struct Lockfile {
     /// The lockfile format version.
-    pub version: u32,
+    pub lockfile_version: u32,
 
     /// The list of resolved packages.
-    #[serde(default)]
-    #[serde(rename = "package")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub packages: Vec<Package>,
+}
+
+impl Default for Lockfile {
+    fn default() -> Self {
+        Self {
+            lockfile_version: LOCKFILE_VERSION,
+            packages: Default::default(),
+        }
+    }
 }
 
 /// A resolved package entry in the lockfile.
@@ -112,7 +123,7 @@ mod tests {
 
         let lockfile: Lockfile = toml::from_str(toml).expect("Failed to parse lockfile");
 
-        assert_eq!(lockfile.version, 1);
+        assert_eq!(lockfile.lockfile_version, 1);
         assert_eq!(lockfile.packages.len(), 2);
 
         let logging = &lockfile.packages[0];
@@ -132,7 +143,7 @@ mod tests {
     #[test]
     fn test_serialize_lockfile() {
         let lockfile = Lockfile {
-            version: 1,
+            lockfile_version: 1,
             packages: vec![
                 Package {
                     name: "wasi:logging".to_string(),

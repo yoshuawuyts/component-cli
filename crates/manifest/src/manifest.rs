@@ -13,7 +13,7 @@ use std::collections::HashMap;
 /// [dependencies]
 /// "wasi:logging" = "ghcr.io/webassembly/wasi-logging:1.0.0"
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[must_use]
 pub struct Manifest {
     /// The dependencies section of the manifest.

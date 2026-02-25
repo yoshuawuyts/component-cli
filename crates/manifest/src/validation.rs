@@ -137,7 +137,7 @@ mod tests {
         let manifest = Manifest { dependencies };
 
         let lockfile = Lockfile {
-            version: 1,
+            lockfile_version: 1,
             packages: vec![
                 Package {
                     name: "wasi:logging".to_string(),
@@ -174,7 +174,7 @@ mod tests {
         let manifest = Manifest { dependencies };
 
         let lockfile = Lockfile {
-            version: 1,
+            lockfile_version: 1,
             packages: vec![
                 Package {
                     name: "wasi:logging".to_string(),
@@ -221,7 +221,7 @@ mod tests {
         let manifest = Manifest { dependencies };
 
         let lockfile = Lockfile {
-            version: 1,
+            lockfile_version: 1,
             packages: vec![
                 Package {
                     name: "wasi:logging".to_string(),
@@ -270,7 +270,7 @@ mod tests {
         };
 
         let lockfile = Lockfile {
-            version: 1,
+            lockfile_version: 1,
             packages: vec![],
         };
 
