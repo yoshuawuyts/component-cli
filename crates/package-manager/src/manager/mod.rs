@@ -173,19 +173,20 @@ impl Manager {
         let mut vendored_files = Vec::new();
         let mut package_name = None;
 
+        // Pre-compute filename parts from the OCI reference and image digest.
+        // We use the image digest (not layer digest) so it matches the lockfile.
+        let registry_part = reference.registry().replace('.', "-");
+        let repo_part = reference.repository().replace('/', "-");
+        let tag_part = reference.tag().map(|t| format!("-{t}")).unwrap_or_default();
+        let digest_for_name = pull_result.digest.as_deref().unwrap_or("unknown");
+        let sha_part = digest_for_name
+            .strip_prefix("sha256:")
+            .unwrap_or(digest_for_name);
+        let short_sha = sha_part.get(..12).unwrap_or(sha_part);
+
         if let Some(ref manifest) = pull_result.manifest {
             for layer in &manifest.layers {
                 if layer.media_type == "application/wasm" {
-                    // Derive filename from the full OCI reference including
-                    // registry, repository, tag, and a truncated layer SHA.
-                    let registry_part = reference.registry().replace('.', "-");
-                    let repo_part = reference.repository().replace('/', "-");
-                    let tag_part = reference.tag().map(|t| format!("-{t}")).unwrap_or_default();
-                    let sha_part = layer
-                        .digest
-                        .strip_prefix("sha256:")
-                        .unwrap_or(&layer.digest);
-                    let short_sha = sha_part.get(..12).unwrap_or(sha_part);
                     let filename =
                         format!("{registry_part}-{repo_part}{tag_part}-{short_sha}.wasm");
                     let dest = vendor_dir.join(&filename);
