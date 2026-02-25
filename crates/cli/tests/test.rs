@@ -373,3 +373,13 @@ fn test_init_help_snapshot() {
     let output = run_cli(&["init", "--help"]);
     assert_snapshot!(output);
 }
+
+// =============================================================================
+// Install Command Help Tests
+// =============================================================================
+
+#[test]
+fn test_install_help_snapshot() {
+    let output = run_cli(&["install", "--help"]);
+    assert_snapshot!(output);
+}

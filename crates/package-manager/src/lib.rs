@@ -7,7 +7,7 @@ mod manager;
 mod network;
 mod storage;
 
-pub use manager::Manager;
+pub use manager::{InstallResult, Manager, PullResult};
 pub use oci_client::Reference;
 pub use storage::{ImageEntry, InsertResult, KnownPackage, StateInfo, WitInterface};
 

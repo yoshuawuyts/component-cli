@@ -1,7 +1,41 @@
 use oci_client::Reference;
+use oci_client::manifest::OciImageManifest;
+use std::path::Path;
 
 use crate::network::Client;
 use crate::storage::{ImageEntry, InsertResult, KnownPackage, StateInfo, Store, WitInterface};
+
+/// Result of a pull operation.
+///
+/// Contains the insert result along with the content digest and manifest
+/// from the pulled image.
+#[derive(Debug, Clone)]
+pub struct PullResult {
+    /// Whether the image was newly inserted or already existed.
+    pub insert_result: InsertResult,
+    /// The content digest of the pulled image (e.g., "sha256:abc123...").
+    pub digest: Option<String>,
+    /// The OCI image manifest.
+    pub manifest: Option<OciImageManifest>,
+}
+
+/// Result of an install operation.
+///
+/// Contains metadata about the installed package for updating
+/// manifest and lockfile entries.
+#[derive(Debug, Clone)]
+pub struct InstallResult {
+    /// The registry hostname (e.g., "ghcr.io").
+    pub registry: String,
+    /// The repository path (e.g., "webassembly/wasi-logging").
+    pub repository: String,
+    /// The tag, if present (e.g., "1.0.0").
+    pub tag: Option<String>,
+    /// The content digest of the image.
+    pub digest: Option<String>,
+    /// The list of vendored file paths.
+    pub vendored_files: Vec<std::path::PathBuf>,
+}
 
 /// A cache on disk
 #[derive(Debug)]
@@ -65,13 +99,13 @@ impl Manager {
     /// # Errors
     ///
     /// Returns an error if offline mode is enabled.
-    pub async fn pull(&self, reference: Reference) -> anyhow::Result<InsertResult> {
+    pub async fn pull(&self, reference: Reference) -> anyhow::Result<PullResult> {
         if self.offline {
             anyhow::bail!("cannot pull packages in offline mode");
         }
 
         let image = self.client.pull(&reference).await?;
-        let result = self.store.insert(&reference, image).await?;
+        let (result, digest, manifest) = self.store.insert(&reference, image).await?;
 
         // Add to known packages when pulling (with tag if present)
         self.store.add_known_package(
@@ -93,7 +127,73 @@ impl Manager {
             }
         }
 
-        Ok(result)
+        Ok(PullResult {
+            insert_result: result,
+            digest,
+            manifest,
+        })
+    }
+
+    /// Hard-link a cached layer to a destination path.
+    ///
+    /// Uses `cacache::hard_link` to create a hard-link from the global cache
+    /// to the specified destination, saving disk space.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the hard-link operation fails (e.g., layer not
+    /// found in cache, or destination path is invalid).
+    pub async fn vendor(&self, layer_digest: &str, dest: &Path) -> anyhow::Result<()> {
+        cacache::hard_link(self.store.state_info.store_dir(), layer_digest, dest).await?;
+        Ok(())
+    }
+
+    /// Install a package from the registry.
+    ///
+    /// This high-level method:
+    /// 1. Pulls the package from the registry (or uses the cache)
+    /// 2. Filters the manifest's layers for `application/wasm` media type
+    /// 3. Hard-links each wasm layer to the vendor directory
+    /// 4. Returns an `InstallResult` with metadata for updating manifest/lockfile
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if pulling, vendoring, or filesystem operations fail.
+    pub async fn install(
+        &self,
+        reference: Reference,
+        vendor_dir: &Path,
+    ) -> anyhow::Result<InstallResult> {
+        let pull_result = self.pull(reference.clone()).await?;
+
+        let mut vendored_files = Vec::new();
+
+        if let Some(ref manifest) = pull_result.manifest {
+            for layer in &manifest.layers {
+                if layer.media_type == "application/wasm" {
+                    // Derive filename from the repository name
+                    let filename = format!("{}.wasm", reference.repository().replace('/', "-"));
+                    let dest = vendor_dir.join(&filename);
+
+                    // Ensure vendor directory exists
+                    tokio::fs::create_dir_all(vendor_dir).await?;
+
+                    // Remove existing file if present (hard-link requires non-existent target)
+                    let _ = tokio::fs::remove_file(&dest).await;
+
+                    self.vendor(&layer.digest, &dest).await?;
+                    vendored_files.push(dest);
+                }
+            }
+        }
+
+        Ok(InstallResult {
+            registry: reference.registry().to_string(),
+            repository: reference.repository().to_string(),
+            tag: reference.tag().map(|s| s.to_string()),
+            digest: pull_result.digest,
+            vendored_files,
+        })
     }
 
     /// List all stored images and their metadata.

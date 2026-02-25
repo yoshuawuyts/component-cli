@@ -6,7 +6,7 @@ use super::config::StateInfo;
 use super::models::{ImageEntry, InsertResult, KnownPackage, Migrations, TagType, WitInterface};
 use super::wit_parser::extract_wit_metadata;
 use futures_concurrency::prelude::*;
-use oci_client::{Reference, client::ImageData};
+use oci_client::{Reference, client::ImageData, manifest::OciImageManifest};
 use rusqlite::Connection;
 
 /// Calculate the total size of a directory recursively
@@ -92,7 +92,7 @@ impl Store {
         &self,
         reference: &Reference,
         image: ImageData,
-    ) -> anyhow::Result<InsertResult> {
+    ) -> anyhow::Result<(InsertResult, Option<String>, Option<OciImageManifest>)> {
         let digest = reference.digest().map(|s| s.to_owned()).or(image.digest);
         let manifest_str = serde_json::to_string(&image.manifest)?;
 
@@ -108,6 +108,8 @@ impl Store {
             &manifest_str,
             size_on_disk,
         )?;
+
+        let manifest = image.manifest.clone();
 
         // Only store layers if this is a new entry
         if result == InsertResult::Inserted {
@@ -133,7 +135,7 @@ impl Store {
                 }
             }
         }
-        Ok(result)
+        Ok((result, digest, manifest))
     }
 
     /// Attempt to extract WIT interface from wasm component bytes.
