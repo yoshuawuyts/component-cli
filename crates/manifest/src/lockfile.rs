@@ -2,6 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
+/// The current revision of the lockfile.
+pub const LOCKFILE_VERSION: u32 = 1;
+
 /// The root lockfile structure for a WASM package.
 ///
 /// The lockfile (`deps/wasm.lock`) is auto-generated and tracks resolved dependencies
@@ -22,12 +25,20 @@ use serde::{Deserialize, Serialize};
 #[must_use]
 pub struct Lockfile {
     /// The lockfile format version.
-    pub version: u32,
+    pub lockfile_version: u32,
 
     /// The list of resolved packages.
-    #[serde(default)]
-    #[serde(rename = "package")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub packages: Vec<Package>,
+}
+
+impl Default for Lockfile {
+    fn default() -> Self {
+        Self {
+            lockfile_version: LOCKFILE_VERSION,
+            packages: Default::default(),
+        }
+    }
 }
 
 /// A resolved package entry in the lockfile.
@@ -91,28 +102,28 @@ mod tests {
     #[test]
     fn test_parse_lockfile() {
         let toml = r#"
-            version = 1
+            lockfile_version = 1
 
-            [[package]]
+            [[packages]]
             name = "wasi:logging"
             version = "1.0.0"
             registry = "ghcr.io/webassembly/wasi-logging"
             digest = "sha256:a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456"
 
-            [[package]]
+            [[packages]]
             name = "wasi:key-value"
             version = "2.0.0"
             registry = "ghcr.io/webassembly/wasi-key-value"
             digest = "sha256:b2c3d4e5f67890123456789012345678901abcdef2345678901abcdef2345678"
 
-            [[package.dependencies]]
+            [[packages.dependencies]]
             name = "wasi:logging"
             version = "1.0.0"
         "#;
 
         let lockfile: Lockfile = toml::from_str(toml).expect("Failed to parse lockfile");
 
-        assert_eq!(lockfile.version, 1);
+        assert_eq!(lockfile.lockfile_version, 1);
         assert_eq!(lockfile.packages.len(), 2);
 
         let logging = &lockfile.packages[0];
@@ -132,7 +143,7 @@ mod tests {
     #[test]
     fn test_serialize_lockfile() {
         let lockfile = Lockfile {
-            version: 1,
+            lockfile_version: 1,
             packages: vec![
                 Package {
                     name: "wasi:logging".to_string(),
@@ -165,9 +176,9 @@ mod tests {
     #[test]
     fn test_package_without_dependencies() {
         let toml = r#"
-            version = 1
+            lockfile_version = 1
 
-            [[package]]
+            [[packages]]
             name = "wasi:logging"
             version = "1.0.0"
             registry = "ghcr.io/webassembly/wasi-logging"

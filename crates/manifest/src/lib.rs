@@ -22,9 +22,9 @@
 //! use wasm_manifest::Lockfile;
 //!
 //! let toml = r#"
-//! version = 1
+//! lockfile_version = 1
 //!
-//! [[package]]
+//! [[packages]]
 //! name = "wasi:logging"
 //! version = "1.0.0"
 //! registry = "ghcr.io/webassembly/wasi-logging"
@@ -42,6 +42,6 @@ mod lockfile;
 mod manifest;
 mod validation;
 
-pub use lockfile::{Lockfile, Package, PackageDependency};
+pub use lockfile::{LOCKFILE_VERSION, Lockfile, Package, PackageDependency};
 pub use manifest::{Dependency, Manifest};
 pub use validation::{ValidationError, validate};

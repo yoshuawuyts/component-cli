@@ -1,6 +1,7 @@
 //! Wasm CLI command
 //!
 
+mod init;
 mod inspect;
 mod local;
 mod package;
@@ -50,6 +51,7 @@ impl Cli {
             Some(Command::Local(opts)) => opts.run()?,
             Some(Command::Package(opts)) => opts.run(self.offline).await?,
             Some(Command::Compose) => todo!(),
+            Some(Command::Init(opts)) => opts.run().await?,
             Some(Command::Self_(opts)) => opts.run().await?,
             None if std::io::stdin().is_terminal() => tui::run(self.offline).await?,
             None => {
@@ -66,6 +68,8 @@ enum Command {
     /// Execute a Wasm Component
     #[command(subcommand)]
     Run,
+    /// Create a new wasm component in an existing directory
+    Init(init::Opts),
     /// Inspect a Wasm Component
     Inspect(inspect::Opts),
     /// Convert a Wasm Component to another format

@@ -64,9 +64,9 @@ impl std::error::Error for ValidationError {}
 /// "#;
 ///
 /// let lockfile_toml = r#"
-/// version = 1
+/// lockfile_version = 1
 ///
-/// [[package]]
+/// [[packages]]
 /// name = "wasi:logging"
 /// version = "1.0.0"
 /// registry = "ghcr.io/webassembly/wasi-logging"
@@ -137,7 +137,7 @@ mod tests {
         let manifest = Manifest { dependencies };
 
         let lockfile = Lockfile {
-            version: 1,
+            lockfile_version: 1,
             packages: vec![
                 Package {
                     name: "wasi:logging".to_string(),
@@ -174,7 +174,7 @@ mod tests {
         let manifest = Manifest { dependencies };
 
         let lockfile = Lockfile {
-            version: 1,
+            lockfile_version: 1,
             packages: vec![
                 Package {
                     name: "wasi:logging".to_string(),
@@ -221,7 +221,7 @@ mod tests {
         let manifest = Manifest { dependencies };
 
         let lockfile = Lockfile {
-            version: 1,
+            lockfile_version: 1,
             packages: vec![
                 Package {
                     name: "wasi:logging".to_string(),
@@ -270,7 +270,7 @@ mod tests {
         };
 
         let lockfile = Lockfile {
-            version: 1,
+            lockfile_version: 1,
             packages: vec![],
         };
 
