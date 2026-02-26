@@ -188,6 +188,22 @@ impl Store {
             return; // Not a valid wasm component, skip
         };
 
+        // Update the image's package_type based on the detected type
+        let package_type = if metadata.is_component {
+            "component"
+        } else {
+            "interface"
+        };
+        if let Err(e) = self.conn.execute(
+            "UPDATE image SET package_type = ?1 WHERE id = ?2",
+            (package_type, image_id),
+        ) {
+            eprintln!(
+                "Warning: Failed to update package_type for image {}: {}",
+                image_id, e
+            );
+        }
+
         // Insert the WIT interface
         let wit_id = match WitInterface::insert(
             &self.conn,
