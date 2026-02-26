@@ -537,6 +537,65 @@ impl Manager {
         self.store.rescan_known_package_tags()
     }
 
+    /// Get a known package by registry and repository.
+    pub fn get_known_package(
+        &self,
+        registry: &str,
+        repository: &str,
+    ) -> anyhow::Result<Option<KnownPackage>> {
+        self.store.get_known_package(registry, repository)
+    }
+
+    /// Index a package from the registry without downloading layers.
+    ///
+    /// Fetches the manifest and config to extract metadata (description from
+    /// OCI annotations), lists all tags, and upserts into the known packages
+    /// table. This is useful for building a search index without storing
+    /// actual wasm content.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if offline mode is enabled or if network operations fail.
+    pub async fn index_package(&self, reference: &Reference) -> anyhow::Result<KnownPackage> {
+        if self.offline {
+            anyhow::bail!("cannot index packages in offline mode");
+        }
+
+        // Fetch manifest and config to extract metadata
+        let (manifest, _digest) = self.client.pull_manifest(reference).await?;
+
+        // Extract description from OCI manifest annotations
+        let description = manifest
+            .annotations
+            .as_ref()
+            .and_then(|a| a.get("org.opencontainers.image.description").cloned());
+
+        // Add the package with its current tag
+        self.store.add_known_package(
+            reference.registry(),
+            reference.repository(),
+            reference.tag(),
+            description.as_deref(),
+        )?;
+
+        // Fetch all tags and store them
+        if let Ok(tags) = self.client.list_tags(reference).await {
+            for tag in tags {
+                self.store.add_known_package(
+                    reference.registry(),
+                    reference.repository(),
+                    Some(&tag),
+                    description.as_deref(),
+                )?;
+            }
+        }
+
+        // Return the indexed package
+        self.store
+            .get_known_package(reference.registry(), reference.repository())?
+            .ok_or_else(|| anyhow::anyhow!("failed to retrieve indexed package"))
+    }
+
     /// Get all WIT interfaces with their associated component references.
     pub fn list_wit_interfaces_with_components(
         &self,
