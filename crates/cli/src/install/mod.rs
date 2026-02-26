@@ -16,7 +16,8 @@ impl Opts {
         let deps = std::path::Path::new("deps");
         let manifest_path = deps.join("wasm.toml");
         let lockfile_path = deps.join("wasm.lock.toml");
-        let vendor_dir = deps.join("vendor/wasm");
+        let wasm_vendor_dir = deps.join("vendor/wasm");
+        let wit_vendor_dir = deps.join("vendor/wit");
 
         // Read existing manifest — error if not found, recommend `wasm init`
         let manifest_str = tokio::fs::read_to_string(&manifest_path)
@@ -52,6 +53,9 @@ impl Opts {
         // Print initial installing message
         let reference_display = self.reference.whole().to_string();
 
+        // Install to wasm vendor dir initially; we'll detect and re-vendor if needed
+        let vendor_dir = &wasm_vendor_dir;
+
         // Install the package with progress reporting
         let result = if offline {
             // No progress bars in offline mode — just print the line
@@ -60,7 +64,7 @@ impl Opts {
                 console::style("Installing").cyan().bold(),
                 reference_display,
             );
-            manager.install(self.reference.clone(), &vendor_dir).await?
+            manager.install(self.reference.clone(), vendor_dir).await?
         } else {
             let (progress_tx, progress_rx) = tokio::sync::mpsc::channel::<ProgressEvent>(64);
             let multi = MultiProgress::new();
@@ -81,7 +85,7 @@ impl Opts {
             let progress_handle = tokio::task::spawn(run_progress_bars(multi, progress_rx));
 
             let result = manager
-                .install_with_progress(self.reference.clone(), &vendor_dir, &progress_tx)
+                .install_with_progress(self.reference.clone(), vendor_dir, &progress_tx)
                 .await;
 
             // Drop the sender to signal the progress task to finish
@@ -101,6 +105,19 @@ impl Opts {
             result?
         };
 
+        // If this is a WIT interface (not a component), re-vendor the files
+        // from wasm/ to wit/
+        if !result.is_component {
+            for file in &result.vendored_files {
+                if let Some(filename) = file.file_name() {
+                    let wit_dest = wit_vendor_dir.join(filename);
+                    tokio::fs::create_dir_all(&wit_vendor_dir).await?;
+                    let _ = tokio::fs::remove_file(&wit_dest).await;
+                    tokio::fs::rename(file, &wit_dest).await?;
+                }
+            }
+        }
+
         // Use the package name from WIT metadata if available,
         // otherwise fall back to the full OCI path (registry/repository).
         // Strip the version suffix (e.g., "@0.2.10") from the package name
@@ -114,33 +131,51 @@ impl Opts {
         // Determine the version from the tag
         let version = result.tag.clone().unwrap_or_default();
 
-        // Add to manifest dependencies (compact format)
+        // Add to manifest (compact format) — route to components or interfaces
         let reference_str = self.reference.whole().to_string();
-        manifest.dependencies.insert(
-            dep_name.clone(),
-            wasm_manifest::Dependency::Compact(reference_str),
-        );
+        let dep = wasm_manifest::Dependency::Compact(reference_str);
+        if result.is_component {
+            manifest.components.insert(dep_name.clone(), dep);
+        } else {
+            manifest.interfaces.insert(dep_name.clone(), dep);
+        }
 
-        // Add to lockfile packages
+        // Add to lockfile — route to components or interfaces
         let registry_path = format!("{}/{}", result.registry, result.repository);
         let digest = result.digest.unwrap_or_default();
 
-        // Check if package already exists in lockfile
-        let existing = lockfile
-            .packages
-            .iter()
-            .position(|p| p.name == dep_name && p.registry == registry_path);
         let package = wasm_manifest::Package {
             name: dep_name.clone(),
             version,
-            registry: registry_path,
+            registry: registry_path.clone(),
             digest,
             dependencies: vec![],
         };
-        if let Some(existing_pkg) = existing.and_then(|idx| lockfile.packages.get_mut(idx)) {
-            *existing_pkg = package;
+
+        if result.is_component {
+            let existing = lockfile
+                .components
+                .iter()
+                .position(|p| p.name == dep_name && p.registry == registry_path);
+            if let Some(existing_pkg) =
+                existing.and_then(|idx| lockfile.components.get_mut(idx))
+            {
+                *existing_pkg = package;
+            } else {
+                lockfile.components.push(package);
+            }
         } else {
-            lockfile.packages.push(package);
+            let existing = lockfile
+                .interfaces
+                .iter()
+                .position(|p| p.name == dep_name && p.registry == registry_path);
+            if let Some(existing_pkg) =
+                existing.and_then(|idx| lockfile.interfaces.get_mut(idx))
+            {
+                *existing_pkg = package;
+            } else {
+                lockfile.interfaces.push(package);
+            }
         }
 
         // Write updated manifest

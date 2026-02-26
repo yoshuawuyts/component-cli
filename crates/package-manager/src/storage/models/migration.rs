@@ -55,6 +55,11 @@ const MIGRATIONS: &[MigrationDef] = &[
         name: "wit_interface_unique",
         sql: include_str!("../migrations/09_wit_interface_unique.sql"),
     },
+    MigrationDef {
+        version: 10,
+        name: "package_type",
+        sql: include_str!("../migrations/10_package_type.sql"),
+    },
 ];
 
 /// Information about the current migration state.

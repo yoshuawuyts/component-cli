@@ -39,6 +39,8 @@ pub struct InstallResult {
     pub package_name: Option<String>,
     /// The list of vendored file paths.
     pub vendored_files: Vec<std::path::PathBuf>,
+    /// Whether this package is a compiled component (`true`) or a WIT interface (`false`).
+    pub is_component: bool,
 }
 
 /// A cache on disk
@@ -319,6 +321,7 @@ impl Manager {
 
         let mut vendored_files = Vec::new();
         let mut package_name = None;
+        let mut is_component = true; // Default to component
 
         // Pre-compute filename parts from the OCI reference and image digest.
         // We use the image digest (not layer digest) so it matches the lockfile.
@@ -353,6 +356,7 @@ impl Manager {
                         && let Some(metadata) = extract_wit_metadata(&data)
                     {
                         package_name = metadata.package_name;
+                        is_component = metadata.is_component;
                     }
                 }
             }
@@ -365,6 +369,7 @@ impl Manager {
             digest: pull_result.digest,
             package_name,
             vendored_files,
+            is_component,
         })
     }
 
@@ -390,6 +395,7 @@ impl Manager {
 
         let mut vendored_files = Vec::new();
         let mut package_name = None;
+        let mut is_component = true; // Default to component
 
         // Pre-compute filename parts from the OCI reference and image digest.
         let registry_part = reference.registry().replace('.', "-");
@@ -423,6 +429,7 @@ impl Manager {
                         && let Some(metadata) = extract_wit_metadata(&data)
                     {
                         package_name = metadata.package_name;
+                        is_component = metadata.is_component;
                     }
                 }
             }
@@ -437,6 +444,7 @@ impl Manager {
             digest: pull_result.digest,
             package_name,
             vendored_files,
+            is_component,
         })
     }
     /// List all stored images and their metadata.

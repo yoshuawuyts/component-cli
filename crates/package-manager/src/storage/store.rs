@@ -107,6 +107,7 @@ impl Store {
             digest.as_deref(),
             &manifest_str,
             size_on_disk,
+            "component",
         )?;
 
         let manifest = image.manifest.clone();
@@ -157,6 +158,7 @@ impl Store {
             digest,
             &manifest_str,
             size_on_disk,
+            "component",
         )
     }
 

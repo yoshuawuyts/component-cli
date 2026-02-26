@@ -7,6 +7,8 @@ pub(crate) struct WitMetadata {
     pub import_count: i32,
     pub export_count: i32,
     pub wit_text: String,
+    /// Whether this is a compiled component (`true`) or a WIT interface (`false`).
+    pub is_component: bool,
 }
 
 /// Attempt to extract WIT metadata from wasm component bytes.
@@ -16,7 +18,7 @@ pub(crate) fn extract_wit_metadata(wasm_bytes: &[u8]) -> Option<WitMetadata> {
     let decoded = decode(wasm_bytes).ok()?;
 
     // Extract metadata based on decoded type
-    let (package_name, world_name, import_count, export_count) = match &decoded {
+    let (package_name, world_name, import_count, export_count, is_component) = match &decoded {
         DecodedWasm::WitPackage(resolve, package_id) => {
             let package = resolve
                 .packages
@@ -32,7 +34,7 @@ pub(crate) fn extract_wit_metadata(wasm_bytes: &[u8]) -> Option<WitMetadata> {
                 (name.clone(), w.imports.len() as i32, w.exports.len() as i32)
             });
             let (world_name, imports, exports) = world.unwrap_or((package.name.name.clone(), 0, 0));
-            (Some(pkg_name), world_name, imports, exports)
+            (Some(pkg_name), world_name, imports, exports, false)
         }
         DecodedWasm::Component(resolve, world_id) => {
             let world = resolve
@@ -49,6 +51,7 @@ pub(crate) fn extract_wit_metadata(wasm_bytes: &[u8]) -> Option<WitMetadata> {
                 world.name.clone(),
                 world.imports.len() as i32,
                 world.exports.len() as i32,
+                true,
             )
         }
     };
@@ -62,6 +65,7 @@ pub(crate) fn extract_wit_metadata(wasm_bytes: &[u8]) -> Option<WitMetadata> {
         import_count,
         export_count,
         wit_text,
+        is_component,
     })
 }
 
