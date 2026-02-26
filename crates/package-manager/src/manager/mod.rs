@@ -561,46 +561,46 @@ impl Manager {
             anyhow::bail!("cannot index packages in offline mode");
         }
 
-        // Fetch manifest and config to extract metadata
-        let (manifest, _digest) = self.client.pull_manifest(reference).await?;
+        // Discover available tags first — the reference may not carry a valid
+        // tag (e.g. the default "latest" might not exist).
+        let tags = self.client.list_tags(reference).await?;
+        anyhow::ensure!(!tags.is_empty(), "no tags found for {}/{}", reference.registry(), reference.repository());
 
-        // Extract description from OCI manifest annotations
+        // Pick the tag to use for pulling metadata: prefer the tag on the
+        // reference if it exists in the remote, otherwise fall back to the
+        // first available tag.
+        let meta_tag = reference
+            .tag()
+            .filter(|t| tags.iter().any(|remote| remote == *t))
+            .unwrap_or_else(|| tags.first().expect("tags verified non-empty"));
+
+        // Build a reference with the chosen tag so we can pull its manifest.
+        let meta_ref: Reference = format!(
+            "{}/{}:{}",
+            reference.registry(),
+            reference.repository(),
+            meta_tag
+        )
+        .parse()?;
+
+        // Fetch manifest to extract metadata (e.g. description).
+        let (manifest, _digest) = self.client.pull_manifest(&meta_ref).await?;
         let description = manifest
             .annotations
             .as_ref()
             .and_then(|a| a.get("org.opencontainers.image.description").cloned());
 
-        // Add the package with its current tag
-        self.store.add_known_package(
-            reference.registry(),
-            reference.repository(),
-            reference.tag(),
-            description.as_deref(),
-        )?;
-
-        // Fetch all tags and store them
-        match self.client.list_tags(reference).await {
-            Ok(tags) => {
-                for tag in tags {
-                    self.store.add_known_package(
-                        reference.registry(),
-                        reference.repository(),
-                        Some(&tag),
-                        description.as_deref(),
-                    )?;
-                }
-            }
-            Err(e) => {
-                eprintln!(
-                    "Warning: Failed to list tags for {}/{}: {}",
-                    reference.registry(),
-                    reference.repository(),
-                    e
-                );
-            }
+        // Store every discovered tag.
+        for tag in &tags {
+            self.store.add_known_package(
+                reference.registry(),
+                reference.repository(),
+                Some(tag),
+                description.as_deref(),
+            )?;
         }
 
-        // Return the indexed package
+        // Return the indexed package.
         self.store
             .get_known_package(reference.registry(), reference.repository())?
             .ok_or_else(|| anyhow::anyhow!("failed to retrieve indexed package"))

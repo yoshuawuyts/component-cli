@@ -23,7 +23,7 @@ bind = "0.0.0.0:8080"
 
 [[packages]]
 registry = "ghcr.io"
-repository = "bytecodealliance/sample-wasi-http-rust"
+repository = "bytecodealliance/sample-wasi-http-rust/sample-wasi-http-rust"
 
 [[packages]]
 registry = "ghcr.io"
