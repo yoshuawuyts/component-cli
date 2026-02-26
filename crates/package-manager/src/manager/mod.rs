@@ -579,14 +579,24 @@ impl Manager {
         )?;
 
         // Fetch all tags and store them
-        if let Ok(tags) = self.client.list_tags(reference).await {
-            for tag in tags {
-                self.store.add_known_package(
+        match self.client.list_tags(reference).await {
+            Ok(tags) => {
+                for tag in tags {
+                    self.store.add_known_package(
+                        reference.registry(),
+                        reference.repository(),
+                        Some(&tag),
+                        description.as_deref(),
+                    )?;
+                }
+            }
+            Err(e) => {
+                eprintln!(
+                    "Warning: Failed to list tags for {}/{}: {}",
                     reference.registry(),
                     reference.repository(),
-                    Some(&tag),
-                    description.as_deref(),
-                )?;
+                    e
+                );
             }
         }
 

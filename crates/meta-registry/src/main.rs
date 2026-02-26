@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use clap::Parser;
-use tracing::info;
+use tracing::{error, info};
 use wasm_package_manager::Manager;
 
 use wasm_meta_registry::{Config, Indexer, router};
@@ -39,21 +39,36 @@ async fn main() -> anyhow::Result<()> {
     let server_manager = Manager::open().await?;
     let state = Arc::new(std::sync::Mutex::new(server_manager));
 
-    // Start background indexer on a LocalSet (Manager is !Sync)
+    // Start background indexer on a dedicated thread (Manager is !Sync)
     let indexer_config = config.clone();
-    std::thread::spawn(move || {
+    let indexer_handle = std::thread::spawn(move || {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("failed to build tokio runtime for indexer");
         let local = tokio::task::LocalSet::new();
         local.block_on(&rt, async move {
-            let manager = Manager::open()
-                .await
-                .expect("failed to open manager for indexer");
+            let manager = match Manager::open().await {
+                Ok(m) => m,
+                Err(e) => {
+                    error!(error = %e, "Failed to open manager for indexer");
+                    return;
+                }
+            };
             let indexer = Indexer::new(indexer_config, manager);
             indexer.run().await;
         });
+    });
+
+    // Monitor indexer thread health
+    tokio::spawn(async move {
+        loop {
+            if indexer_handle.is_finished() {
+                error!("Indexer thread has stopped unexpectedly");
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        }
     });
 
     // Build and start HTTP server
