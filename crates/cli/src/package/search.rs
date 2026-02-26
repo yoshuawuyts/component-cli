@@ -4,7 +4,11 @@ use anyhow::Result;
 use comfy_table::{ContentArrangement, Table};
 use wasm_package_manager::{Manager, SyncResult};
 
-use crate::config::CliConfig;
+/// Default meta-registry URL.
+const REGISTRY_URL: &str = "http://localhost:8080";
+
+/// Default sync interval in seconds (1 hour).
+const SYNC_INTERVAL: u64 = 3600;
 
 /// Search for packages across configured registries.
 #[derive(clap::Args)]
@@ -25,20 +29,19 @@ impl SearchOpts {
             Manager::open().await?
         };
 
-        // Attempt to sync from meta-registry if configured and not offline.
+        // Attempt to sync from meta-registry if not offline.
         if !offline {
-            let config = CliConfig::load()?;
-            if let Some(ref url) = config.registry.url {
-                let interval = config.registry.sync_interval();
-                match manager.sync_from_meta_registry(url, interval, false).await {
-                    Ok(SyncResult::Degraded { error }) => {
-                        eprintln!("warning: registry sync failed: {error}");
-                    }
-                    Err(e) => {
-                        eprintln!("warning: {e}");
-                    }
-                    _ => {}
+            match manager
+                .sync_from_meta_registry(REGISTRY_URL, SYNC_INTERVAL, false)
+                .await
+            {
+                Ok(SyncResult::Degraded { error }) => {
+                    eprintln!("warning: registry sync failed: {error}");
                 }
+                Err(e) => {
+                    eprintln!("warning: {e}");
+                }
+                _ => {}
             }
         }
 

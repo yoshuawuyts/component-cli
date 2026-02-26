@@ -1,7 +1,6 @@
 //! Wasm CLI command
 //!
 
-mod config;
 mod init;
 mod inspect;
 mod install;

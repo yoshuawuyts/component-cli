@@ -25,10 +25,8 @@ bytesize = { workspace = true }
 clap = { workspace = true }
 comfy-table = { workspace = true }
 console = { workspace = true }
-dirs = { workspace = true }
 indicatif = { workspace = true }
 ratatui = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 termcolor = { workspace = true }
 tokio = { workspace = true }
