@@ -1,8 +1,8 @@
 use anyhow::Result;
-use wasm_package_manager::{ImageView, InsertResult, Reference, format_size};
-use wasm_package_manager::manager::Manager;
-use wasm_package_manager::oci::InsertResult;
 use comfy_table::{ContentArrangement, Table};
+use wasm_package_manager::manager::Manager;
+use wasm_package_manager::oci::{ImageView, InsertResult};
+use wasm_package_manager::{Reference, format_size};
 
 mod search;
 mod sync;
