@@ -36,6 +36,10 @@
 //! }
 //! ```
 
+pub mod components;
+pub mod interfaces;
+pub mod oci;
+
 mod config;
 mod credential_helper;
 mod manager;
