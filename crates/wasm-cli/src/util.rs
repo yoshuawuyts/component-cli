@@ -1,11 +1,22 @@
 use std::path::Path;
 
 use wasm_manifest::Lockfile;
+use wasm_package_manager::Reference;
+
+/// Parse an OCI reference string, stripping the optional `oci://` scheme prefix.
+///
+/// Accepts both bare references (e.g. `ghcr.io/owner/repo:tag`) and
+/// references with the `oci://` scheme (e.g. `oci://ghcr.io/owner/repo:tag`).
+pub(crate) fn parse_reference(s: &str) -> Result<Reference, String> {
+    let s = s.strip_prefix("oci://").unwrap_or(s);
+    s.parse::<Reference>().map_err(|e| e.to_string())
+}
 
 /// Write a lockfile to disk with a header comment.
 ///
 /// The lockfile is prefixed with a comment indicating it is auto-generated
 /// and should not be manually edited.
+#[allow(dead_code)]
 pub(crate) async fn write_lock_file<P: AsRef<Path>>(
     path: P,
     lock: &Lockfile,

@@ -116,7 +116,7 @@ async fn run_manager(
                 sender.send(ManagerEvent::StateInfo(state_info)).await.ok();
             }
             AppEvent::Pull(reference_str) => {
-                let result = match reference_str.parse::<Reference>() {
+                let result = match crate::util::parse_reference(&reference_str) {
                     Ok(reference) => {
                         let (progress_tx, mut progress_rx) =
                             tokio::sync::mpsc::channel::<ProgressEvent>(64);
@@ -148,7 +148,7 @@ async fn run_manager(
                 }
             }
             AppEvent::Delete(reference_str) => {
-                let result = match reference_str.parse::<Reference>() {
+                let result = match crate::util::parse_reference(&reference_str) {
                     Ok(reference) => manager
                         .delete(reference)
                         .await

@@ -7,7 +7,8 @@ use crate::util::write_lock_file;
 /// Options for the `install` command.
 #[derive(clap::Parser)]
 pub(crate) struct Opts {
-    /// The OCI reference to install (e.g., ghcr.io/webassembly/wasi-logging:1.0.0)
+    /// The OCI reference to install (e.g., ghcr.io/webassembly/wasi-logging:1.0.0 or oci://ghcr.io/webassembly/wasi-logging:1.0.0)
+    #[arg(value_parser = crate::util::parse_reference)]
     reference: Reference,
 }
 

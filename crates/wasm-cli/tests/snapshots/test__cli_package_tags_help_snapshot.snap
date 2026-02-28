@@ -8,7 +8,7 @@ Usage: wasm package tags [OPTIONS] <REFERENCE>
 
 Arguments:
   <REFERENCE>
-          The reference to list tags for (e.g., ghcr.io/example/component)
+          The reference to list tags for (e.g., ghcr.io/example/component or oci://ghcr.io/example/component)
 
 Options:
       --signatures

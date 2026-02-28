@@ -23,12 +23,14 @@ pub(crate) enum Opts {
 #[derive(clap::Args)]
 pub(crate) struct PullOpts {
     /// The reference to pull
+    #[arg(value_parser = crate::util::parse_reference)]
     reference: Reference,
 }
 
 #[derive(clap::Args)]
 pub(crate) struct TagsOpts {
-    /// The reference to list tags for (e.g., ghcr.io/example/component)
+    /// The reference to list tags for (e.g., ghcr.io/example/component or oci://ghcr.io/example/component)
+    #[arg(value_parser = crate::util::parse_reference)]
     reference: Reference,
     /// Include signature tags (ending in .sig)
     #[arg(long)]

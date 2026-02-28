@@ -6,3 +6,4 @@
 
 /// TUI module for terminal user interface
 pub mod tui;
+pub(crate) mod util;
