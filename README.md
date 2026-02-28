@@ -49,14 +49,16 @@ $ cargo add wasm
 ## Using `wasm`
 
 ```bash
-wasm                            # launch interactive TUI
-wasm inspect file.wasm          # inspect a Wasm Component
-wasm local list                 # list local WASM files in current directory
-wasm package pull ghcr.io/...   # pull a package from a registry
-wasm package push ghcr.io/...   # push a package to a registry
-wasm package list               # list installed packages
-wasm self state                 # show storage state info
-wasm self clean                 # clean up storage
+wasm                              # launch interactive TUI
+wasm inspect file.wasm            # inspect a Wasm Component
+wasm local list                   # list local WASM files in current directory
+wasm registry pull ghcr.io/...    # pull a package from a registry
+wasm registry list                # list installed packages
+wasm registry search <query>      # search for packages across registries
+wasm registry known               # list all known packages
+wasm registry delete ghcr.io/...  # delete a package from the local store
+wasm self state                   # show storage state info
+wasm self clean                   # clean up storage
 ```
 
 ### Shell Completions
