@@ -266,7 +266,12 @@ impl Manager {
 
                 // Store the layer
                 self.store
-                    .insert_layer(&layer_descriptor.digest, &layer_data, image_id)
+                    .insert_layer(
+                        &layer_descriptor.digest,
+                        &layer_data,
+                        image_id,
+                        index as i32,
+                    )
                     .await?;
 
                 let _ = progress_tx.send(ProgressEvent::LayerStored { index }).await;
@@ -584,14 +589,6 @@ impl Manager {
         } else {
             Ok(Vec::new())
         }
-    }
-
-    /// Re-scan known package tags to update derived data (e.g., tag types).
-    /// This should be called after migrations that affect tag classification logic
-    /// (e.g., when tag type rules change from .sig/.att suffixes).
-    /// Returns the number of tags that were updated.
-    pub fn rescan_known_package_tags(&self) -> anyhow::Result<usize> {
-        self.store.rescan_known_package_tags()
     }
 
     /// Get a known package by registry and repository.

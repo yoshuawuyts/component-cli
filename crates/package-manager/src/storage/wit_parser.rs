@@ -1,10 +1,17 @@
 use wit_parser::decoding::{DecodedWasm, decode};
 
 /// Metadata extracted from a WIT component.
+///
+/// Note: `world_name`, `import_count`, and `export_count` are extracted
+/// but not yet consumed. They will be used when the WIT world/Wasm
+/// component tables are populated in a future PR.
 pub(crate) struct WitMetadata {
     pub package_name: Option<String>,
+    #[allow(dead_code)]
     pub world_name: String,
+    #[allow(dead_code)]
     pub import_count: i32,
+    #[allow(dead_code)]
     pub export_count: i32,
     pub wit_text: String,
 }

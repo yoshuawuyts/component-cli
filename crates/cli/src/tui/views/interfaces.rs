@@ -108,7 +108,7 @@ impl StatefulWidget for InterfacesView<'_> {
 
 impl InterfacesView<'_> {
     fn render_list(&self, area: Rect, buf: &mut Buffer, state: &mut InterfacesViewState) {
-        let header = Row::new(vec!["Package", "Component", "World", "Imports", "Exports"])
+        let header = Row::new(vec!["Package", "Version", "Component"])
             .style(Style::default().bold())
             .bottom_margin(1);
 
@@ -117,27 +117,17 @@ impl InterfacesView<'_> {
             .iter()
             .map(|(interface, component_ref)| {
                 Row::new(vec![
-                    interface
-                        .package_name
-                        .clone()
-                        .unwrap_or_else(|| "<unknown>".to_string()),
+                    interface.package_name.clone(),
+                    interface.version.clone().unwrap_or_else(|| "-".to_string()),
                     component_ref.clone(),
-                    interface
-                        .world_name
-                        .clone()
-                        .unwrap_or_else(|| "<unknown>".to_string()),
-                    interface.import_count.to_string(),
-                    interface.export_count.to_string(),
                 ])
             })
             .collect();
 
         let widths = [
-            Constraint::Percentage(25),
-            Constraint::Percentage(30),
+            Constraint::Percentage(35),
             Constraint::Percentage(20),
-            Constraint::Length(10),
-            Constraint::Length(10),
+            Constraint::Percentage(45),
         ];
 
         let table = Table::new(rows, widths)
@@ -174,11 +164,9 @@ impl InterfacesView<'_> {
 
         // Header with component info
         let header_text = format!(
-            "Package: {}  │  World: {}  │  Imports: {}  │  Exports: {}",
-            interface.package_name.as_deref().unwrap_or("<unknown>"),
-            interface.world_name.as_deref().unwrap_or("<unknown>"),
-            interface.import_count,
-            interface.export_count
+            "Package: {}  │  Version: {}",
+            interface.package_name,
+            interface.version.as_deref().unwrap_or("-"),
         );
         let header = Paragraph::new(header_text)
             .style(Style::default().bold())
@@ -186,8 +174,8 @@ impl InterfacesView<'_> {
         header.render(chunks[0], buf);
 
         // WIT content with scrolling
-        let wit_lines: Vec<Line> = interface
-            .wit_text
+        let wit_source = interface.wit_text.as_deref().unwrap_or("<no WIT text>");
+        let wit_lines: Vec<Line> = wit_source
             .lines()
             .enumerate()
             .map(|(i, line)| {
