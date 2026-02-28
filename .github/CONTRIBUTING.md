@@ -32,7 +32,7 @@ changes meet the project's quality standards.
 ### Database Schema & Migrations
 
 The database schema is defined in a single source-of-truth file:
-`crates/package-manager/src/storage/schema.sql`.
+`crates/wasm-package-manager/src/storage/schema.sql`.
 
 When changing the database schema, edit `schema.sql` then run:
 
@@ -178,5 +178,5 @@ $ INSTA_UPDATE=always cargo test --package wasm
 ### Best Practices for Snapshot Tests
 
 1. **Review changes carefully**: Always review snapshot changes before accepting them to ensure they match your expected output.
-2. **Keep snapshots readable**: Snapshot files are stored in `crates/cli/tests/snapshots/` and are version-controlled. Keep the rendered output clean and readable.
+2. **Keep snapshots readable**: Snapshot files are stored in `crates/wasm-cli/tests/snapshots/` and are version-controlled. Keep the rendered output clean and readable.
 3. **Test different states**: Include tests for empty states, populated states, and interactive states (e.g., filter active, search active).

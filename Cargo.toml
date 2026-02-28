@@ -2,10 +2,10 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/cli",
-    "crates/manifest",
-    "crates/meta-registry",
-    "crates/package-manager",
+    "crates/wasm-cli",
+    "crates/wasm-manifest",
+    "crates/wasm-meta-registry",
+    "crates/wasm-package-manager",
     "crates/wasm-detector",
     "crates/xtask",
 ]
@@ -37,9 +37,9 @@ unneeded_field_pattern = "deny"
 [workspace.dependencies]
 
 # local dependencies
-wasm-manifest = { path = "crates/manifest", version = "0.1.0" }
-wasm-meta-registry = { path = "crates/meta-registry", version = "0.1.0" }
-wasm-package-manager = { path = "crates/package-manager", version = "0.1.0" }
+wasm-manifest = { path = "crates/wasm-manifest", version = "0.1.0" }
+wasm-meta-registry = { path = "crates/wasm-meta-registry", version = "0.1.0" }
+wasm-package-manager = { path = "crates/wasm-package-manager", version = "0.1.0" }
 wasm-detector = { path = "crates/wasm-detector", version = "0.1.0" }
 
 # shared dependencies

@@ -1,0 +1,29 @@
+---
+source: crates/wasm-cli/tests/snapshot.rs
+expression: output
+---
+docker.io/library/hello-world
+
+────────────────────────────────────────────────────────────────────────────────
+Registry: docker.io
+Repository: library/hello-world
+Digest: sha256:digest123
+Size: 128.00 KB
+
+Manifest:
+  Schema Version: 2
+  Media Type: application/vnd.docker.distribution.manifest.v2+json
+  Config Media Type: application/vnd.oci.image.config.v1+json
+  Config Size: 100 B
+
+Layers: 1 layer(s)
+  [1] application/wasm (1.00 KB)
+
+
+
+
+
+
+
+
+ Esc  Back

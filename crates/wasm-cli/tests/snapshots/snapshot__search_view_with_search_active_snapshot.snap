@@ -1,0 +1,19 @@
+---
+source: crates/wasm-cli/tests/snapshot.rs
+expression: output
+---
+┌ Search ──────────────────────────────────────────────────────────────────────────────────────────┐
+│wasi_                                                                                             │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+                               No packages found matching your search.
+
+
+
+
+
+
+
+
+
+
+ /  Search   p  Pull selected   r  Refresh tags   Enter  View details   Esc  Clear

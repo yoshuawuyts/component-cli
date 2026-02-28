@@ -1,0 +1,8 @@
+---
+source: crates/wasm-cli/tests/snapshot.rs
+expression: output
+---
+                  No WIT interfaces found.
+
+  Pull a WebAssembly component to see its interfaces here.
+ Press [2] to go to Components, then [p] to pull a package.

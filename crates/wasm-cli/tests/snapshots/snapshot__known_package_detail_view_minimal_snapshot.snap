@@ -1,0 +1,19 @@
+---
+source: crates/wasm-cli/tests/snapshot.rs
+expression: output
+---
+docker.io/library/minimal
+
+────────────────────────────────────────────────────────────────────────────────
+Registry: docker.io
+Repository: library/minimal
+
+Tags: 1 tag(s)
+  • latest
+
+Last Seen: 2024-02-01T12:00:00Z
+Created At: 2024-02-01T12:00:00Z
+
+
+
+ Esc  Back

@@ -1,0 +1,16 @@
+---
+source: crates/wasm-cli/tests/snapshot.rs
+expression: output
+---
+Migrations
+  Current:  3/3
+
+Configuration
+  Config file: /home/user/.config/wasm/config.toml (not created)
+
+
+Storage
+Executable       /usr/local/bin/wasm                            -
+Data storage     /home/user/.local/share/wasm                   -
+Content store    /home/user/.local/share/wasm/store             10.00 MB
+Image metadata   /home/user/.local/share/wasm/db/metadata.db3   64.00 KB
