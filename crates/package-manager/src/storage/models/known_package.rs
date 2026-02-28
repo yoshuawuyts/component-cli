@@ -64,15 +64,16 @@ impl KnownPackage {
         let repo_id = OciRepository::upsert(conn, registry, repository)?;
 
         // Store description as the oci_description on the first manifest, if any.
-        if let Some(desc) = description {
-            conn.execute(
+        if let Some(desc) = description
+            && let Err(e) = conn.execute(
                 "UPDATE oci_manifest SET oci_description = ?1
                  WHERE oci_repository_id = ?2
                    AND oci_description IS NULL
                  LIMIT 1",
                 rusqlite::params![desc, repo_id],
             )
-            .ok();
+        {
+            eprintln!("Warning: Failed to update description for repo {repo_id}: {e}");
         }
 
         // If a tag was provided and a manifest exists that it could reference,
@@ -90,17 +91,17 @@ impl KnownPackage {
                 )
                 .ok();
 
-            if let Some(digest) = digest {
-                // Best-effort: ignore failures (e.g. FK violations when the
-                // manifest was concurrently deleted).
-                let _ = conn.execute(
+            if let Some(digest) = digest
+                && let Err(e) = conn.execute(
                     "INSERT INTO oci_tag (oci_repository_id, tag, manifest_digest)
                      VALUES (?1, ?2, ?3)
                      ON CONFLICT(oci_repository_id, tag) DO UPDATE SET
                          manifest_digest = ?3,
                          updated_at = CURRENT_TIMESTAMP",
                     rusqlite::params![repo_id, tag, digest],
-                );
+                )
+            {
+                eprintln!("Warning: Failed to upsert tag '{tag}' for repo {repo_id}: {e}");
             }
         }
 

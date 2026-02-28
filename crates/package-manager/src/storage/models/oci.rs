@@ -57,8 +57,7 @@ pub struct OciRepository {
 impl OciRepository {
     /// Returns the primary key.
     #[must_use]
-    #[allow(dead_code, unreachable_pub)]
-    pub fn id(&self) -> i64 {
+    pub(crate) fn id(&self) -> i64 {
         self.id
     }
 

@@ -76,8 +76,14 @@ impl ImageEntry {
             let Some(json) = raw_json else {
                 continue;
             };
-            let Ok(manifest) = serde_json::from_str::<OciImageManifest>(&json) else {
-                continue;
+            let manifest = match serde_json::from_str::<OciImageManifest>(&json) {
+                Ok(m) => m,
+                Err(e) => {
+                    eprintln!(
+                        "Warning: Skipping manifest {digest} in {registry}/{repository}: {e}"
+                    );
+                    continue;
+                }
             };
             entries.push(ImageEntry {
                 id,
