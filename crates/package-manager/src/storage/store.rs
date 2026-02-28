@@ -214,30 +214,23 @@ impl Store {
             );
         }
 
-        // Insert the WIT interface
-        let wit_id = match WitInterface::insert(
-            &self.conn,
-            &metadata.wit_text,
-            metadata.package_name.as_deref(),
-            Some(&metadata.world_name),
-            metadata.import_count,
-            metadata.export_count,
-        ) {
-            Ok(id) => id,
-            Err(e) => {
-                eprintln!(
-                    "Warning: Failed to insert WIT interface for image {}: {}",
-                    image_id, e
-                );
-                return;
-            }
+        // Insert the WIT interface (best-effort; skip if no package name)
+        let Some(package_name) = metadata.package_name.as_deref() else {
+            return;
         };
 
-        // Link to image
-        if let Err(e) = WitInterface::link_to_image(&self.conn, image_id, wit_id) {
+        if let Err(e) = WitInterface::insert(
+            &self.conn,
+            package_name,
+            None,
+            None,
+            Some(&metadata.wit_text),
+            None,
+            None,
+        ) {
             eprintln!(
-                "Warning: Failed to link WIT interface {} to image {}: {}",
-                wit_id, image_id, e
+                "Warning: Failed to insert WIT interface for image {}: {}",
+                image_id, e
             );
         }
     }

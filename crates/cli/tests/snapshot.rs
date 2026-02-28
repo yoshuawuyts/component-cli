@@ -117,11 +117,10 @@ fn test_interfaces_view_populated_snapshot() {
         (
             WitInterface::new_for_testing(
                 1,
-                Some("wasi:http@0.2.0".to_string()),
-                "package wasi:http@0.2.0;\n\nworld proxy {\n  import wasi:http/types;\n  export wasi:http/handler;\n}".to_string(),
-                Some("proxy".to_string()),
-                1,
-                1,
+                "wasi:http".to_string(),
+                Some("0.2.0".to_string()),
+                None,
+                Some("package wasi:http@0.2.0;\n\nworld proxy {\n  import wasi:http/types;\n  export wasi:http/handler;\n}".to_string()),
                 "2024-01-15T10:30:00Z".to_string(),
             ),
             "ghcr.io/example/http-proxy:v1.0.0".to_string(),
@@ -129,11 +128,10 @@ fn test_interfaces_view_populated_snapshot() {
         (
             WitInterface::new_for_testing(
                 2,
-                Some("wasi:cli@0.2.0".to_string()),
-                "package wasi:cli@0.2.0;\n\nworld command {\n  import wasi:cli/stdin;\n  import wasi:cli/stdout;\n  export run;\n}".to_string(),
-                Some("command".to_string()),
-                2,
-                1,
+                "wasi:cli".to_string(),
+                Some("0.2.0".to_string()),
+                None,
+                Some("package wasi:cli@0.2.0;\n\nworld command {\n  import wasi:cli/stdin;\n  import wasi:cli/stdout;\n  export run;\n}".to_string()),
                 "2024-01-16T11:20:00Z".to_string(),
             ),
             "ghcr.io/example/cli-tool:latest".to_string(),

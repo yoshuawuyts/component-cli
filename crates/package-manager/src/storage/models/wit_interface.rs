@@ -1,147 +1,172 @@
 use rusqlite::Connection;
 
-/// A WIT interface extracted from a WebAssembly component.
+/// A WIT interface package stored in the database.
+///
+/// Each row represents a unique (package_name, version, oci_layer_id) tuple.
+/// The record is content-addressable: inserting a duplicate is a no-op.
 #[derive(Debug, Clone)]
 pub struct WitInterface {
+    #[allow(dead_code)]
     id: i64,
-    /// The package name (e.g., "wasi:http@0.2.0")
-    pub package_name: Option<String>,
-    /// The full WIT text representation
-    pub wit_text: String,
-    /// The world name if available
-    pub world_name: Option<String>,
-    /// Number of imports
-    pub import_count: i32,
-    /// Number of exports
-    pub export_count: i32,
-    /// When this was created
+    /// The WIT package name (e.g. "wasi:http").
+    pub package_name: String,
+    /// Semver version string, if known.
+    pub version: Option<String>,
+    /// Human-readable description of the interface.
+    pub description: Option<String>,
+    /// Full WIT text representation, when available.
+    pub wit_text: Option<String>,
+    /// OCI manifest this interface was extracted from.
+    pub oci_manifest_id: Option<i64>,
+    /// OCI layer this interface was extracted from.
+    pub oci_layer_id: Option<i64>,
+    /// When this row was created.
     pub created_at: String,
 }
 
 impl WitInterface {
-    /// Returns the ID of this WIT interface.
+    /// Returns the primary-key ID of this WIT interface.
     #[must_use]
     pub fn id(&self) -> i64 {
         self.id
     }
 
-    /// Create a new WitInterface for testing purposes
-    #[must_use]
-    pub fn new_for_testing(
-        id: i64,
-        package_name: Option<String>,
-        wit_text: String,
-        world_name: Option<String>,
-        import_count: i32,
-        export_count: i32,
-        created_at: String,
-    ) -> Self {
-        Self {
-            id,
-            package_name,
-            wit_text,
-            world_name,
-            import_count,
-            export_count,
-            created_at,
-        }
-    }
-
     /// Insert a new WIT interface and return its ID.
-    /// Uses atomic `INSERT ... ON CONFLICT` for content-addressable storage.
-    /// If the same WIT text already exists, returns existing ID.
+    ///
+    /// Uses `INSERT … ON CONFLICT DO NOTHING` followed by a `SELECT` so that
+    /// the caller always receives the canonical row ID for the given
+    /// (package_name, version, oci_layer_id) triple.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn insert(
         conn: &Connection,
-        wit_text: &str,
-        package_name: Option<&str>,
-        world_name: Option<&str>,
-        import_count: i32,
-        export_count: i32,
+        package_name: &str,
+        version: Option<&str>,
+        description: Option<&str>,
+        wit_text: Option<&str>,
+        oci_manifest_id: Option<i64>,
+        oci_layer_id: Option<i64>,
     ) -> anyhow::Result<i64> {
-        // Use atomic upsert to prevent race conditions
-        // First try to insert, on conflict (same wit_text) do nothing
         conn.execute(
-            "INSERT INTO wit_interface (wit_text, package_name, world_name, import_count, export_count) 
-             VALUES (?1, ?2, ?3, ?4, ?5)
-             ON CONFLICT(wit_text) DO NOTHING",
-            (wit_text, package_name, world_name, import_count, export_count),
+            "INSERT INTO wit_interface
+                 (package_name, version, description, wit_text, oci_manifest_id, oci_layer_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT DO NOTHING",
+            rusqlite::params![
+                package_name,
+                version,
+                description,
+                wit_text,
+                oci_manifest_id,
+                oci_layer_id,
+            ],
         )?;
 
-        // Now retrieve the ID (either newly inserted or existing)
         let id: i64 = conn.query_row(
-            "SELECT id FROM wit_interface WHERE wit_text = ?1",
-            [wit_text],
+            "SELECT id FROM wit_interface
+             WHERE package_name = ?1
+               AND COALESCE(version, '') = COALESCE(?2, '')
+               AND COALESCE(oci_layer_id, -1) = COALESCE(?3, -1)",
+            rusqlite::params![package_name, version, oci_layer_id],
             |row| row.get(0),
         )?;
 
         Ok(id)
     }
 
-    /// Link an image to a WIT interface.
-    pub(crate) fn link_to_image(
+    /// Find a WIT interface by package name and optional version.
+    pub(crate) fn find(
         conn: &Connection,
-        image_id: i64,
-        wit_interface_id: i64,
-    ) -> anyhow::Result<()> {
-        conn.execute(
-            "INSERT OR IGNORE INTO image_wit_interface (image_id, wit_interface_id) VALUES (?1, ?2)",
-            (image_id, wit_interface_id),
-        )?;
-        Ok(())
-    }
-
-    /// Get WIT interface for an image by image ID.
-    #[allow(dead_code)]
-    pub(crate) fn get_for_image(conn: &Connection, image_id: i64) -> anyhow::Result<Option<Self>> {
+        package_name: &str,
+        version: Option<&str>,
+    ) -> anyhow::Result<Option<Self>> {
         let result = conn.query_row(
-            "SELECT w.id, w.package_name, w.wit_text, w.world_name, w.import_count, w.export_count, w.created_at
-             FROM wit_interface w
-             JOIN image_wit_interface iwi ON w.id = iwi.wit_interface_id
-             WHERE iwi.image_id = ?1",
-            [image_id],
-            |row| {
-                Ok(WitInterface {
-                    id: row.get(0)?,
-                    package_name: row.get(1)?,
-                    wit_text: row.get(2)?,
-                    world_name: row.get(3)?,
-                    import_count: row.get(4)?,
-                    export_count: row.get(5)?,
-                    created_at: row.get(6)?,
-                })
-            },
+            "SELECT id, package_name, version, description, wit_text,
+                    oci_manifest_id, oci_layer_id, created_at
+             FROM wit_interface
+             WHERE package_name = ?1
+               AND COALESCE(version, '') = COALESCE(?2, '')",
+            rusqlite::params![package_name, version],
+            Self::from_row,
         );
 
         match result {
-            Ok(interface) => Ok(Some(interface)),
+            Ok(iface) => Ok(Some(iface)),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e.into()),
         }
     }
 
-    /// Get all WIT interfaces with their associated image references.
+    /// Full-text search on package_name and description.
+    pub(crate) fn search(
+        conn: &Connection,
+        query: &str,
+        offset: i64,
+        limit: i64,
+    ) -> anyhow::Result<Vec<Self>> {
+        let pattern = format!("%{query}%");
+        let mut stmt = conn.prepare(
+            "SELECT id, package_name, version, description, wit_text,
+                    oci_manifest_id, oci_layer_id, created_at
+             FROM wit_interface
+             WHERE package_name LIKE ?1 OR description LIKE ?1
+             ORDER BY package_name ASC, version ASC
+             LIMIT ?2 OFFSET ?3",
+        )?;
+
+        let rows = stmt.query_map(rusqlite::params![pattern, limit, offset], Self::from_row)?;
+
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    /// Return every WIT interface, ordered by name then version.
+    pub(crate) fn get_all(conn: &Connection) -> anyhow::Result<Vec<Self>> {
+        let mut stmt = conn.prepare(
+            "SELECT id, package_name, version, description, wit_text,
+                    oci_manifest_id, oci_layer_id, created_at
+             FROM wit_interface
+             ORDER BY package_name ASC, version ASC",
+        )?;
+
+        let rows = stmt.query_map([], Self::from_row)?;
+
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    /// Return every WIT interface together with its OCI reference string.
+    ///
+    /// Joins through `oci_manifest` → `oci_repository` to build the reference.
     pub(crate) fn get_all_with_images(conn: &Connection) -> anyhow::Result<Vec<(Self, String)>> {
         let mut stmt = conn.prepare(
-            "SELECT w.id, w.package_name, w.wit_text, w.world_name, w.import_count, w.export_count, w.created_at,
-                    i.ref_registry || '/' || i.ref_repository || COALESCE(':' || i.ref_tag, '') as reference
+            "SELECT w.id, w.package_name, w.version, w.description, w.wit_text,
+                    w.oci_manifest_id, w.oci_layer_id, w.created_at,
+                    r.registry || '/' || r.repository AS reference
              FROM wit_interface w
-             JOIN image_wit_interface iwi ON w.id = iwi.wit_interface_id
-             JOIN image i ON iwi.image_id = i.id
-             ORDER BY w.package_name ASC, w.world_name ASC, i.ref_repository ASC",
+             JOIN oci_manifest m ON w.oci_manifest_id = m.id
+             JOIN oci_repository r ON m.oci_repository_id = r.id
+             ORDER BY w.package_name ASC, w.version ASC, r.repository ASC",
         )?;
 
         let rows = stmt.query_map([], |row| {
             Ok((
-                WitInterface {
+                Self {
                     id: row.get(0)?,
                     package_name: row.get(1)?,
-                    wit_text: row.get(2)?,
-                    world_name: row.get(3)?,
-                    import_count: row.get(4)?,
-                    export_count: row.get(5)?,
-                    created_at: row.get(6)?,
+                    version: row.get(2)?,
+                    description: row.get(3)?,
+                    wit_text: row.get(4)?,
+                    oci_manifest_id: row.get(5)?,
+                    oci_layer_id: row.get(6)?,
+                    created_at: row.get(7)?,
                 },
-                row.get::<_, String>(7)?,
+                row.get::<_, String>(8)?,
             ))
         })?;
 
@@ -152,38 +177,40 @@ impl WitInterface {
         Ok(result)
     }
 
-    /// Get all unique WIT interfaces.
-    #[allow(dead_code)]
-    pub(crate) fn get_all(conn: &Connection) -> anyhow::Result<Vec<Self>> {
-        let mut stmt = conn.prepare(
-            "SELECT id, package_name, wit_text, world_name, import_count, export_count, created_at
-             FROM wit_interface
-             ORDER BY package_name ASC, world_name ASC",
-        )?;
-
-        let rows = stmt.query_map([], |row| {
-            Ok(WitInterface {
-                id: row.get(0)?,
-                package_name: row.get(1)?,
-                wit_text: row.get(2)?,
-                world_name: row.get(3)?,
-                import_count: row.get(4)?,
-                export_count: row.get(5)?,
-                created_at: row.get(6)?,
-            })
-        })?;
-
-        let mut result = Vec::new();
-        for row in rows {
-            result.push(row?);
-        }
-        Ok(result)
+    /// Map a `rusqlite::Row` to `Self`.
+    fn from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get(0)?,
+            package_name: row.get(1)?,
+            version: row.get(2)?,
+            description: row.get(3)?,
+            wit_text: row.get(4)?,
+            oci_manifest_id: row.get(5)?,
+            oci_layer_id: row.get(6)?,
+            created_at: row.get(7)?,
+        })
     }
 
-    /// Delete a WIT interface by ID (also removes links).
-    #[allow(dead_code)]
-    pub(crate) fn delete(conn: &Connection, id: i64) -> anyhow::Result<bool> {
-        let rows = conn.execute("DELETE FROM wit_interface WHERE id = ?1", [id])?;
-        Ok(rows > 0)
+    /// Creates a new `WitInterface` for testing purposes.
+    #[cfg(any(test, feature = "test-helpers"))]
+    #[must_use]
+    pub fn new_for_testing(
+        id: i64,
+        package_name: String,
+        version: Option<String>,
+        description: Option<String>,
+        wit_text: Option<String>,
+        created_at: String,
+    ) -> Self {
+        Self {
+            id,
+            package_name,
+            version,
+            description,
+            wit_text,
+            oci_manifest_id: None,
+            oci_layer_id: None,
+            created_at,
+        }
     }
 }
