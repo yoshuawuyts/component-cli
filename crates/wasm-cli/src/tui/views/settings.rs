@@ -66,7 +66,7 @@ impl Widget for SettingsView<'_> {
                     )]),
                     Line::from(format!(
                         "  Global config: {} ({})",
-                        config_path.display(),
+                        config_path.display().to_string().replace('\\', "/"),
                         config_status
                     )),
                     Line::from(format!(
@@ -87,10 +87,15 @@ impl Widget for SettingsView<'_> {
                 Paragraph::new(storage_header).render(storage_layout[0], buf);
 
                 // Compute column widths based on content
-                let executable_path = info.executable().display().to_string();
-                let data_dir_path = info.data_dir().display().to_string();
-                let store_dir_path = info.store_dir().display().to_string();
-                let metadata_file_path = info.metadata_file().display().to_string();
+                // Normalize path separators for consistent cross-platform display
+                let executable_path = info.executable().display().to_string().replace('\\', "/");
+                let data_dir_path = info.data_dir().display().to_string().replace('\\', "/");
+                let store_dir_path = info.store_dir().display().to_string().replace('\\', "/");
+                let metadata_file_path = info
+                    .metadata_file()
+                    .display()
+                    .to_string()
+                    .replace('\\', "/");
                 let store_size = super::format_size(info.store_size());
                 let metadata_size = super::format_size(info.metadata_size());
 
