@@ -17,7 +17,7 @@ use clap::{ColorChoice, CommandFactory, Parser};
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
-struct Cli {
+pub(crate) struct Cli {
     /// When to use colored output.
     ///
     /// Can also be controlled via environment variables:

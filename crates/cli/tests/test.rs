@@ -133,6 +133,118 @@ fn test_cli_self_state_help_snapshot() {
 }
 
 // =============================================================================
+// Completions Tests
+// =============================================================================
+
+#[test]
+fn test_completions_bash() {
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["self", "completions", "bash"])
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("_wasm"),
+        "Expected bash completion function"
+    );
+}
+
+#[test]
+fn test_completions_zsh() {
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["self", "completions", "zsh"])
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("#compdef wasm"),
+        "Expected zsh completion header"
+    );
+}
+
+#[test]
+fn test_completions_fish() {
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["self", "completions", "fish"])
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("__fish_wasm"),
+        "Expected fish completion function"
+    );
+}
+
+#[test]
+fn test_completions_invalid_shell() {
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["self", "completions", "invalid"])
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(!output.status.success());
+}
+
+// =============================================================================
+// Man Pages Tests
+// =============================================================================
+
+#[test]
+fn test_man_pages_generation() {
+    let dir = TempDir::new().expect("Failed to create temp dir");
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["self", "man-pages", "--out", dir.path().to_str().unwrap()])
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(
+        output.status.success(),
+        "man-pages failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify man page file was created
+    let man_file = dir.path().join("wasm.1");
+    assert!(man_file.exists(), "Expected wasm.1 man page file");
+
+    // Verify man page content
+    let content = std::fs::read_to_string(&man_file).expect("Failed to read man page");
+    assert!(
+        content.contains("wasm"),
+        "Expected man page to reference 'wasm'"
+    );
+}
+
+#[test]
+fn test_man_pages_default_output_dir() {
+    let dir = TempDir::new().expect("Failed to create temp dir");
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["self", "man-pages"])
+        .current_dir(dir.path())
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(
+        output.status.success(),
+        "man-pages failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify man page file was created in current directory
+    let man_file = dir.path().join("wasm.1");
+    assert!(
+        man_file.exists(),
+        "Expected wasm.1 man page file in current directory"
+    );
+}
+
+// =============================================================================
 // Color Support Tests
 // =============================================================================
 

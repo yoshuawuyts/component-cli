@@ -59,6 +59,30 @@ wasm self state                 # show storage state info
 wasm self clean                 # clean up storage
 ```
 
+### Shell Completions
+
+Generate shell completions for your preferred shell:
+
+```bash
+# Bash
+wasm self completions bash > ~/.local/share/bash-completion/completions/wasm
+
+# Zsh
+wasm self completions zsh > ~/.zfunc/_wasm
+
+# Fish
+wasm self completions fish > ~/.config/fish/completions/wasm.fish
+```
+
+### Man Pages
+
+Generate man pages for offline documentation:
+
+```bash
+wasm self man-pages --out /usr/local/share/man/man1/
+man wasm
+```
+
 ### Color Support
 
 The CLI supports colored output via the `--color` flag:

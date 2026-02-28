@@ -1,4 +1,8 @@
+use std::io;
+
 use anyhow::Result;
+use clap::CommandFactory;
+use clap_complete::Shell;
 use wasm_package_manager::{Config, Manager, format_size};
 
 /// Configure the `wasm(1)` tool, generate completions, & manage state
@@ -8,6 +12,17 @@ pub(crate) enum Opts {
     State,
     /// Show configuration file location and current settings
     Config,
+    /// Generate shell completions for the given shell
+    Completions {
+        /// The shell to generate completions for
+        shell: Shell,
+    },
+    /// Generate man pages for the CLI and write them to a directory
+    ManPages {
+        /// The directory to write man pages to
+        #[arg(long, short, default_value = ".")]
+        out: std::path::PathBuf,
+    },
 }
 
 impl Opts {
@@ -78,6 +93,22 @@ impl Opts {
                     }
                 }
 
+                Ok(())
+            }
+            Opts::Completions { shell } => {
+                let mut cmd = crate::Cli::command();
+                clap_complete::generate(*shell, &mut cmd, "wasm", &mut io::stdout());
+                Ok(())
+            }
+            Opts::ManPages { out } => {
+                let cmd = crate::Cli::command();
+                let man = clap_mangen::Man::new(cmd);
+                let mut buffer: Vec<u8> = Vec::new();
+                man.render(&mut buffer)?;
+
+                std::fs::create_dir_all(out)?;
+                std::fs::write(out.join("wasm.1"), buffer)?;
+                println!("Man pages written to {}", out.display());
                 Ok(())
             }
         }
