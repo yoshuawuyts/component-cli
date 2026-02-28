@@ -15,7 +15,7 @@ use std::io::IsTerminal;
 use clap::{ColorChoice, CommandFactory, Parser};
 
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None, term_width = 80)]
 #[command(propagate_version = true)]
 pub(crate) struct Cli {
     /// When to use colored output.
