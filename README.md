@@ -76,15 +76,15 @@ Options:
 Global Options:
       --color <WHEN>
           When to use colored output.
-          
+
           Can also be controlled via environment variables: - NO_COLOR=1 (disables color) - CLICOLOR=0 (disables color) - CLICOLOR_FORCE=1 (forces color)
-          
+
           [default: auto]
           [possible values: auto, always, never]
 
       --offline
           Run in offline mode.
-          
+
           Disables all network operations. Commands that require network access will fail with an error. Local-only commands will continue to work.
 ```
 <!-- commands-end -->

@@ -10,9 +10,13 @@ const COMMANDS_END: &str = "<!-- commands-end -->";
 
 /// Build the wasm binary and return the path to it.
 fn build_wasm_bin(workspace_root: &Path) -> Result<std::path::PathBuf> {
+    // Clear RUSTFLAGS so that CI-specific flags like `-Dwarnings` do not cause
+    // this build to fail with platform-specific warnings unrelated to the
+    // README check itself.  Warnings are already checked by `cargo clippy`.
     let status = Command::new("cargo")
         .args(["build", "-p", "wasm"])
         .current_dir(workspace_root)
+        .env_remove("RUSTFLAGS")
         .status()
         .context("failed to run `cargo build -p wasm`")?;
 
@@ -29,10 +33,24 @@ fn wasm_help(workspace_root: &Path) -> Result<String> {
     let bin = build_wasm_bin(workspace_root)?;
     let output = Command::new(&bin)
         .arg("--help")
+        // Disable color so ANSI escape codes never appear in the output.
+        .env("NO_COLOR", "1")
+        // Remove COLUMNS so clap uses its default width on every platform.
+        .env_remove("COLUMNS")
         .output()
         .with_context(|| format!("failed to run `{}`", bin.display()))?;
 
     let help = String::from_utf8_lossy(&output.stdout).into_owned();
+    // Normalize trailing whitespace on every line.  clap may emit trailing
+    // spaces on blank separator lines (e.g. `          \n`) on some platforms
+    // and omit them on others.  Stripping them keeps the output identical
+    // regardless of OS or clap version.
+    let help = help
+        .lines()
+        .map(str::trim_end)
+        .collect::<Vec<_>>()
+        .join("\n")
+        + if help.ends_with('\n') { "\n" } else { "" };
     // On Windows the binary is named "wasm.exe", which clap uses in the usage
     // line. Normalize to "wasm" so the README is platform-independent.
     Ok(help.replace("wasm.exe", "wasm"))
