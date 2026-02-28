@@ -269,6 +269,29 @@ fn quote_reserved_column_names(ddl: &str) -> String {
     out
 }
 
+/// Run `rustfmt` on a Rust source string and return the formatted result.
+///
+/// Returns `None` if `rustfmt` is not available or fails.
+fn rustfmt_string(src: &str) -> Option<String> {
+    use std::io::Write;
+
+    let mut child = Command::new("rustfmt")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .ok()?;
+
+    child.stdin.take()?.write_all(src.as_bytes()).ok()?;
+
+    let output = child.wait_with_output().ok()?;
+    if output.status.success() {
+        String::from_utf8(output.stdout).ok()
+    } else {
+        None
+    }
+}
+
 /// Locate the `sqlite3def` binary, checking `target/tools/` first, then PATH.
 fn find_sqlite3def(root: &Path) -> PathBuf {
     let binary_name = if cfg!(windows) {
@@ -480,7 +503,11 @@ fn generate_migration_rs_content(root: &Path) -> Result<String> {
 fn regenerate_migration_rs(root: &Path) -> Result<()> {
     let migration_rs = root.join(MIGRATION_RS_PATH);
     let content = generate_migration_rs_content(root)?;
-    fs::write(&migration_rs, content).context("writing migration.rs")?;
+    fs::write(&migration_rs, &content).context("writing migration.rs")?;
+
+    // Run rustfmt so the generated code matches the canonical style.
+    let _ = Command::new("rustfmt").arg(&migration_rs).status();
+
     Ok(())
 }
 
@@ -564,7 +591,12 @@ fn sql_check() -> Result<()> {
     let existing = fs::read_to_string(&migration_rs)
         .context("reading migration.rs")?
         .replace("\r\n", "\n");
-    let expected = generate_migration_rs_content(&root)?;
+
+    // Generate expected content and normalize it through rustfmt so that
+    // the comparison is style-independent (the code generator may produce
+    // formatting that differs from rustfmt's canonical style).
+    let expected_raw = generate_migration_rs_content(&root)?;
+    let expected = rustfmt_string(&expected_raw).unwrap_or(expected_raw);
 
     if existing != expected {
         anyhow::bail!(

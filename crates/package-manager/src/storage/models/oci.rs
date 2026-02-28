@@ -163,7 +163,7 @@ impl OciRepository {
     /// Creates a new `OciRepository` for testing purposes.
     #[cfg(any(test, feature = "test-helpers"))]
     #[must_use]
-    pub fn new_for_testing(
+    pub(crate) fn new_for_testing(
         registry: String,
         repository: String,
         created_at: String,
@@ -429,7 +429,7 @@ impl OciManifest {
     /// Creates a new `OciManifest` for testing purposes.
     #[cfg(any(test, feature = "test-helpers"))]
     #[must_use]
-    pub fn new_for_testing(oci_repository_id: i64, digest: String) -> Self {
+    pub(crate) fn new_for_testing(oci_repository_id: i64, digest: String) -> Self {
         Self {
             id: 0,
             oci_repository_id,
@@ -568,7 +568,11 @@ impl OciTag {
     /// Creates a new `OciTag` for testing purposes.
     #[cfg(any(test, feature = "test-helpers"))]
     #[must_use]
-    pub fn new_for_testing(oci_repository_id: i64, tag: String, manifest_digest: String) -> Self {
+    pub(crate) fn new_for_testing(
+        oci_repository_id: i64,
+        tag: String,
+        manifest_digest: String,
+    ) -> Self {
         Self {
             id: 0,
             oci_repository_id,
@@ -682,7 +686,7 @@ impl OciLayer {
     /// Creates a new `OciLayer` for testing purposes.
     #[cfg(any(test, feature = "test-helpers"))]
     #[must_use]
-    pub fn new_for_testing(
+    pub(crate) fn new_for_testing(
         oci_manifest_id: i64,
         digest: String,
         media_type: Option<String>,
@@ -776,7 +780,7 @@ impl OciReferrer {
     /// Creates a new `OciReferrer` for testing purposes.
     #[cfg(any(test, feature = "test-helpers"))]
     #[must_use]
-    pub fn new_for_testing(
+    pub(crate) fn new_for_testing(
         subject_manifest_id: i64,
         referrer_manifest_id: i64,
         artifact_type: String,
