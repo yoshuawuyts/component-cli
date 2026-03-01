@@ -16,8 +16,6 @@ pub use logic::{
     TagKind, classify_tag, classify_tags, compute_orphaned_layers, filter_wasm_layers,
 };
 pub use models::InsertResult;
-#[allow(unused_imports, unreachable_pub)]
-pub use models::OciReferrer;
 #[allow(unreachable_pub)]
-pub use models::{OciLayer, OciManifest, OciRepository, OciTag};
+pub use models::{OciLayer, OciLayerAnnotation, OciManifest, OciReferrer, OciRepository, OciTag};
 pub use views::ImageView;

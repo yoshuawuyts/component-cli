@@ -651,26 +651,101 @@ impl OciLayer {
 }
 
 // ---------------------------------------------------------------------------
+// OciLayerAnnotation
+// ---------------------------------------------------------------------------
+
+/// A key-value annotation on an OCI layer.
+///
+/// Some Wasm toolchains attach metadata at the layer descriptor level rather
+/// than the manifest level. This table captures those annotations.
+#[derive(Debug, Clone)]
+#[allow(unreachable_pub)]
+pub struct OciLayerAnnotation {
+    #[allow(dead_code)]
+    id: i64,
+    /// Foreign key to `oci_layer`.
+    #[allow(dead_code)]
+    pub oci_layer_id: i64,
+    /// The full annotation key.
+    pub key: String,
+    /// The annotation value.
+    pub value: String,
+}
+
+impl OciLayerAnnotation {
+    /// Insert a layer annotation, upserting on conflict.
+    pub(crate) fn insert(
+        conn: &Connection,
+        oci_layer_id: i64,
+        key: &str,
+        value: &str,
+    ) -> anyhow::Result<i64> {
+        conn.execute(
+            "INSERT INTO oci_layer_annotation (oci_layer_id, `key`, `value`)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(oci_layer_id, `key`) DO UPDATE SET `value` = ?3",
+            rusqlite::params![oci_layer_id, key, value],
+        )?;
+
+        let id: i64 = conn.query_row(
+            "SELECT id FROM oci_layer_annotation
+             WHERE oci_layer_id = ?1 AND `key` = ?2",
+            (oci_layer_id, key),
+            |row| row.get(0),
+        )?;
+
+        Ok(id)
+    }
+
+    /// List all annotations for a given layer.
+    #[allow(dead_code)]
+    pub(crate) fn list_by_layer(conn: &Connection, oci_layer_id: i64) -> anyhow::Result<Vec<Self>> {
+        let mut stmt = conn.prepare(
+            "SELECT id, oci_layer_id, `key`, `value`
+             FROM oci_layer_annotation WHERE oci_layer_id = ?1 ORDER BY `key` ASC",
+        )?;
+
+        let rows = stmt.query_map([oci_layer_id], |row| {
+            Ok(Self {
+                id: row.get(0)?,
+                oci_layer_id: row.get(1)?,
+                key: row.get(2)?,
+                value: row.get(3)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row?);
+        }
+        Ok(result)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // OciReferrer
 // ---------------------------------------------------------------------------
 
 /// A referrer relationship between two manifests.
 #[derive(Debug, Clone)]
-#[allow(dead_code, unreachable_pub)]
+#[allow(unreachable_pub)]
 pub struct OciReferrer {
     #[allow(dead_code)]
     id: i64,
     /// The manifest that is being referred to.
+    #[allow(dead_code)]
     pub subject_manifest_id: i64,
     /// The manifest doing the referring.
+    #[allow(dead_code)]
     pub referrer_manifest_id: i64,
     /// The artifact type of the referrer.
+    #[allow(dead_code)]
     pub artifact_type: String,
     /// When the row was created.
+    #[allow(dead_code)]
     pub created_at: String,
 }
 
-#[allow(dead_code)]
 impl OciReferrer {
     /// Insert a new referrer relationship, returning its row id.
     pub(crate) fn insert(
@@ -697,6 +772,7 @@ impl OciReferrer {
     }
 
     /// List all referrers for a given subject manifest.
+    #[allow(dead_code)]
     pub(crate) fn list_by_subject(
         conn: &Connection,
         subject_manifest_id: i64,
@@ -1005,6 +1081,256 @@ mod tests {
         assert_eq!(
             manifest.config_digest.as_deref(),
             Some("sha256:configdigest")
+        );
+    }
+
+    #[test]
+    fn test_oci_layer_annotation_insert_and_list() {
+        let conn = setup_test_db();
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "user/repo").unwrap();
+        let (mid, _) = OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:abc",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        let layer_id = OciLayer::insert(
+            &conn,
+            mid,
+            "sha256:layer1",
+            Some("application/wasm"),
+            Some(512),
+            0,
+        )
+        .unwrap();
+
+        // Insert annotations
+        let ann_id1 =
+            OciLayerAnnotation::insert(&conn, layer_id, "org.example.key1", "value1").unwrap();
+        assert!(ann_id1 > 0);
+
+        let ann_id2 =
+            OciLayerAnnotation::insert(&conn, layer_id, "org.example.key2", "value2").unwrap();
+        assert!(ann_id2 > 0);
+        assert_ne!(ann_id1, ann_id2);
+
+        // List and verify
+        let annotations = OciLayerAnnotation::list_by_layer(&conn, layer_id).unwrap();
+        assert_eq!(annotations.len(), 2);
+        assert_eq!(annotations[0].key, "org.example.key1");
+        assert_eq!(annotations[0].value, "value1");
+        assert_eq!(annotations[1].key, "org.example.key2");
+        assert_eq!(annotations[1].value, "value2");
+    }
+
+    #[test]
+    fn test_oci_layer_annotation_upsert_on_conflict() {
+        let conn = setup_test_db();
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "user/repo").unwrap();
+        let (mid, _) = OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:abc",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        let layer_id = OciLayer::insert(&conn, mid, "sha256:layer1", None, None, 0).unwrap();
+
+        // Insert and then upsert with new value
+        let id1 =
+            OciLayerAnnotation::insert(&conn, layer_id, "org.example.key", "original").unwrap();
+        let id2 =
+            OciLayerAnnotation::insert(&conn, layer_id, "org.example.key", "updated").unwrap();
+        assert_eq!(id1, id2);
+
+        let annotations = OciLayerAnnotation::list_by_layer(&conn, layer_id).unwrap();
+        assert_eq!(annotations.len(), 1);
+        assert_eq!(annotations[0].value, "updated");
+    }
+
+    #[test]
+    fn test_oci_layer_annotation_cascade_delete() {
+        let conn = setup_test_db();
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "user/repo").unwrap();
+        let (mid, _) = OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:abc",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        let layer_id = OciLayer::insert(&conn, mid, "sha256:layer1", None, None, 0).unwrap();
+        OciLayerAnnotation::insert(&conn, layer_id, "key1", "val1").unwrap();
+        OciLayerAnnotation::insert(&conn, layer_id, "key2", "val2").unwrap();
+
+        // Delete the manifest — layers and their annotations should cascade
+        OciManifest::delete(&conn, mid).unwrap();
+
+        let annotations = OciLayerAnnotation::list_by_layer(&conn, layer_id).unwrap();
+        assert!(
+            annotations.is_empty(),
+            "layer annotations should be deleted when manifest is deleted"
+        );
+    }
+
+    #[test]
+    fn test_oci_referrer_insert_and_list() {
+        let conn = setup_test_db();
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "user/repo").unwrap();
+
+        // Create subject manifest
+        let (subject_id, _) = OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:subject",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        // Create referrer manifest
+        let (referrer_id, _) = OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:referrer",
+            None,
+            None,
+            None,
+            Some("application/vnd.dev.cosign.simplesigning.v1+json"),
+            None,
+            None,
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        // Insert referrer relationship
+        let ref_id = OciReferrer::insert(
+            &conn,
+            subject_id,
+            referrer_id,
+            "application/vnd.dev.cosign.simplesigning.v1+json",
+        )
+        .unwrap();
+        assert!(ref_id > 0);
+
+        // List referrers for subject
+        let referrers = OciReferrer::list_by_subject(&conn, subject_id).unwrap();
+        assert_eq!(referrers.len(), 1);
+        assert_eq!(referrers[0].subject_manifest_id, subject_id);
+        assert_eq!(referrers[0].referrer_manifest_id, referrer_id);
+        assert_eq!(
+            referrers[0].artifact_type,
+            "application/vnd.dev.cosign.simplesigning.v1+json"
+        );
+    }
+
+    #[test]
+    fn test_oci_referrer_idempotent() {
+        let conn = setup_test_db();
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "user/repo").unwrap();
+
+        let (subject_id, _) = OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:subject",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        let (referrer_id, _) = OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:referrer",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        let id1 = OciReferrer::insert(&conn, subject_id, referrer_id, "type/a").unwrap();
+        let id2 = OciReferrer::insert(&conn, subject_id, referrer_id, "type/a").unwrap();
+        assert_eq!(id1, id2, "duplicate referrer insert should return same ID");
+    }
+
+    #[test]
+    fn test_oci_referrer_cascade_delete() {
+        let conn = setup_test_db();
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "user/repo").unwrap();
+
+        let (subject_id, _) = OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:subject",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        let (referrer_id, _) = OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:referrer",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            &HashMap::new(),
+        )
+        .unwrap();
+
+        OciReferrer::insert(&conn, subject_id, referrer_id, "type/a").unwrap();
+
+        // Delete subject manifest — referrer relationship should cascade
+        OciManifest::delete(&conn, subject_id).unwrap();
+
+        let referrers = OciReferrer::list_by_subject(&conn, subject_id).unwrap();
+        assert!(
+            referrers.is_empty(),
+            "referrer rows should be deleted when subject manifest is deleted"
         );
     }
 }

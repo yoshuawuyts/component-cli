@@ -1,7 +1,7 @@
 use docker_credential::DockerCredential;
 use oci_client::Reference;
 use oci_client::client::{ClientConfig, ClientProtocol, ImageData, SizedStream};
-use oci_client::manifest::{OciDescriptor, OciImageManifest};
+use oci_client::manifest::{OciDescriptor, OciImageIndex, OciImageManifest};
 use oci_client::secrets::RegistryAuth;
 use oci_wasm::WasmClient;
 
@@ -128,6 +128,26 @@ impl Client {
         }
 
         Ok(all_tags)
+    }
+
+    /// Fetches referrers (signatures, SBOMs, attestations) for a given reference.
+    ///
+    /// Returns the OCI image index listing all referrer manifests. If the
+    /// registry does not support the Referrers API, returns `Ok(None)`.
+    pub(crate) async fn pull_referrers(
+        &self,
+        reference: &Reference,
+    ) -> anyhow::Result<Option<OciImageIndex>> {
+        let auth = resolve_auth(reference, &self.config)?;
+        self.inner
+            .store_auth_if_needed(reference.resolve_registry(), &auth)
+            .await;
+
+        match self.inner.pull_referrers(reference, None).await {
+            Ok(index) => Ok(Some(index)),
+            // Registry does not support referrers — silently skip.
+            Err(_) => Ok(None),
+        }
     }
 }
 

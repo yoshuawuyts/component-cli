@@ -157,7 +157,7 @@ impl Manager {
         }
 
         let image = self.client.pull(&reference).await?;
-        let (result, digest, manifest) = self.store.insert(&reference, image).await?;
+        let (result, digest, manifest, manifest_id) = self.store.insert(&reference, image).await?;
 
         // Add to known packages when pulling (with tag if present)
         self.store.add_known_package(
@@ -177,6 +177,11 @@ impl Manager {
                     None,
                 )?;
             }
+        }
+
+        // Best-effort: discover and store referrers (signatures, SBOMs, etc.)
+        if let Some(manifest_id) = manifest_id {
+            self.try_store_referrers(&reference, manifest_id).await;
         }
 
         Ok(PullResult {
@@ -271,7 +276,12 @@ impl Manager {
                     .send(ProgressEvent::LayerDownloaded { index })
                     .await;
 
-                // Store the layer
+                // Store the layer (with annotations from the descriptor)
+                let layer_annotations: Option<std::collections::HashMap<String, String>> =
+                    layer_descriptor
+                        .annotations
+                        .as_ref()
+                        .map(|a| a.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
                 self.store
                     .insert_layer(
                         &layer_descriptor.digest,
@@ -279,6 +289,7 @@ impl Manager {
                         image_id,
                         Some(layer_descriptor.media_type.as_str()),
                         index as i32,
+                        layer_annotations.as_ref(),
                     )
                     .await?;
 
@@ -328,6 +339,11 @@ impl Manager {
                     None,
                 )?;
             }
+        }
+
+        // Best-effort: discover and store referrers (signatures, SBOMs, etc.)
+        if let Some(manifest_id) = image_id {
+            self.try_store_referrers(&reference, manifest_id).await;
         }
 
         Ok(PullResult {
@@ -810,5 +826,28 @@ impl Manager {
             .unwrap_or_default()
             .as_secs();
         self.store.set_sync_meta("last_synced_at", &now.to_string())
+    }
+
+    /// Best-effort: fetch and store referrers (signatures, SBOMs, attestations)
+    /// for a manifest. Silently skips if the registry doesn't support the
+    /// Referrers API or if any error occurs.
+    async fn try_store_referrers(&self, reference: &Reference, manifest_id: i64) {
+        let index = match self.client.pull_referrers(reference).await {
+            Ok(Some(index)) => index,
+            _ => return,
+        };
+
+        for entry in &index.manifests {
+            let artifact_type = entry.media_type.as_str();
+            if let Err(e) = self.store.store_referrer(
+                manifest_id,
+                reference.registry(),
+                reference.repository(),
+                &entry.digest,
+                artifact_type,
+            ) {
+                tracing::warn!("Failed to store referrer {}: {}", entry.digest, e);
+            }
+        }
     }
 }
