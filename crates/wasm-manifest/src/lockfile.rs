@@ -199,7 +199,7 @@ mod tests {
         assert!(toml.contains("sha256:abc123"));
     }
 
-    // r[verify lockfile.no-dependencies]
+    // r[verify lockfile.no-dependencies.parse]
     #[test]
     fn test_package_without_dependencies() {
         let toml = r#"
@@ -218,7 +218,7 @@ mod tests {
         assert_eq!(lockfile.interfaces[0].dependencies.len(), 0);
     }
 
-    // r[verify lockfile.no-dependencies]
+    // r[verify lockfile.no-dependencies.serialize]
     #[test]
     fn test_serialize_package_without_dependencies() {
         let package = Package {
@@ -235,7 +235,7 @@ mod tests {
         assert!(!toml.contains("dependencies"));
     }
 
-    // r[verify lockfile.mixed-types]
+    // r[verify lockfile.mixed-types.parse]
     #[test]
     fn test_components_and_interfaces() {
         let toml = r#"
@@ -262,7 +262,7 @@ mod tests {
         assert_eq!(lockfile.interfaces[0].name, "wasi:clocks");
     }
 
-    // r[verify lockfile.mixed-types]
+    // r[verify lockfile.mixed-types.all-packages]
     #[test]
     fn test_all_packages() {
         let lockfile = Lockfile {

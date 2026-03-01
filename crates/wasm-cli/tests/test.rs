@@ -43,7 +43,7 @@ fn run_cli(args: &[&str]) -> String {
 // Main CLI Help Tests
 // =============================================================================
 
-// r[verify cli.help]
+// r[verify cli.help.main]
 #[test]
 fn test_cli_main_help_snapshot() {
     let output = run_cli(&["--help"]);
@@ -62,14 +62,14 @@ fn test_cli_version_snapshot() {
 // Local Command Help Tests
 // =============================================================================
 
-// r[verify cli.help]
+// r[verify cli.help.local]
 #[test]
 fn test_cli_local_help_snapshot() {
     let output = run_cli(&["local", "--help"]);
     assert_snapshot!(output);
 }
 
-// r[verify cli.help]
+// r[verify cli.help.local-list]
 #[test]
 fn test_cli_local_list_help_snapshot() {
     let output = run_cli(&["local", "list", "--help"]);
@@ -80,70 +80,70 @@ fn test_cli_local_list_help_snapshot() {
 // Registry Command Help Tests
 // =============================================================================
 
-// r[verify cli.help]
+// r[verify cli.help.registry]
 #[test]
 fn test_cli_registry_help_snapshot() {
     let output = run_cli(&["registry", "--help"]);
     assert_snapshot!(output);
 }
 
-// r[verify cli.help]
+// r[verify cli.help.registry-pull]
 #[test]
 fn test_cli_registry_pull_help_snapshot() {
     let output = run_cli(&["registry", "pull", "--help"]);
     assert_snapshot!(output);
 }
 
-// r[verify cli.help]
+// r[verify cli.help.registry-tags]
 #[test]
 fn test_cli_registry_tags_help_snapshot() {
     let output = run_cli(&["registry", "tags", "--help"]);
     assert_snapshot!(output);
 }
 
-// r[verify cli.help]
+// r[verify cli.help.registry-search]
 #[test]
 fn test_cli_registry_search_help_snapshot() {
     let output = run_cli(&["registry", "search", "--help"]);
     assert_snapshot!(output);
 }
 
-// r[verify cli.help]
+// r[verify cli.help.registry-sync]
 #[test]
 fn test_cli_registry_sync_help_snapshot() {
     let output = run_cli(&["registry", "sync", "--help"]);
     assert_snapshot!(output);
 }
 
-// r[verify cli.help]
+// r[verify cli.help.registry-delete]
 #[test]
 fn test_cli_registry_delete_help_snapshot() {
     let output = run_cli(&["registry", "delete", "--help"]);
     assert_snapshot!(output);
 }
 
-// r[verify cli.help]
+// r[verify cli.help.registry-list]
 #[test]
 fn test_cli_registry_list_help_snapshot() {
     let output = run_cli(&["registry", "list", "--help"]);
     assert_snapshot!(output);
 }
 
-// r[verify cli.help]
+// r[verify cli.help.registry-known]
 #[test]
 fn test_cli_registry_known_help_snapshot() {
     let output = run_cli(&["registry", "known", "--help"]);
     assert_snapshot!(output);
 }
 
-// r[verify cli.help]
+// r[verify cli.help.registry-inspect]
 #[test]
 fn test_cli_registry_inspect_help_snapshot() {
     let output = run_cli(&["registry", "inspect", "--help"]);
     assert_snapshot!(output);
 }
 
-// r[verify cli.help]
+// r[verify cli.help.self-clean]
 #[test]
 fn test_cli_self_clean_help_snapshot() {
     let output = run_cli(&["self", "clean", "--help"]);
@@ -154,21 +154,21 @@ fn test_cli_self_clean_help_snapshot() {
 // Self Command Help Tests
 // =============================================================================
 
-// r[verify cli.help]
+// r[verify cli.help.self]
 #[test]
 fn test_cli_self_help_snapshot() {
     let output = run_cli(&["self", "--help"]);
     assert_snapshot!(output);
 }
 
-// r[verify cli.help]
+// r[verify cli.help.self-state]
 #[test]
 fn test_cli_self_state_help_snapshot() {
     let output = run_cli(&["self", "state", "--help"]);
     assert_snapshot!(output);
 }
 
-// r[verify cli.help]
+// r[verify cli.help.self-log]
 #[test]
 fn test_cli_self_log_help_snapshot() {
     let output = run_cli(&["self", "log", "--help"]);
@@ -267,7 +267,7 @@ fn test_man_pages_generation() {
 // Color Support Tests
 // =============================================================================
 
-// r[verify cli.color.flag]
+// r[verify cli.color.auto]
 #[test]
 fn test_color_flag_auto() {
     // Test that --color=auto is accepted
@@ -279,7 +279,7 @@ fn test_color_flag_auto() {
     assert!(output.status.success());
 }
 
-// r[verify cli.color.flag]
+// r[verify cli.color.always]
 #[test]
 fn test_color_flag_always() {
     // Test that --color=always is accepted
@@ -291,7 +291,7 @@ fn test_color_flag_always() {
     assert!(output.status.success());
 }
 
-// r[verify cli.color.flag]
+// r[verify cli.color.never]
 #[test]
 fn test_color_flag_never() {
     // Test that --color=never is accepted
@@ -317,7 +317,7 @@ fn test_color_flag_invalid_value() {
     assert!(stderr.contains("invalid value 'invalid'"));
 }
 
-// r[verify cli.color.flag]
+// r[verify cli.color.in-help]
 #[test]
 fn test_color_flag_in_help() {
     // Test that --color flag appears in help output
@@ -371,7 +371,7 @@ fn test_color_flag_with_subcommand() {
 // Offline Mode Tests
 // =============================================================================
 
-// r[verify cli.offline.flag]
+// r[verify cli.offline.accepted]
 #[test]
 fn test_offline_flag_accepted() {
     // Test that --offline flag is accepted with --version
@@ -383,7 +383,7 @@ fn test_offline_flag_accepted() {
     assert!(output.status.success());
 }
 
-// r[verify cli.offline.flag]
+// r[verify cli.offline.in-help]
 #[test]
 fn test_offline_flag_in_help() {
     // Test that --offline flag appears in help output
@@ -429,7 +429,7 @@ fn test_offline_flag_with_registry_pull() {
     );
 }
 
-// r[verify cli.offline.flag]
+// r[verify cli.offline.with-inspect]
 #[test]
 fn test_offline_flag_with_registry_inspect() {
     // Test that --offline works with registry inspect command
@@ -441,7 +441,7 @@ fn test_offline_flag_with_registry_inspect() {
     assert!(output.status.success());
 }
 
-// r[verify cli.offline.flag]
+// r[verify cli.offline.with-subcommand]
 #[test]
 fn test_offline_flag_with_subcommand() {
     // Test that --offline flag works with subcommands
@@ -458,9 +458,6 @@ fn test_offline_flag_with_subcommand() {
 // =============================================================================
 
 // r[verify init.current-dir]
-// r[verify init.directory-structure]
-// r[verify init.manifest]
-// r[verify init.lockfile]
 #[test]
 fn test_init_creates_files_in_current_dir() {
     let dir = TempDir::new().expect("Failed to create temp dir");
@@ -505,7 +502,6 @@ fn test_init_creates_files_in_current_dir() {
 }
 
 // r[verify init.explicit-path]
-// r[verify init.directory-structure]
 #[test]
 fn test_init_creates_files_at_explicit_path() {
     let dir = TempDir::new().expect("Failed to create temp dir");
@@ -531,7 +527,7 @@ fn test_init_creates_files_at_explicit_path() {
     assert!(target.join("deps/wasm.lock.toml").is_file());
 }
 
-// r[verify cli.help]
+// r[verify cli.help.init]
 #[test]
 fn test_init_help_snapshot() {
     let output = run_cli(&["init", "--help"]);
@@ -542,7 +538,7 @@ fn test_init_help_snapshot() {
 // Install Command Help Tests
 // =============================================================================
 
-// r[verify cli.help]
+// r[verify cli.help.install]
 #[test]
 fn test_install_help_snapshot() {
     let output = run_cli(&["install", "--help"]);
@@ -553,7 +549,7 @@ fn test_install_help_snapshot() {
 // Run Command Tests
 // =============================================================================
 
-// r[verify cli.help]
+// r[verify cli.help.run]
 #[test]
 fn test_cli_run_help_snapshot() {
     let output = run_cli(&["run", "--help"]);

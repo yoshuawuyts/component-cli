@@ -76,7 +76,7 @@ pub fn format_size(bytes: u64) -> String {
 mod tests {
     use super::*;
 
-    // r[verify format.size]
+    // r[verify format.size.bytes]
     #[test]
     fn test_format_size_bytes() {
         assert_eq!(format_size(0), "0 B");
@@ -85,7 +85,7 @@ mod tests {
         assert_eq!(format_size(1023), "1023 B");
     }
 
-    // r[verify format.size]
+    // r[verify format.size.kilobytes]
     #[test]
     fn test_format_size_kilobytes() {
         assert_eq!(format_size(1024), "1.00 KB");
@@ -94,7 +94,7 @@ mod tests {
         assert_eq!(format_size(1024 * 1023), "1023.00 KB");
     }
 
-    // r[verify format.size]
+    // r[verify format.size.megabytes]
     #[test]
     fn test_format_size_megabytes() {
         assert_eq!(format_size(1024 * 1024), "1.00 MB");
@@ -102,7 +102,7 @@ mod tests {
         assert_eq!(format_size(1024 * 1024 * 100), "100.00 MB");
     }
 
-    // r[verify format.size]
+    // r[verify format.size.gigabytes]
     #[test]
     fn test_format_size_gigabytes() {
         assert_eq!(format_size(1024 * 1024 * 1024), "1.00 GB");

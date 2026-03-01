@@ -255,7 +255,7 @@ mod tests {
         assert!(attestation.is_empty());
     }
 
-    // r[verify oci.tags.classify-release]
+    // r[verify oci.tags.classify-all-release]
     #[test]
     fn classify_tags_all_release() {
         let tags: Vec<String> = vec!["v1.0".into(), "latest".into(), "stable".into()];

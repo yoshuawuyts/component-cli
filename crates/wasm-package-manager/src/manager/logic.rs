@@ -196,7 +196,7 @@ mod tests {
 
     // ── sanitize_to_wit_identifier ──────────────────────────────────────
 
-    // r[verify manager.name.sanitize]
+    // r[verify manager.name.sanitize.valid]
     #[test]
     fn sanitize_already_valid() {
         assert_eq!(
@@ -205,7 +205,7 @@ mod tests {
         );
     }
 
-    // r[verify manager.name.sanitize]
+    // r[verify manager.name.sanitize.uppercase]
     #[test]
     fn sanitize_uppercase() {
         assert_eq!(
@@ -214,7 +214,7 @@ mod tests {
         );
     }
 
-    // r[verify manager.name.sanitize]
+    // r[verify manager.name.sanitize.underscores]
     #[test]
     fn sanitize_underscores() {
         assert_eq!(
@@ -223,7 +223,7 @@ mod tests {
         );
     }
 
-    // r[verify manager.name.sanitize]
+    // r[verify manager.name.sanitize.leading-digits]
     #[test]
     fn sanitize_leading_digits() {
         assert_eq!(

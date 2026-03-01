@@ -240,7 +240,7 @@ mod tests {
         assert!(manifest.interfaces.contains_key("wasi:clocks"));
     }
 
-    // r[verify manifest.parse.mixed]
+    // r[verify manifest.parse.all-dependencies]
     #[test]
     fn test_all_dependencies() {
         let mut components = HashMap::new();

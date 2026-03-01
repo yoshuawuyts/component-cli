@@ -104,7 +104,7 @@ fn test_manifest() -> OciImageManifest {
 // LocalView Snapshot Tests
 // =============================================================================
 
-// r[verify tui.local-view]
+// r[verify tui.local-view.empty]
 #[test]
 fn test_local_view_empty_snapshot() {
     let wasm_files = vec![];
@@ -112,7 +112,7 @@ fn test_local_view_empty_snapshot() {
     assert_snapshot!(output);
 }
 
-// r[verify tui.local-view]
+// r[verify tui.local-view.populated]
 #[test]
 fn test_local_view_with_files_snapshot() {
     let wasm_files = vec![
@@ -130,7 +130,7 @@ fn test_local_view_with_files_snapshot() {
 // InterfacesView Snapshot Tests
 // =============================================================================
 
-// r[verify tui.interfaces-view]
+// r[verify tui.interfaces-view.empty]
 #[test]
 fn test_interfaces_view_snapshot() {
     let interfaces = vec![];
@@ -139,7 +139,7 @@ fn test_interfaces_view_snapshot() {
     assert_snapshot!(output);
 }
 
-// r[verify tui.interfaces-view]
+// r[verify tui.interfaces-view.populated]
 #[test]
 fn test_interfaces_view_populated_snapshot() {
     use wasm_package_manager::interfaces::WitInterfaceView;
@@ -175,7 +175,7 @@ fn test_interfaces_view_populated_snapshot() {
 // PackagesView Snapshot Tests
 // =============================================================================
 
-// r[verify tui.packages-view]
+// r[verify tui.packages-view.empty]
 #[test]
 fn test_packages_view_empty_snapshot() {
     let packages = vec![];
@@ -183,7 +183,7 @@ fn test_packages_view_empty_snapshot() {
     assert_snapshot!(output);
 }
 
-// r[verify tui.packages-view]
+// r[verify tui.packages-view.populated]
 #[test]
 fn test_packages_view_with_packages_snapshot() {
     let packages = vec![
@@ -219,7 +219,7 @@ fn test_packages_view_with_packages_snapshot() {
     assert_snapshot!(output);
 }
 
-// r[verify tui.packages-view]
+// r[verify tui.packages-view.filter-active]
 #[test]
 fn test_packages_view_with_filter_active_snapshot() {
     let packages = vec![];
@@ -230,7 +230,7 @@ fn test_packages_view_with_filter_active_snapshot() {
     assert_snapshot!(output);
 }
 
-// r[verify tui.packages-view]
+// r[verify tui.packages-view.filter-results]
 #[test]
 fn test_packages_view_filter_with_results_snapshot() {
     let packages = vec![ImageView {
@@ -252,7 +252,7 @@ fn test_packages_view_filter_with_results_snapshot() {
 // PackageDetailView Snapshot Tests
 // =============================================================================
 
-// r[verify tui.package-detail-view]
+// r[verify tui.package-detail-view.full]
 #[test]
 fn test_package_detail_view_snapshot() {
     let package = ImageView {
@@ -268,7 +268,7 @@ fn test_package_detail_view_snapshot() {
     assert_snapshot!(output);
 }
 
-// r[verify tui.package-detail-view]
+// r[verify tui.package-detail-view.no-tag]
 #[test]
 fn test_package_detail_view_without_tag_snapshot() {
     let package = ImageView {
@@ -288,7 +288,7 @@ fn test_package_detail_view_without_tag_snapshot() {
 // SearchView Snapshot Tests
 // =============================================================================
 
-// r[verify tui.search-view]
+// r[verify tui.search-view.empty]
 #[test]
 fn test_search_view_empty_snapshot() {
     let packages = vec![];
@@ -296,7 +296,7 @@ fn test_search_view_empty_snapshot() {
     assert_snapshot!(output);
 }
 
-// r[verify tui.search-view]
+// r[verify tui.search-view.populated]
 #[test]
 fn test_search_view_with_packages_snapshot() {
     let packages = vec![
@@ -325,7 +325,7 @@ fn test_search_view_with_packages_snapshot() {
     assert_snapshot!(output);
 }
 
-// r[verify tui.search-view]
+// r[verify tui.search-view.active]
 #[test]
 fn test_search_view_with_search_active_snapshot() {
     let packages = vec![];
@@ -336,7 +336,7 @@ fn test_search_view_with_search_active_snapshot() {
     assert_snapshot!(output);
 }
 
-// r[verify tui.search-view]
+// r[verify tui.search-view.many-tags]
 #[test]
 fn test_search_view_with_many_tags_snapshot() {
     let packages = vec![KnownPackageView {
@@ -363,7 +363,7 @@ fn test_search_view_with_many_tags_snapshot() {
 // KnownPackageDetailView Snapshot Tests
 // =============================================================================
 
-// r[verify tui.known-package-detail-view]
+// r[verify tui.known-package-detail-view.full]
 #[test]
 fn test_known_package_detail_view_snapshot() {
     let package = KnownPackageView {
@@ -384,7 +384,7 @@ fn test_known_package_detail_view_snapshot() {
     assert_snapshot!(output);
 }
 
-// r[verify tui.known-package-detail-view]
+// r[verify tui.known-package-detail-view.minimal]
 #[test]
 fn test_known_package_detail_view_minimal_snapshot() {
     let package = KnownPackageView {
@@ -405,14 +405,14 @@ fn test_known_package_detail_view_minimal_snapshot() {
 // SettingsView Snapshot Tests
 // =============================================================================
 
-// r[verify tui.settings-view]
+// r[verify tui.settings-view.loading]
 #[test]
 fn test_settings_view_loading_snapshot() {
     let output = render_to_string(SettingsView::new(None), 80, 15);
     assert_snapshot!(output);
 }
 
-// r[verify tui.settings-view]
+// r[verify tui.settings-view.populated]
 #[test]
 fn test_settings_view_with_state_info_snapshot() {
     let state_info = StateInfo::new_at(
@@ -460,7 +460,7 @@ impl TabItem for TestTab {
     }
 }
 
-// r[verify tui.tab-bar]
+// r[verify tui.tab-bar.first-selected]
 #[test]
 fn test_tab_bar_first_selected_snapshot() {
     let tab_bar = TabBar::new("Test App - ready", TestTab::First);
@@ -468,7 +468,7 @@ fn test_tab_bar_first_selected_snapshot() {
     assert_snapshot!(output);
 }
 
-// r[verify tui.tab-bar]
+// r[verify tui.tab-bar.second-selected]
 #[test]
 fn test_tab_bar_second_selected_snapshot() {
     let tab_bar = TabBar::new("Test App - ready", TestTab::Second);
@@ -476,7 +476,7 @@ fn test_tab_bar_second_selected_snapshot() {
     assert_snapshot!(output);
 }
 
-// r[verify tui.tab-bar]
+// r[verify tui.tab-bar.third-selected]
 #[test]
 fn test_tab_bar_third_selected_snapshot() {
     let tab_bar = TabBar::new("Test App - ready", TestTab::Third);
@@ -484,7 +484,7 @@ fn test_tab_bar_third_selected_snapshot() {
     assert_snapshot!(output);
 }
 
-// r[verify tui.tab-bar]
+// r[verify tui.tab-bar.loading]
 #[test]
 fn test_tab_bar_loading_state_snapshot() {
     let tab_bar = TabBar::new("Test App - loading...", TestTab::First);
@@ -492,7 +492,7 @@ fn test_tab_bar_loading_state_snapshot() {
     assert_snapshot!(output);
 }
 
-// r[verify tui.tab-bar]
+// r[verify tui.tab-bar.error]
 #[test]
 fn test_tab_bar_error_state_snapshot() {
     let tab_bar = TabBar::new("Test App - error occurred!", TestTab::First);
@@ -504,7 +504,7 @@ fn test_tab_bar_error_state_snapshot() {
 // LogView Snapshot Tests
 // =============================================================================
 
-// r[verify tui.log-view]
+// r[verify tui.log-view.empty]
 #[test]
 fn test_log_view_empty_snapshot() {
     let lines = vec![];
@@ -512,7 +512,7 @@ fn test_log_view_empty_snapshot() {
     assert_snapshot!(output);
 }
 
-// r[verify tui.log-view]
+// r[verify tui.log-view.populated]
 #[test]
 fn test_log_view_with_lines_snapshot() {
     let lines = vec![
@@ -524,7 +524,7 @@ fn test_log_view_with_lines_snapshot() {
     assert_snapshot!(output);
 }
 
-// r[verify tui.log-view]
+// r[verify tui.log-view.scrolled]
 #[test]
 fn test_log_view_scrolled_snapshot() {
     let lines: Vec<String> = (1..=20)

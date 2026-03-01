@@ -291,7 +291,7 @@ mod tests {
         conn
     }
 
-    // r[verify db.known-packages.upsert]
+    // r[verify db.known-packages.upsert-new]
     #[test]
     fn test_known_package_upsert_new_package() {
         let conn = setup_test_db();
@@ -303,7 +303,7 @@ mod tests {
         assert_eq!(packages.first().unwrap().repository, "user/repo");
     }
 
-    // r[verify db.known-packages.upsert]
+    // r[verify db.known-packages.upsert-existing]
     #[test]
     fn test_known_package_upsert_updates_existing() {
         let conn = setup_test_db();
@@ -343,7 +343,7 @@ mod tests {
         assert!(results.is_empty());
     }
 
-    // r[verify db.known-packages.upsert]
+    // r[verify db.known-packages.get]
     #[test]
     fn test_known_package_get() {
         let conn = setup_test_db();
@@ -369,7 +369,7 @@ mod tests {
         assert_eq!(packages.first().unwrap().reference(), "ghcr.io/user/repo");
     }
 
-    // r[verify db.known-packages.reference]
+    // r[verify db.known-packages.reference-default-tag]
     #[test]
     fn test_known_package_reference_with_tag_default() {
         let conn = setup_test_db();

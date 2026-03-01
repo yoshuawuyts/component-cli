@@ -11,8 +11,62 @@ components and interfaces.
 
 ### Help and Version
 
-r[cli.help]
-The CLI MUST provide `--help` output for every command and subcommand.
+r[cli.help.main]
+The CLI MUST provide `--help` output for the top-level command.
+
+r[cli.help.local]
+The CLI MUST provide `--help` output for the `local` command.
+
+r[cli.help.local-list]
+The CLI MUST provide `--help` output for the `local list` command.
+
+r[cli.help.registry]
+The CLI MUST provide `--help` output for the `registry` command.
+
+r[cli.help.registry-pull]
+The CLI MUST provide `--help` output for the `registry pull` command.
+
+r[cli.help.registry-tags]
+The CLI MUST provide `--help` output for the `registry tags` command.
+
+r[cli.help.registry-search]
+The CLI MUST provide `--help` output for the `registry search` command.
+
+r[cli.help.registry-sync]
+The CLI MUST provide `--help` output for the `registry sync` command.
+
+r[cli.help.registry-delete]
+The CLI MUST provide `--help` output for the `registry delete` command.
+
+r[cli.help.registry-list]
+The CLI MUST provide `--help` output for the `registry list` command.
+
+r[cli.help.registry-known]
+The CLI MUST provide `--help` output for the `registry known` command.
+
+r[cli.help.registry-inspect]
+The CLI MUST provide `--help` output for the `registry inspect` command.
+
+r[cli.help.self]
+The CLI MUST provide `--help` output for the `self` command.
+
+r[cli.help.self-clean]
+The CLI MUST provide `--help` output for the `self clean` command.
+
+r[cli.help.self-state]
+The CLI MUST provide `--help` output for the `self state` command.
+
+r[cli.help.self-log]
+The CLI MUST provide `--help` output for the `self log` command.
+
+r[cli.help.init]
+The CLI MUST provide `--help` output for the `init` command.
+
+r[cli.help.install]
+The CLI MUST provide `--help` output for the `install` command.
+
+r[cli.help.run]
+The CLI MUST provide `--help` output for the `run` command.
 
 r[cli.version]
 The CLI MUST print a version string containing the program name when invoked
@@ -20,11 +74,20 @@ with `--version`.
 
 ### Color Support
 
-r[cli.color.flag]
-The CLI MUST accept a `--color` flag with values `auto`, `always`, and `never`.
+r[cli.color.auto]
+The CLI MUST accept `--color auto`.
+
+r[cli.color.always]
+The CLI MUST accept `--color always`.
+
+r[cli.color.never]
+The CLI MUST accept `--color never`.
 
 r[cli.color.invalid]
 The CLI MUST reject invalid `--color` values with an error message.
+
+r[cli.color.in-help]
+The `--color` flag MUST appear in `--help` output.
 
 r[cli.color.no-color-env]
 The CLI MUST respect the `NO_COLOR` environment variable.
@@ -37,8 +100,11 @@ The `--color` flag MUST work when combined with subcommands.
 
 ### Offline Mode
 
-r[cli.offline.flag]
+r[cli.offline.accepted]
 The CLI MUST accept an `--offline` flag.
+
+r[cli.offline.in-help]
+The `--offline` flag MUST appear in `--help` output.
 
 r[cli.offline.registry-blocked]
 When `--offline` is set, registry operations MUST fail with a clear error
@@ -46,6 +112,12 @@ mentioning offline mode.
 
 r[cli.offline.local-allowed]
 When `--offline` is set, local operations MUST still succeed.
+
+r[cli.offline.with-inspect]
+The `--offline` flag MUST be accepted alongside the `registry inspect` command.
+
+r[cli.offline.with-subcommand]
+The `--offline` flag MUST be accepted alongside any subcommand.
 
 ### Shell Completions
 
@@ -71,21 +143,12 @@ The CLI MUST generate man pages that reference the program name.
 The `init` subcommand scaffolds a new project directory.
 
 r[init.current-dir]
-Running `wasm init` without arguments MUST create files in the current directory.
+Running `wasm init` without arguments MUST create the directory structure,
+manifest, and lockfile in the current directory.
 
 r[init.explicit-path]
-Running `wasm init <path>` MUST create files at the specified path.
-
-r[init.directory-structure]
-The init command MUST create `deps/vendor/wit` and `deps/vendor/wasm` directories.
-
-r[init.manifest]
-The init command MUST create a valid TOML manifest at `deps/wasm.toml` containing
-a `components` or `interfaces` table.
-
-r[init.lockfile]
-The init command MUST create a valid lockfile at `deps/wasm.lock.toml` with a
-lockfile version and auto-generation comments.
+Running `wasm init <path>` MUST create the directory structure and files at
+the specified path.
 
 ## Run Command
 
@@ -163,6 +226,9 @@ r[manifest.parse.mixed]
 The manifest parser MUST support manifests with both `components` and
 `interfaces` sections.
 
+r[manifest.parse.all-dependencies]
+Iterating all dependencies MUST yield both component and interface entries.
+
 r[manifest.parse.permissions]
 The manifest parser MUST support sandbox permissions in explicit format
 dependencies.
@@ -186,11 +252,17 @@ The lockfile parser MUST handle TOML lockfiles with version and packages.
 r[lockfile.serialize]
 The lockfile serializer MUST produce valid TOML output.
 
-r[lockfile.no-dependencies]
-Packages without dependencies MUST be handled correctly.
+r[lockfile.no-dependencies.parse]
+Parsing packages without dependencies MUST succeed.
 
-r[lockfile.mixed-types]
+r[lockfile.no-dependencies.serialize]
+Serializing packages without dependencies MUST produce valid output.
+
+r[lockfile.mixed-types.parse]
 The lockfile MUST support both component and interface package types.
+
+r[lockfile.mixed-types.all-packages]
+Iterating all packages MUST yield both component and interface entries.
 
 ### Validation
 
@@ -279,7 +351,10 @@ The OCI storage layer persists OCI registry data in SQLite.
 
 ### Repository and Manifest
 
-r[oci.repository.upsert]
+r[oci.repository.upsert-and-find]
+Upserting an OCI repository MUST allow retrieving it.
+
+r[oci.repository.upsert-idempotent]
 Upserting an OCI repository MUST be idempotent.
 
 r[oci.manifest.upsert]
@@ -343,6 +418,9 @@ Mixed tag lists MUST be classified correctly.
 
 r[oci.tags.classify-empty]
 Empty tag lists MUST be classified correctly.
+
+r[oci.tags.classify-all-release]
+Tag lists consisting entirely of release tags MUST be classified correctly.
 
 ### Layer Filtering
 
@@ -489,6 +567,20 @@ Sync MUST trigger when the sync interval has expired.
 r[manager.sync.fresh]
 Sync MUST NOT trigger when the sync interval has not expired.
 
+### Name Sanitization
+
+r[manager.name.sanitize.valid]
+A valid identifier MUST pass through unchanged.
+
+r[manager.name.sanitize.uppercase]
+Uppercase characters MUST be lowercased.
+
+r[manager.name.sanitize.underscores]
+Underscores MUST be replaced with hyphens.
+
+r[manager.name.sanitize.leading-digits]
+Leading digits MUST be stripped.
+
 ### Name Derivation
 
 r[manager.name.wit-package]
@@ -502,9 +594,6 @@ Name derivation MUST fall back to the repository last segment.
 
 r[manager.name.collision]
 Name derivation MUST handle collisions.
-
-r[manager.name.sanitize]
-Name derivation MUST sanitize invalid identifier characters.
 
 ## Database
 
@@ -521,8 +610,14 @@ Migration info MUST be retrievable.
 
 ### Known Packages
 
-r[db.known-packages.upsert]
-Upserting a known package MUST work for both new and existing entries.
+r[db.known-packages.upsert-new]
+Upserting a new known package MUST insert it.
+
+r[db.known-packages.upsert-existing]
+Upserting an existing known package MUST update it.
+
+r[db.known-packages.get]
+A known package MUST be retrievable by ID after upsert.
 
 r[db.known-packages.search]
 Known package search MUST return matching results.
@@ -533,43 +628,119 @@ Known package search MUST handle no results gracefully.
 r[db.known-packages.reference]
 Known package reference strings MUST be generated correctly.
 
+r[db.known-packages.reference-default-tag]
+Known package references with a default tag MUST be generated correctly.
+
 ## TUI
 
 The terminal user interface renders views using `ratatui`.
 
-### Views
+### Local View
 
-r[tui.local-view]
-The local view MUST render empty and populated states.
+r[tui.local-view.empty]
+The local view MUST render an empty state when no files are present.
 
-r[tui.interfaces-view]
-The interfaces view MUST render empty and populated states.
+r[tui.local-view.populated]
+The local view MUST render a list of discovered WASM files.
 
-r[tui.packages-view]
-The packages view MUST render empty, populated, and filtered states.
+### Interfaces View
 
-r[tui.package-detail-view]
-The package detail view MUST render full metadata and handle missing tags.
+r[tui.interfaces-view.empty]
+The interfaces view MUST render an empty state.
 
-r[tui.search-view]
-The search view MUST render empty, populated, and active search states.
+r[tui.interfaces-view.populated]
+The interfaces view MUST render a populated list of WIT interfaces.
 
-r[tui.known-package-detail-view]
-The known package detail view MUST render full and minimal metadata.
+### Packages View
 
-r[tui.settings-view]
-The settings view MUST render loading and populated states.
+r[tui.packages-view.empty]
+The packages view MUST render an empty state.
 
-r[tui.log-view]
-The log view MUST render empty, populated, and scrolled states.
+r[tui.packages-view.populated]
+The packages view MUST render a populated list of packages.
 
-### Components
+r[tui.packages-view.filter-active]
+The packages view MUST render a filter input when filtering is active.
 
-r[tui.tab-bar]
-The tab bar MUST render selected tabs, loading, and error states correctly.
+r[tui.packages-view.filter-results]
+The packages view MUST render filtered results.
+
+### Package Detail View
+
+r[tui.package-detail-view.full]
+The package detail view MUST render full package metadata.
+
+r[tui.package-detail-view.no-tag]
+The package detail view MUST handle missing tags gracefully.
+
+### Search View
+
+r[tui.search-view.empty]
+The search view MUST render an empty state.
+
+r[tui.search-view.populated]
+The search view MUST render a populated list of packages.
+
+r[tui.search-view.active]
+The search view MUST render a search input when search is active.
+
+r[tui.search-view.many-tags]
+The search view MUST render packages with many tags.
+
+### Known Package Detail View
+
+r[tui.known-package-detail-view.full]
+The known package detail view MUST render full metadata.
+
+r[tui.known-package-detail-view.minimal]
+The known package detail view MUST render minimal metadata.
+
+### Settings View
+
+r[tui.settings-view.loading]
+The settings view MUST render a loading state.
+
+r[tui.settings-view.populated]
+The settings view MUST render a populated state with system information.
+
+### Log View
+
+r[tui.log-view.empty]
+The log view MUST render an empty state.
+
+r[tui.log-view.populated]
+The log view MUST render log lines.
+
+r[tui.log-view.scrolled]
+The log view MUST support scrolling through log lines.
+
+### Tab Bar
+
+r[tui.tab-bar.first-selected]
+The tab bar MUST render with the first tab selected.
+
+r[tui.tab-bar.second-selected]
+The tab bar MUST render with the second tab selected.
+
+r[tui.tab-bar.third-selected]
+The tab bar MUST render with the third tab selected.
+
+r[tui.tab-bar.loading]
+The tab bar MUST render a loading status message.
+
+r[tui.tab-bar.error]
+The tab bar MUST render an error status message.
 
 ## Formatting
 
-r[format.size]
-The `format_size` function MUST format byte sizes in human-readable units
-(bytes, KB, MB, GB).
+r[format.size.bytes]
+The `format_size` function MUST format byte-range sizes.
+
+r[format.size.kilobytes]
+The `format_size` function MUST format kilobyte-range sizes.
+
+r[format.size.megabytes]
+The `format_size` function MUST format megabyte-range sizes.
+
+r[format.size.gigabytes]
+The `format_size` function MUST format gigabyte-range sizes.

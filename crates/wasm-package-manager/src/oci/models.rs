@@ -845,7 +845,7 @@ mod tests {
         conn
     }
 
-    // r[verify oci.repository.upsert]
+    // r[verify oci.repository.upsert-and-find]
     #[test]
     fn test_oci_repository_upsert_and_find() {
         let conn = setup_test_db();
@@ -858,7 +858,7 @@ mod tests {
         assert_eq!(repo.id(), id);
     }
 
-    // r[verify oci.repository.upsert]
+    // r[verify oci.repository.upsert-idempotent]
     #[test]
     fn test_oci_repository_upsert_idempotent() {
         let conn = setup_test_db();

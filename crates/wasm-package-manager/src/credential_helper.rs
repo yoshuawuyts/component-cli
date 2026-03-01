@@ -157,6 +157,7 @@ mod tests {
         (cmd, path)
     }
 
+    // r[verify credential.json]
     #[test]
     fn test_execute_json_helper() {
         let json =
@@ -168,6 +169,7 @@ mod tests {
         assert_eq!(password, "testpass");
     }
 
+    // r[verify credential.split]
     #[test]
     fn test_execute_split_helper() {
         let (username, password) = execute_split_helper("echo testuser", "echo testpass").unwrap();
