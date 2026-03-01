@@ -316,18 +316,14 @@ impl Store {
 
         // Insert worlds, imports, and exports
         for world in &metadata.worlds {
-            let wit_world_id = match WitWorld::insert(
-                &self.conn,
-                wit_interface_id,
-                &world.name,
-                None,
-            ) {
-                Ok(id) => id,
-                Err(e) => {
-                    tracing::warn!("Failed to insert WIT world '{}': {}", world.name, e);
-                    continue;
-                }
-            };
+            let wit_world_id =
+                match WitWorld::insert(&self.conn, wit_interface_id, &world.name, None) {
+                    Ok(id) => id,
+                    Err(e) => {
+                        tracing::warn!("Failed to insert WIT world '{}': {}", world.name, e);
+                        continue;
+                    }
+                };
 
             for item in &world.imports {
                 if let Err(e) = WitWorldImport::insert(
@@ -371,30 +367,22 @@ impl Store {
 
         // For compiled components, create wasm_component and component_target rows
         if metadata.is_component {
-            let component_id = match WasmComponent::insert(
-                &self.conn,
-                manifest_id,
-                layer_id,
-                None,
-                None,
-            ) {
-                Ok(id) => id,
-                Err(e) => {
-                    tracing::warn!("Failed to insert WasmComponent: {}", e);
-                    return;
-                }
-            };
+            let component_id =
+                match WasmComponent::insert(&self.conn, manifest_id, layer_id, None, None) {
+                    Ok(id) => id,
+                    Err(e) => {
+                        tracing::warn!("Failed to insert WasmComponent: {}", e);
+                        return;
+                    }
+                };
 
             for world in &metadata.worlds {
                 // Look up the wit_world_id we just inserted
-                let wit_world_id = WitWorld::find_by_name(
-                    &self.conn,
-                    wit_interface_id,
-                    &world.name,
-                )
-                .ok()
-                .flatten()
-                .map(|w| w.id());
+                let wit_world_id =
+                    WitWorld::find_by_name(&self.conn, wit_interface_id, &world.name)
+                        .ok()
+                        .flatten()
+                        .map(|w| w.id());
 
                 if let Err(e) = ComponentTarget::insert(
                     &self.conn,
@@ -615,5 +603,233 @@ mod tests {
         let (name, version) = split_package_version("wasi:io/streams@1.0.0-rc1");
         assert_eq!(name, "wasi:io/streams");
         assert_eq!(version, Some("1.0.0-rc1"));
+    }
+
+    /// Create an in-memory database with migrations applied for testing.
+    fn setup_test_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        Migrations::run_all(&conn).unwrap();
+        conn
+    }
+
+    /// Helper: create a repo + manifest in the test DB, returning the manifest ID.
+    fn insert_test_manifest(conn: &Connection) -> i64 {
+        let repo_id = OciRepository::upsert(conn, "ghcr.io", "test/pkg").unwrap();
+        let annotations = HashMap::new();
+        let (manifest_id, _) = OciManifest::upsert(
+            conn,
+            repo_id,
+            "sha256:abc123",
+            Some("application/vnd.oci.image.manifest.v1+json"),
+            Some("{}"),
+            Some(1024),
+            None,
+            None,
+            None,
+            &annotations,
+        )
+        .unwrap();
+        manifest_id
+    }
+
+    #[test]
+    fn wit_world_insert_and_query() {
+        let conn = setup_test_db();
+        let manifest_id = insert_test_manifest(&conn);
+
+        let iface_id = WitInterface::insert(
+            &conn,
+            "wasi:http",
+            Some("0.2.0"),
+            None,
+            Some("package wasi:http;"),
+            Some(manifest_id),
+            None,
+        )
+        .unwrap();
+
+        let world_id = WitWorld::insert(&conn, iface_id, "proxy", None).unwrap();
+        assert!(world_id > 0);
+
+        let found = WitWorld::find_by_name(&conn, iface_id, "proxy")
+            .unwrap()
+            .expect("world should exist");
+        assert_eq!(found.name, "proxy");
+        assert_eq!(found.wit_interface_id, iface_id);
+    }
+
+    #[test]
+    fn wit_world_import_export_insert() {
+        let conn = setup_test_db();
+        let manifest_id = insert_test_manifest(&conn);
+
+        let iface_id = WitInterface::insert(
+            &conn,
+            "wasi:http",
+            Some("0.2.0"),
+            None,
+            None,
+            Some(manifest_id),
+            None,
+        )
+        .unwrap();
+
+        let world_id = WitWorld::insert(&conn, iface_id, "proxy", None).unwrap();
+
+        let import_id = WitWorldImport::insert(
+            &conn,
+            world_id,
+            "wasi:io",
+            Some("streams"),
+            Some("0.2.0"),
+            None,
+        )
+        .unwrap();
+        assert!(import_id > 0);
+
+        let export_id = WitWorldExport::insert(
+            &conn,
+            world_id,
+            "wasi:http",
+            Some("handler"),
+            Some("0.2.0"),
+            None,
+        )
+        .unwrap();
+        assert!(export_id > 0);
+    }
+
+    #[test]
+    fn wit_interface_dependency_insert() {
+        let conn = setup_test_db();
+        let manifest_id = insert_test_manifest(&conn);
+
+        let iface_id = WitInterface::insert(
+            &conn,
+            "wasi:http",
+            Some("0.2.0"),
+            None,
+            None,
+            Some(manifest_id),
+            None,
+        )
+        .unwrap();
+
+        let dep_id =
+            WitInterfaceDependency::insert(&conn, iface_id, "wasi:io", Some("0.2.0"), None)
+                .unwrap();
+        assert!(dep_id > 0);
+    }
+
+    #[test]
+    fn wasm_component_and_target_insert() {
+        let conn = setup_test_db();
+        let manifest_id = insert_test_manifest(&conn);
+        let layer_id =
+            OciLayer::insert(&conn, manifest_id, "sha256:layer1", None, Some(100), 0).unwrap();
+
+        // Create the WIT interface and world first
+        let iface_id = WitInterface::insert(
+            &conn,
+            "wasi:http",
+            Some("0.2.0"),
+            None,
+            None,
+            Some(manifest_id),
+            Some(layer_id),
+        )
+        .unwrap();
+
+        let world_id = WitWorld::insert(&conn, iface_id, "proxy", None).unwrap();
+
+        // Insert the component
+        let comp_id =
+            WasmComponent::insert(&conn, manifest_id, Some(layer_id), None, None).unwrap();
+        assert!(comp_id > 0);
+
+        // Insert a target pointing to the world we just created
+        let target_id = ComponentTarget::insert(
+            &conn,
+            comp_id,
+            "wasi:http",
+            "proxy",
+            Some("0.2.0"),
+            Some(world_id),
+        )
+        .unwrap();
+        assert!(target_id > 0);
+
+        // Verify the component can be found by manifest
+        let found = WasmComponent::find_by_manifest(&conn, manifest_id)
+            .unwrap()
+            .expect("component should exist");
+        assert_eq!(found.id(), comp_id);
+    }
+
+    #[test]
+    fn no_component_rows_for_wit_only_package() {
+        let conn = setup_test_db();
+        let manifest_id = insert_test_manifest(&conn);
+
+        // Insert interface and world (as we would for a WIT-only package)
+        let iface_id = WitInterface::insert(
+            &conn,
+            "wasi:http",
+            Some("0.2.0"),
+            None,
+            None,
+            Some(manifest_id),
+            None,
+        )
+        .unwrap();
+
+        let _world_id = WitWorld::insert(&conn, iface_id, "proxy", None).unwrap();
+
+        // For a WIT-only package, we should NOT insert a WasmComponent
+        let component = WasmComponent::find_by_manifest(&conn, manifest_id).unwrap();
+        assert!(
+            component.is_none(),
+            "WIT-only packages should not have wasm_component rows"
+        );
+    }
+
+    #[test]
+    fn wit_world_import_export_idempotent() {
+        let conn = setup_test_db();
+        let manifest_id = insert_test_manifest(&conn);
+
+        let iface_id = WitInterface::insert(
+            &conn,
+            "wasi:http",
+            Some("0.2.0"),
+            None,
+            None,
+            Some(manifest_id),
+            None,
+        )
+        .unwrap();
+
+        let world_id = WitWorld::insert(&conn, iface_id, "proxy", None).unwrap();
+
+        // Insert same import twice — should be idempotent
+        let id1 = WitWorldImport::insert(
+            &conn,
+            world_id,
+            "wasi:io",
+            Some("streams"),
+            Some("0.2.0"),
+            None,
+        )
+        .unwrap();
+        let id2 = WitWorldImport::insert(
+            &conn,
+            world_id,
+            "wasi:io",
+            Some("streams"),
+            Some("0.2.0"),
+            None,
+        )
+        .unwrap();
+        assert_eq!(id1, id2, "duplicate imports should return the same ID");
     }
 }
