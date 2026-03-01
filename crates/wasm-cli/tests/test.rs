@@ -57,16 +57,6 @@ fn test_cli_version_snapshot() {
 }
 
 // =============================================================================
-// Inspect Command Help Tests
-// =============================================================================
-
-#[test]
-fn test_cli_inspect_help_snapshot() {
-    let output = run_cli(&["inspect", "--help"]);
-    assert_snapshot!(output);
-}
-
-// =============================================================================
 // Local Command Help Tests
 // =============================================================================
 
@@ -397,17 +387,6 @@ fn test_offline_flag_with_registry_pull() {
         "Expected 'offline' error message, got: {}",
         stderr
     );
-}
-
-#[test]
-fn test_offline_flag_with_inspect() {
-    // Test that --offline works with inspect command (local-only operation)
-    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
-        .args(&["--offline", "inspect", "--help"])
-        .output()
-        .expect("Failed to execute command");
-
-    assert!(output.status.success());
 }
 
 #[test]

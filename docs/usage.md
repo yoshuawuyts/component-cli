@@ -23,7 +23,6 @@ cargo add wasm
 - **Interactive TUI**: Launch with no arguments
 - **Package Management**: Pull, push, and list packages
 - **Local Discovery**: Detect and manage local Wasm files
-- **Inspection**: Examine Wasm component structure
 - **Self Management**: Configure and manage the tool itself
 
 ## Interactive Mode
@@ -103,30 +102,6 @@ This recursively scans for `.wasm` files and displays:
 
 The detector respects `.gitignore` rules and standard ignore patterns.
 
-## Inspecting Wasm Components
-
-### Basic Inspection
-
-Examine a Wasm component file:
-
-```bash
-wasm inspect file.wasm
-```
-
-This displays:
-- Component structure
-- Imports and exports
-- Metadata
-- Dependencies
-
-### Detailed Information
-
-For more detailed information, the inspect command shows:
-- Component type information
-- Interface definitions
-- World descriptions
-- Custom sections
-
 ## Self Management
 
 ### Viewing State
@@ -162,7 +137,7 @@ This operation:
 
 1. Search for packages (coming soon) or use the TUI
 2. Pull interesting packages to inspect them
-3. Examine with `wasm inspect` or the TUI
+3. Examine with the TUI
 
 ### Publishing a Package
 
@@ -173,8 +148,7 @@ This operation:
 ### Managing Local Development
 
 1. Use `wasm local list` to discover Wasm files in your project
-2. Inspect components with `wasm inspect`
-3. Test components locally before publishing
+2. Test components locally before publishing
 
 ### Cleaning Up After Development
 
@@ -267,15 +241,6 @@ Color output can also be controlled via environment variables:
 - `NO_COLOR=1` — disables color output
 - `CLICOLOR=0` — disables color output
 - `CLICOLOR_FORCE=1` — forces color output even when not in a terminal
-
-### Quick Package Inspection
-
-Combine commands to quickly pull and inspect:
-
-```bash
-wasm package pull ghcr.io/example/component:latest
-wasm inspect ~/.local/share/wasm/store/content/<digest>
-```
 
 ### Finding Package Content
 

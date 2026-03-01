@@ -2,7 +2,6 @@
 //!
 
 mod init;
-mod inspect;
 mod install;
 mod local;
 mod registry;
@@ -48,11 +47,8 @@ impl Cli {
     async fn run(self) -> Result<(), anyhow::Error> {
         match self.command {
             Some(Command::Run) => todo!(),
-            Some(Command::Inspect(opts)) => opts.run()?,
-            Some(Command::Convert) => todo!(),
             Some(Command::Local(opts)) => opts.run()?,
             Some(Command::Registry(opts)) => opts.run(self.offline).await?,
-            Some(Command::Compose) => todo!(),
             Some(Command::Init(opts)) => opts.run().await?,
             Some(Command::Install(opts)) => opts.run(self.offline).await?,
             Some(Command::Self_(opts)) => opts.run().await?,
@@ -75,20 +71,12 @@ enum Command {
     Init(init::Opts),
     /// Install a dependency from an OCI registry
     Install(install::Opts),
-    /// Inspect a Wasm Component
-    Inspect(inspect::Opts),
-    /// Convert a Wasm Component to another format
-    #[command(subcommand)]
-    Convert,
     /// Detect and manage local WASM files
     #[command(subcommand)]
     Local(local::Opts),
     /// Manage Wasm Components and WIT interfaces in OCI registries
     #[command(subcommand)]
     Registry(registry::Opts),
-    /// Compose Wasm Components with other components
-    #[command(subcommand)]
-    Compose,
     /// Configure the `wasm(1)` tool, generate completions, & manage state
     #[clap(name = "self")]
     #[command(subcommand)]

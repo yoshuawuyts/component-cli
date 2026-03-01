@@ -58,11 +58,8 @@ Commands:
   run       Execute a Wasm Component
   init      Create a new wasm component in an existing directory
   install   Install a dependency from an OCI registry
-  inspect   Inspect a Wasm Component
-  convert   Convert a Wasm Component to another format
   local     Detect and manage local WASM files
   registry  Manage Wasm Components and WIT interfaces in OCI registries
-  compose   Compose Wasm Components with other components
   self      Configure the `wasm(1)` tool, generate completions, & manage state
   help      Print this message or the help of the given subcommand(s)
 
