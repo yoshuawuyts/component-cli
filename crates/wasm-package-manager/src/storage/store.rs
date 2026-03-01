@@ -314,7 +314,8 @@ impl Store {
             }
         };
 
-        // Insert worlds, imports, and exports
+        // Insert worlds, imports, and exports; collect world IDs for component targets
+        let mut world_ids: HashMap<String, i64> = HashMap::new();
         for world in &metadata.worlds {
             let wit_world_id =
                 match WitWorld::insert(&self.conn, wit_interface_id, &world.name, None) {
@@ -324,6 +325,7 @@ impl Store {
                         continue;
                     }
                 };
+            world_ids.insert(world.name.clone(), wit_world_id);
 
             for item in &world.imports {
                 if let Err(e) = WitWorldImport::insert(
@@ -377,12 +379,7 @@ impl Store {
                 };
 
             for world in &metadata.worlds {
-                // Look up the wit_world_id we just inserted
-                let wit_world_id =
-                    WitWorld::find_by_name(&self.conn, wit_interface_id, &world.name)
-                        .ok()
-                        .flatten()
-                        .map(|w| w.id());
+                let wit_world_id = world_ids.get(&world.name).copied();
 
                 if let Err(e) = ComponentTarget::insert(
                     &self.conn,

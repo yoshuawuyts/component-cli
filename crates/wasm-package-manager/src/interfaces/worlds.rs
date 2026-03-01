@@ -81,6 +81,7 @@ impl WitWorld {
     }
 
     /// Find a single world by interface ID and name.
+    #[allow(dead_code)]
     pub(crate) fn find_by_name(
         conn: &Connection,
         wit_interface_id: i64,
