@@ -107,37 +107,37 @@ that you *might* be wrong is critical for any successful open collaboration.
 
 Don't be a bad actor.
 
-## Releases
+## Releasing
 
-This project uses [release-plz](https://github.com/MarcoIeni/release-plz) to automate the release process for all workspace crates.
+This project uses a two-step workflow for publishing crates to crates.io via
+[trusted publishing (OIDC)](https://crates.io/docs/trusted-publishing) — no
+long-lived API tokens are required.
 
-### How the Release Process Works
+### 1. Create a bump PR
 
-1. **On every push to `main`**: The Release workflow automatically runs and creates or updates a release PR with:
-   - Version bumps based on [conventional commits](https://www.conventionalcommits.org/)
-   - Changelog updates for each crate
-   - Updated version numbers in Cargo.toml files
+Go to **Actions → Release Bump → Run workflow**, then select the bump type
+(`patch`, `minor`, or `major`). The workflow will:
 
-2. **Review and merge the release PR**: Once you're ready to publish a release, review the automatically generated release PR and merge it.
+- Bump the workspace version in every `Cargo.toml`
+- Open a PR titled **Release v&lt;version&gt;**
 
-3. **Automatic publishing**: When the release PR is merged, the workflow automatically:
-   - Publishes all changed crates to crates.io using [trusted publishing (OIDC)](https://blog.rust-lang.org/2023/06/23/secure-credential-free-publishing.html)
-   - Creates GitHub releases with the changelogs
+### 2. Merge the PR and tag
 
-### Conventional Commits
+After the PR is reviewed and merged:
 
-For release-plz to work correctly, commit messages should follow the [conventional commits](https://www.conventionalcommits.org/) format:
+```sh
+git checkout main && git pull
+git tag v<version>
+git push origin v<version>
+```
 
-- `feat: add new feature` - Creates a minor version bump (0.1.0 -> 0.2.0)
-- `fix: fix bug` - Creates a patch version bump (0.1.0 -> 0.1.1)
-- `feat!: breaking change` or commits with `BREAKING CHANGE:` in the body - Creates a major version bump (0.1.0 -> 1.0.0)
+### 3. Publish
 
-### Manual Intervention
+Pushing the tag triggers the **Publish** workflow, which:
 
-The release process is fully automated. If you need to make manual adjustments to a release:
-1. Edit the automatically created release PR
-2. Commit your changes to the release PR branch
-3. Merge the PR when ready
+- Authenticates with crates.io using OIDC (via the `crates-io-publish` environment)
+- Publishes `wasm-package-manager`, then `wasm` (in dependency order)
+- Creates a GitHub Release with auto-generated notes
 
 ## Snapshot Testing
 

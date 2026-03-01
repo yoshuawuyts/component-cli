@@ -1,0 +1,76 @@
+name: Release Bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump level"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    name: Create version bump PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/bin
+          key: cargo-edit-${{ runner.os }}
+
+      - name: Install cargo-edit
+        run: cargo install cargo-edit
+
+      - name: Bump workspace version
+        run: cargo set-version --workspace --bump "${{ inputs.bump }}"
+
+      - name: Determine new version
+        id: version
+        run: |
+          VERSION=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "wasm") | .version')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Validate tag does not exist
+        run: |
+          if git ls-remote --tags origin | grep -q "refs/tags/v${{ steps.version.outputs.version }}$"; then
+            echo "::error::Tag v${{ steps.version.outputs.version }} already exists"
+            exit 1
+          fi
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore: bump version to v${{ steps.version.outputs.version }}"
+          title: "Release v${{ steps.version.outputs.version }}"
+          body: |
+            Bump workspace version to **v${{ steps.version.outputs.version }}** (`${{ inputs.bump }}` bump).
+
+            ## After merging
+
+            Tag and push to trigger the publish workflow:
+
+            ```sh
+            git checkout main && git pull
+            git tag v${{ steps.version.outputs.version }}
+            git push origin v${{ steps.version.outputs.version }}
+            ```
+          branch: release/v${{ steps.version.outputs.version }}
+          labels: release
