@@ -8,18 +8,47 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
         with:
           components: llvm-tools-preview
       - name: Install cargo-llvm-cov
-        run: cargo install cargo-llvm-cov
+        uses: taiki-e/install-action@0adbae4d29359521325013e359f3079a4539f48a # cargo-llvm-cov
+        with:
+          tool: cargo-llvm-cov
       - name: Install sqlite3def
         run: cargo xtask sql install
-      - name: Generate coverage
-        run: cargo llvm-cov --html
-      - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+      - name: Collect coverage data
+        run: cargo llvm-cov --workspace --all-features --no-report
+      - name: Generate text summary
+        run: cargo llvm-cov report --text 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Generate HTML report
+        run: cargo llvm-cov report --html
+      - name: Generate lcov report
+        run: cargo llvm-cov report --lcov --output-path lcov.info
+      - name: Generate Cobertura XML
+        run: cargo llvm-cov report --cobertura --output-path coverage.xml
+      - name: Generate Markdown coverage summary
+        uses: irongut/CodeCoverageSummary@51cc3a756ddcd398d447c044c02cb6aa83fdae95 # v1.3.0
         with:
-          name: coverage-report
+          filename: 'coverage.xml'
+          format: 'markdown'
+          output: 'both'
+          badge: true
+      - name: Add Markdown coverage summary to job
+        if: hashFiles('code-coverage-results.md') != ''
+        run: cat code-coverage-results.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Check coverage threshold
+        run: cargo llvm-cov report --fail-under-lines 50
+      - name: Upload HTML coverage report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage-report-html
           path: target/llvm-cov/html/
+          retention-days: 14
+      - name: Upload lcov coverage report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage-report-lcov
+          path: lcov.info
+          retention-days: 14
