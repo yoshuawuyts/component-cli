@@ -54,7 +54,7 @@ runs:
       shell: bash
       run: |
         if ! command -v wasm &>/dev/null; then
-          cargo install wasm
+          cargo install --git https://github.com/yoshuawuyts/wasm-cli.git wasm
         fi
 
     - name: Run wasm
