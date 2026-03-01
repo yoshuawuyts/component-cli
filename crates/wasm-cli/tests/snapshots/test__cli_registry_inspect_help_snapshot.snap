@@ -2,12 +2,12 @@
 source: crates/wasm-cli/tests/test.rs
 expression: output
 ---
-Inspect a Wasm Component
+Inspect the metadata of a package on the registry
 
-Usage: wasm inspect [OPTIONS] <INPUT>
+Usage: wasm registry inspect [OPTIONS] <REFERENCE>
 
 Arguments:
-  <INPUT>  Path to a .wasm to inspect
+  <REFERENCE>  The reference to inspect (e.g., ghcr.io/example/component:tag)
 
 Options:
       --json     Output in JSON encoding

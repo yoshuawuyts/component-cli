@@ -1,31 +1,45 @@
 use bytesize::ByteSize;
-use std::fs;
 use std::io::{Stdout, Write};
-use std::path::PathBuf;
 
 use anyhow::Result;
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::{CellAlignment, ContentArrangement, Table};
 use wasm_metadata::{Metadata, Payload};
+use wasm_package_manager::Reference;
+use wasm_package_manager::manager::Manager;
+use wasm_package_manager::oci::filter_wasm_layers;
 
-/// Read metadata (module name, producers) from a WebAssembly file.
-#[derive(clap::Parser)]
-pub(crate) struct Opts {
-    /// Path to a .wasm to inspect
-    input: PathBuf,
+/// Inspect the metadata of a package on the registry.
+#[derive(clap::Args)]
+pub(crate) struct InspectOpts {
+    /// The reference to inspect (e.g., ghcr.io/example/component:tag)
+    #[arg(value_parser = crate::util::parse_reference)]
+    reference: Reference,
 
     /// Output in JSON encoding
     #[clap(long)]
     json: bool,
 }
 
-impl Opts {
-    pub(crate) fn run(&self) -> Result<()> {
-        let mut output = std::io::stdout();
+impl InspectOpts {
+    pub(crate) async fn run(self, store: &Manager) -> Result<()> {
+        let pull_result = store.pull(self.reference.clone()).await?;
 
-        let file = fs::read(&self.input)?;
-        let payload = wasm_metadata::Payload::from_binary(&file)?;
+        let manifest = pull_result
+            .manifest
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No manifest found for '{}'", self.reference.whole()))?;
+
+        let wasm_layers = filter_wasm_layers(&manifest.layers);
+        let layer = wasm_layers.first().ok_or_else(|| {
+            anyhow::anyhow!("No wasm layers found for '{}'", self.reference.whole())
+        })?;
+
+        let data = store.get(&layer.digest).await?;
+        let payload = wasm_metadata::Payload::from_binary(&data)?;
+
+        let mut output = std::io::stdout();
         if self.json {
             write!(output, "{}", serde_json::to_string(&payload)?)?;
         } else {

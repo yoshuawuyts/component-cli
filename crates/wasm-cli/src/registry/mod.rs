@@ -4,6 +4,7 @@ use wasm_package_manager::manager::Manager;
 use wasm_package_manager::oci::{ImageView, InsertResult};
 use wasm_package_manager::{Reference, format_size};
 
+mod inspect;
 mod search;
 mod sync;
 
@@ -27,6 +28,8 @@ pub(crate) enum Opts {
     List(ListOpts),
     /// List all known packages (previously synced or pulled)
     Known(KnownOpts),
+    /// Inspect the metadata of a package on the registry
+    Inspect(inspect::InspectOpts),
 }
 
 #[derive(clap::Args)]
@@ -162,6 +165,7 @@ impl Opts {
                 }
                 Ok(())
             }
+            Opts::Inspect(opts) => opts.run(&store).await,
         }
     }
 }
