@@ -190,10 +190,10 @@ The local view MUST render a list of discovered WASM files.
 
 ### Interfaces View
 
-r[tui.interfaces-view.empty]
+r[tui.types-view.empty]
 The interfaces view MUST render an empty state.
 
-r[tui.interfaces-view.populated]
+r[tui.types-view.populated]
 The interfaces view MUST render a populated list of WIT interfaces.
 
 ### Packages View

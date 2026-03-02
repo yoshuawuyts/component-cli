@@ -9,7 +9,7 @@
 //! use wasm_manifest::Manifest;
 //!
 //! let toml = r#"
-//! [interfaces]
+//! [types]
 //! "wasi:logging" = "ghcr.io/webassembly/wasi-logging:1.0.0"
 //! "#;
 //!
@@ -22,9 +22,9 @@
 //! use wasm_manifest::Lockfile;
 //!
 //! let toml = r#"
-//! lockfile_version = 2
+//! lockfile_version = 3
 //!
-//! [[interfaces]]
+//! [[types]]
 //! name = "wasi:logging"
 //! version = "1.0.0"
 //! registry = "ghcr.io/webassembly/wasi-logging"

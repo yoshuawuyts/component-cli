@@ -5,17 +5,17 @@ use serde::{Deserialize, Serialize};
 use crate::PackageType;
 
 /// The current revision of the lockfile.
-pub const LOCKFILE_VERSION: u32 = 2;
+pub const LOCKFILE_VERSION: u32 = 3;
 
 /// The root lockfile structure for a WASM package.
 ///
 /// The lockfile (`deps/wasm.lock`) is auto-generated and tracks resolved dependencies
-/// with their exact versions and content digests, separated into components and interfaces.
+/// with their exact versions and content digests, separated into components and types.
 ///
 /// # Example
 ///
 /// ```toml
-/// lockfile_version = 2
+/// lockfile_version = 3
 ///
 /// [[components]]
 /// name = "root:component"
@@ -23,7 +23,7 @@ pub const LOCKFILE_VERSION: u32 = 2;
 /// registry = "ghcr.io/bytecodealliance/sample-wasi-http-rust/sample-wasi-http-rust"
 /// digest = "sha256:abc123..."
 ///
-/// [[interfaces]]
+/// [[types]]
 /// name = "wasi:clocks"
 /// version = "0.2.5"
 /// registry = "ghcr.io/webassembly/wasi/clocks"
@@ -39,9 +39,9 @@ pub struct Lockfile {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub components: Vec<Package>,
 
-    /// The list of resolved interface packages.
+    /// The list of resolved type packages.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub interfaces: Vec<Package>,
+    pub types: Vec<Package>,
 }
 
 impl Default for Lockfile {
@@ -49,7 +49,7 @@ impl Default for Lockfile {
         Self {
             lockfile_version: LOCKFILE_VERSION,
             components: Vec::default(),
-            interfaces: Vec::default(),
+            types: Vec::default(),
         }
     }
 }
@@ -60,7 +60,7 @@ impl Lockfile {
         self.components
             .iter()
             .map(|p| (p, PackageType::Component))
-            .chain(self.interfaces.iter().map(|p| (p, PackageType::Interface)))
+            .chain(self.types.iter().map(|p| (p, PackageType::Type)))
     }
 }
 
@@ -72,18 +72,18 @@ impl Lockfile {
 /// # Example with dependencies
 ///
 /// ```toml
-/// [[interfaces]]
+/// [[types]]
 /// name = "wasi:key-value"
 /// version = "2.0.0"
 /// registry = "ghcr.io/webassembly/wasi-key-value"
 /// digest = "sha256:def456..."
 ///
-/// [[interfaces.dependencies]]
+/// [[types.dependencies]]
 /// name = "wasi:logging"
 /// version = "1.0.0"
 /// ```
 ///
-/// Note: `[[interfaces.dependencies]]` defines dependencies for the last `[[interfaces]]` entry.
+/// Note: `[[types.dependencies]]` defines dependencies for the last `[[types]]` entry.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[must_use]
 pub struct Package {
@@ -126,37 +126,37 @@ mod tests {
     #[test]
     fn test_parse_lockfile() {
         let toml = r#"
-            lockfile_version = 2
+            lockfile_version = 3
 
-            [[interfaces]]
+            [[types]]
             name = "wasi:logging"
             version = "1.0.0"
             registry = "ghcr.io/webassembly/wasi-logging"
             digest = "sha256:a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456"
 
-            [[interfaces]]
+            [[types]]
             name = "wasi:key-value"
             version = "2.0.0"
             registry = "ghcr.io/webassembly/wasi-key-value"
             digest = "sha256:b2c3d4e5f67890123456789012345678901abcdef2345678901abcdef2345678"
 
-            [[interfaces.dependencies]]
+            [[types.dependencies]]
             name = "wasi:logging"
             version = "1.0.0"
         "#;
 
         let lockfile: Lockfile = toml::from_str(toml).expect("Failed to parse lockfile");
 
-        assert_eq!(lockfile.lockfile_version, 2);
-        assert_eq!(lockfile.interfaces.len(), 2);
+        assert_eq!(lockfile.lockfile_version, 3);
+        assert_eq!(lockfile.types.len(), 2);
 
-        let logging = &lockfile.interfaces[0];
+        let logging = &lockfile.types[0];
         assert_eq!(logging.name, "wasi:logging");
         assert_eq!(logging.version, "1.0.0");
         assert_eq!(logging.registry, "ghcr.io/webassembly/wasi-logging");
         assert!(logging.digest.starts_with("sha256:"));
 
-        let key_value = &lockfile.interfaces[1];
+        let key_value = &lockfile.types[1];
         assert_eq!(key_value.name, "wasi:key-value");
         assert_eq!(key_value.version, "2.0.0");
         assert_eq!(key_value.dependencies.len(), 1);
@@ -168,9 +168,9 @@ mod tests {
     #[test]
     fn test_serialize_lockfile() {
         let lockfile = Lockfile {
-            lockfile_version: 2,
+            lockfile_version: 3,
             components: vec![],
-            interfaces: vec![
+            types: vec![
                 Package {
                     name: "wasi:logging".to_string(),
                     version: "1.0.0".to_string(),
@@ -193,7 +193,7 @@ mod tests {
 
         let toml = toml::to_string(&lockfile).expect("Failed to serialize lockfile");
 
-        assert!(toml.contains("version = 2"));
+        assert!(toml.contains("version = 3"));
         assert!(toml.contains("wasi:logging"));
         assert!(toml.contains("wasi:key-value"));
         assert!(toml.contains("sha256:abc123"));
@@ -203,9 +203,9 @@ mod tests {
     #[test]
     fn test_package_without_dependencies() {
         let toml = r#"
-            lockfile_version = 2
+            lockfile_version = 3
 
-            [[interfaces]]
+            [[types]]
             name = "wasi:logging"
             version = "1.0.0"
             registry = "ghcr.io/webassembly/wasi-logging"
@@ -214,8 +214,8 @@ mod tests {
 
         let lockfile: Lockfile = toml::from_str(toml).expect("Failed to parse lockfile");
 
-        assert_eq!(lockfile.interfaces.len(), 1);
-        assert_eq!(lockfile.interfaces[0].dependencies.len(), 0);
+        assert_eq!(lockfile.types.len(), 1);
+        assert_eq!(lockfile.types[0].dependencies.len(), 0);
     }
 
     // r[verify lockfile.no-dependencies.serialize]
@@ -239,7 +239,7 @@ mod tests {
     #[test]
     fn test_components_and_interfaces() {
         let toml = r#"
-            lockfile_version = 2
+            lockfile_version = 3
 
             [[components]]
             name = "root:component"
@@ -247,7 +247,7 @@ mod tests {
             registry = "ghcr.io/example/component"
             digest = "sha256:comp123"
 
-            [[interfaces]]
+            [[types]]
             name = "wasi:clocks"
             version = "0.2.5"
             registry = "ghcr.io/webassembly/wasi/clocks"
@@ -257,16 +257,16 @@ mod tests {
         let lockfile: Lockfile = toml::from_str(toml).expect("Failed to parse lockfile");
 
         assert_eq!(lockfile.components.len(), 1);
-        assert_eq!(lockfile.interfaces.len(), 1);
+        assert_eq!(lockfile.types.len(), 1);
         assert_eq!(lockfile.components[0].name, "root:component");
-        assert_eq!(lockfile.interfaces[0].name, "wasi:clocks");
+        assert_eq!(lockfile.types[0].name, "wasi:clocks");
     }
 
     // r[verify lockfile.mixed-types.all-packages]
     #[test]
     fn test_all_packages() {
         let lockfile = Lockfile {
-            lockfile_version: 2,
+            lockfile_version: 3,
             components: vec![Package {
                 name: "root:component".to_string(),
                 version: "0.1.0".to_string(),
@@ -274,7 +274,7 @@ mod tests {
                 digest: "sha256:comp123".to_string(),
                 dependencies: vec![],
             }],
-            interfaces: vec![Package {
+            types: vec![Package {
                 name: "wasi:clocks".to_string(),
                 version: "0.2.5".to_string(),
                 registry: "ghcr.io/webassembly/wasi/clocks".to_string(),
@@ -287,7 +287,7 @@ mod tests {
         assert_eq!(all.len(), 2);
 
         let has_component = all.iter().any(|(_, pt)| *pt == PackageType::Component);
-        let has_interface = all.iter().any(|(_, pt)| *pt == PackageType::Interface);
+        let has_interface = all.iter().any(|(_, pt)| *pt == PackageType::Type);
         assert!(has_component);
         assert!(has_interface);
     }

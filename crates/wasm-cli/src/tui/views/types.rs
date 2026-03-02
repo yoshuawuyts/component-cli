@@ -5,11 +5,11 @@ use ratatui::{
         Table, TableState, Widget, Wrap,
     },
 };
-use wasm_package_manager::interfaces::WitTypeView;
+use wasm_package_manager::types::WitTypeView;
 
-/// State for the interfaces view
+/// State for the types view
 #[derive(Debug, Default)]
-pub struct InterfacesViewState {
+pub struct TypesViewState {
     /// Table state for list selection
     pub table_state: TableState,
     /// Scroll offset for the detail view
@@ -18,8 +18,8 @@ pub struct InterfacesViewState {
     pub viewing_detail: bool,
 }
 
-impl InterfacesViewState {
-    /// Create a new InterfacesViewState
+impl TypesViewState {
+    /// Create a new TypesViewState
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -29,13 +29,13 @@ impl InterfacesViewState {
         }
     }
 
-    /// Get the currently selected interface index
+    /// Get the currently selected type index
     #[must_use]
     pub fn selected(&self) -> Option<usize> {
         self.table_state.selected()
     }
 
-    /// Select the next interface in the list
+    /// Select the next type in the list
     pub fn select_next(&mut self, len: usize) {
         if len == 0 {
             return;
@@ -44,7 +44,7 @@ impl InterfacesViewState {
         self.table_state.select(Some((current + 1) % len));
     }
 
-    /// Select the previous interface in the list
+    /// Select the previous type in the list
     pub fn select_prev(&mut self, len: usize) {
         if len == 0 {
             return;
@@ -65,26 +65,26 @@ impl InterfacesViewState {
     }
 }
 
-/// View for displaying WIT interfaces
+/// View for displaying WIT types
 #[derive(Debug)]
-pub struct InterfacesView<'a> {
+pub struct TypesView<'a> {
     interfaces: &'a [(WitTypeView, String)],
 }
 
-impl<'a> InterfacesView<'a> {
-    /// Create a new InterfacesView with the given interfaces
+impl<'a> TypesView<'a> {
+    /// Create a new TypesView with the given types
     #[must_use]
     pub fn new(interfaces: &'a [(WitTypeView, String)]) -> Self {
         Self { interfaces }
     }
 }
 
-impl StatefulWidget for InterfacesView<'_> {
-    type State = InterfacesViewState;
+impl StatefulWidget for TypesView<'_> {
+    type State = TypesViewState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         if self.interfaces.is_empty() {
-            let msg = "No WIT interfaces found.\n\nPull a WebAssembly component to see its interfaces here.\nPress [2] to go to Components, then [p] to pull a package.";
+            let msg = "No WIT types found.\n\nPull a WebAssembly component to see its types here.\nPress [2] to go to Components, then [p] to pull a package.";
             Paragraph::new(msg)
                 .centered()
                 .wrap(Wrap { trim: false })
@@ -106,8 +106,8 @@ impl StatefulWidget for InterfacesView<'_> {
     }
 }
 
-impl InterfacesView<'_> {
-    fn render_list(&self, area: Rect, buf: &mut Buffer, state: &mut InterfacesViewState) {
+impl TypesView<'_> {
+    fn render_list(&self, area: Rect, buf: &mut Buffer, state: &mut TypesViewState) {
         let header = Row::new(vec!["Package", "Version", "Component"])
             .style(Style::default().bold())
             .bottom_margin(1);
@@ -154,7 +154,7 @@ impl InterfacesView<'_> {
     fn render_detail(
         area: Rect,
         buf: &mut Buffer,
-        state: &mut InterfacesViewState,
+        state: &mut TypesViewState,
         interface: &WitTypeView,
         component_ref: &str,
     ) {

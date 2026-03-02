@@ -482,8 +482,8 @@ fn test_init_creates_files_in_current_dir() {
         .expect("Failed to read wasm.toml");
     let parsed: toml::Value = toml::from_str(&manifest).expect("wasm.toml is not valid TOML");
     assert!(
-        parsed.get("components").is_some() || parsed.get("interfaces").is_some(),
-        "manifest should have a components or interfaces table"
+        parsed.get("components").is_some() || parsed.get("types").is_some(),
+        "manifest should have a components or types table"
     );
 
     // Verify lockfile
@@ -497,7 +497,7 @@ fn test_init_creates_files_in_current_dir() {
         lock_parsed
             .get("lockfile_version")
             .and_then(|v| v.as_integer()),
-        Some(2)
+        Some(3)
     );
 }
 

@@ -1,6 +1,6 @@
 use wasmparser::{Encoding, Parser, Payload};
 
-/// Determine whether raw wasm bytes represent a WIT package (interface-only)
+/// Determine whether raw wasm bytes represent a WIT package (type-only)
 /// rather than a compiled component.
 ///
 /// A WIT package is a WebAssembly component that contains only types, imports,

@@ -1,4 +1,3 @@
-mod interfaces;
 /// Known package detail view module
 pub mod known_package_detail;
 mod local;
@@ -9,8 +8,8 @@ mod package_detail;
 pub mod packages;
 mod search;
 mod settings;
+mod types;
 
-pub use interfaces::{InterfacesView, InterfacesViewState};
 #[allow(unused_imports)]
 pub use known_package_detail::KnownPackageDetailView;
 pub use local::LocalView;
@@ -19,5 +18,6 @@ pub use package_detail::PackageDetailView;
 pub use packages::PackagesView;
 pub use search::{SearchView, SearchViewState};
 pub use settings::SettingsView;
+pub use types::{TypesView, TypesViewState};
 
 pub(crate) use wasm_package_manager::format_size;

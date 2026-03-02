@@ -7,12 +7,12 @@ use std::path::Path;
 use super::config::StateInfo;
 use super::models::{KnownPackage, Migrations};
 use crate::components::{ComponentTarget, WasmComponent};
-use crate::interfaces::{
-    WitType, WitTypeDependency, WitWorld, WitWorldExport, WitWorldImport, extract_wit_metadata,
-};
 use crate::oci::{
     ImageEntry, InsertResult, OciLayer, OciLayerAnnotation, OciManifest, OciReferrer,
     OciRepository, OciTag,
+};
+use crate::types::{
+    WitType, WitTypeDependency, WitWorld, WitWorldExport, WitWorldImport, extract_wit_metadata,
 };
 use futures_concurrency::prelude::*;
 use oci_client::{Reference, client::ImageData, manifest::OciImageManifest};

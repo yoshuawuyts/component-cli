@@ -97,12 +97,12 @@ impl Opts {
             // Derive the dependency name.
             // For components, use `derive_component_name` which tries WIT metadata,
             // OCI title annotation, last repository segment, then full path.
-            // For interfaces, use the WIT package name (always available).
+            // For types, use the WIT package name (always available).
             let dep_name = if result.is_component {
                 let existing_names: std::collections::HashSet<String> = manifest
                     .components
                     .keys()
-                    .chain(manifest.interfaces.keys())
+                    .chain(manifest.types.keys())
                     .cloned()
                     .collect();
                 derive_component_name(
@@ -121,7 +121,7 @@ impl Opts {
             // Determine the version from the tag
             let version = result.tag.clone().unwrap_or_default();
 
-            // Add to manifest (compact format) — route to components or interfaces.
+            // Add to manifest (compact format) — route to components or types.
             // Only update the manifest when a reference was explicitly provided;
             // for the 0-args case the entries are already in the manifest.
             if update_manifest {
@@ -130,11 +130,11 @@ impl Opts {
                 if result.is_component {
                     manifest.components.insert(dep_name.clone(), dep);
                 } else {
-                    manifest.interfaces.insert(dep_name.clone(), dep);
+                    manifest.types.insert(dep_name.clone(), dep);
                 }
             }
 
-            // Add to lockfile — route to components or interfaces
+            // Add to lockfile — route to components or types
             let registry_path = format!("{}/{}", result.registry, result.repository);
             let digest = result.digest.unwrap_or_default();
 
@@ -160,15 +160,13 @@ impl Opts {
                 }
             } else {
                 let existing = lockfile
-                    .interfaces
+                    .types
                     .iter()
                     .position(|p| p.name == dep_name && p.registry == registry_path);
-                if let Some(existing_pkg) =
-                    existing.and_then(|idx| lockfile.interfaces.get_mut(idx))
-                {
+                if let Some(existing_pkg) = existing.and_then(|idx| lockfile.types.get_mut(idx)) {
                     *existing_pkg = package;
                 } else {
-                    lockfile.interfaces.push(package);
+                    lockfile.types.push(package);
                 }
             }
         }
@@ -254,7 +252,7 @@ async fn install_one(
 
 /// Move vendored WIT files from the wasm vendor dir into the wit vendor dir.
 ///
-/// WIT-only packages (interfaces) are initially stored alongside components in
+/// WIT-only packages (types) are initially stored alongside components in
 /// `deps/vendor/wasm/`. This function moves them to `deps/vendor/wit/` so that
 /// WIT tooling can find them at the conventional location.
 async fn re_vendor_wit_files(

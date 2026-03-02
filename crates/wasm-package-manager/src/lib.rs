@@ -40,7 +40,6 @@
 pub mod components;
 mod config;
 mod credential_helper;
-pub mod interfaces;
 /// Core manager functionality for pulling, installing, and listing packages.
 pub mod manager;
 mod network;
@@ -48,6 +47,7 @@ pub mod oci;
 mod progress;
 /// Storage layer for persisting package metadata and state.
 pub mod storage;
+pub mod types;
 
 pub use config::{Config, RegistryConfig, RunConfig};
 pub use credential_helper::CredentialHelper;

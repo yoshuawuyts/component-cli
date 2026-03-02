@@ -32,8 +32,8 @@ use ratatui::prelude::*;
 use wasm::tui::components::{TabBar, TabItem};
 use wasm::tui::views::packages::PackagesViewState;
 use wasm::tui::views::{
-    InterfacesView, InterfacesViewState, KnownPackageDetailView, LocalView, LogView,
-    PackageDetailView, PackagesView, SearchView, SearchViewState, SettingsView,
+    KnownPackageDetailView, LocalView, LogView, PackageDetailView, PackagesView, SearchView,
+    SearchViewState, SettingsView, TypesView, TypesViewState,
 };
 use wasm_detector::WasmEntry;
 use wasm_package_manager::oci::ImageView;
@@ -127,22 +127,22 @@ fn test_local_view_with_files_snapshot() {
 }
 
 // =============================================================================
-// InterfacesView Snapshot Tests
+// TypesView Snapshot Tests
 // =============================================================================
 
-// r[verify tui.interfaces-view.empty]
+// r[verify tui.types-view.empty]
 #[test]
-fn test_interfaces_view_snapshot() {
+fn test_types_view_snapshot() {
     let interfaces = vec![];
-    let mut state = InterfacesViewState::new();
-    let output = render_stateful_to_string(InterfacesView::new(&interfaces), &mut state, 60, 10);
+    let mut state = TypesViewState::new();
+    let output = render_stateful_to_string(TypesView::new(&interfaces), &mut state, 60, 10);
     assert_snapshot!(output);
 }
 
-// r[verify tui.interfaces-view.populated]
+// r[verify tui.types-view.populated]
 #[test]
-fn test_interfaces_view_populated_snapshot() {
-    use wasm_package_manager::interfaces::WitTypeView;
+fn test_types_view_populated_snapshot() {
+    use wasm_package_manager::types::WitTypeView;
 
     let interfaces = vec![
         (
@@ -166,8 +166,8 @@ fn test_interfaces_view_populated_snapshot() {
             "ghcr.io/example/cli-tool:latest".to_string(),
         ),
     ];
-    let mut state = InterfacesViewState::new();
-    let output = render_stateful_to_string(InterfacesView::new(&interfaces), &mut state, 100, 15);
+    let mut state = TypesViewState::new();
+    let output = render_stateful_to_string(TypesView::new(&interfaces), &mut state, 100, 15);
     assert_snapshot!(output);
 }
 
