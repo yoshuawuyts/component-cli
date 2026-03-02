@@ -176,7 +176,7 @@ impl Opts {
             .unwrap_or("composed");
 
         let out_path = self.output.join(format!("{stem}.wasm"));
-        std::fs::write(&out_path, &bytes)
+        std::fs::write(&out_path, bytes)
             .with_context(|| format!("could not write '{}'", out_path.display()))?;
         println!("Composed component written to {}", out_path.display());
 
