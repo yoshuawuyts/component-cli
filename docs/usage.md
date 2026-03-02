@@ -349,17 +349,20 @@ declarative language for composing Wasm components. Place `.wac` files in the
 Compose Wasm components from WAC scripts:
 
 ```bash
-# Compose from a specific WAC file
-wasm compose seams/my-composition.wac
+# Compose a named WAC file (looks for seams/my-composition.wac)
+wasm compose my-composition
 
-# Scan all WAC files in seams/
+# Compose all WAC files in seams/
 wasm compose
 
-# Write output to stdout instead of build/
-wasm compose -o stdout
+# Compose from an explicit file path
+wasm compose path/to/file.wac
 
-# Import dependencies instead of embedding
-wasm compose --import-dependencies
+# Use dynamic linking (import dependencies instead of embedding)
+wasm compose my-composition --linker=dynamic
+
+# Specify output directory
+wasm compose my-composition -o output/
 ```
 
 ### Package Resolution

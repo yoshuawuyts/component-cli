@@ -4,24 +4,28 @@ expression: output
 ---
 Compose Wasm components from WAC scripts
 
-Usage: wasm compose [OPTIONS] [FILE]
+Usage: wasm compose [OPTIONS] [NAME]
 
 Arguments:
-  [FILE]
-          Path to a `.wac` file. If omitted, scans the `seams/` directory
+  [NAME]
+          Name of a `.wac` file in `seams/`, or a path to a `.wac` file.
+          
+          For example, `wasm compose foo` resolves to `seams/foo.wac`. If omitted, all `.wac` files in `seams/` are composed.
 
 Options:
-  -o, --output <OUTPUT>
-          Where to write the composed component
+      --linker <LINKER>
+          How to link dependencies
 
           Possible values:
-          - build:  Write to the `build/` directory (default)
-          - stdout: Write to stdout
+          - static:  Embed all dependencies into the output component (default)
+          - dynamic: Import dependencies rather than embedding them
+          
+          [default: static]
+
+  -o, --output <OUTPUT>
+          Output path for the composed component
           
           [default: build]
-
-      --import-dependencies
-          Import dependencies instead of embedding them
 
   -h, --help
           Print help (see a summary with '-h')

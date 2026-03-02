@@ -2,33 +2,37 @@
 
 mod resolver;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
-/// Where to write the composed component.
-#[derive(Clone, Debug, clap::ValueEnum)]
-pub(crate) enum OutputFormat {
-    /// Write to the `build/` directory (default).
-    Build,
-    /// Write to stdout.
-    Stdout,
+/// How to link dependencies in the composed component.
+#[derive(Clone, Debug, Default, clap::ValueEnum)]
+pub(crate) enum LinkerMode {
+    /// Embed all dependencies into the output component (default).
+    #[default]
+    Static,
+    /// Import dependencies rather than embedding them.
+    Dynamic,
 }
 
 /// Compose Wasm components from WAC scripts
 #[derive(clap::Args)]
 pub(crate) struct Opts {
-    /// Path to a `.wac` file. If omitted, scans the `seams/` directory.
+    /// Name of a `.wac` file in `seams/`, or a path to a `.wac` file.
+    ///
+    /// For example, `wasm compose foo` resolves to `seams/foo.wac`.
+    /// If omitted, all `.wac` files in `seams/` are composed.
     #[arg()]
-    file: Option<PathBuf>,
+    name: Option<String>,
 
-    /// Where to write the composed component.
-    #[arg(short, long, value_enum, default_value_t = OutputFormat::Build)]
-    output: OutputFormat,
+    /// How to link dependencies.
+    #[arg(long, value_enum, default_value_t = LinkerMode::Static)]
+    linker: LinkerMode,
 
-    /// Import dependencies instead of embedding them.
-    #[arg(long)]
-    import_dependencies: bool,
+    /// Output path for the composed component.
+    #[arg(short, long, default_value = "build")]
+    output: PathBuf,
 }
 
 impl Opts {
@@ -36,8 +40,15 @@ impl Opts {
         let wac_files = self.collect_wac_files()?;
 
         if wac_files.is_empty() {
-            bail!("no .wac files found; provide a path or add files to `seams/`");
+            bail!("no .wac files found; add files to `seams/`");
         }
+
+        std::fs::create_dir_all(&self.output).with_context(|| {
+            format!(
+                "could not create output directory '{}'",
+                self.output.display()
+            )
+        })?;
 
         for wac_file in &wac_files {
             self.compose_one(wac_file)?;
@@ -48,14 +59,41 @@ impl Opts {
 
     /// Collect the `.wac` files to process.
     fn collect_wac_files(&self) -> Result<Vec<PathBuf>> {
-        if let Some(ref file) = self.file {
-            if !file.exists() {
-                bail!("WAC file '{}' not found", file.display());
+        let seams_dir = PathBuf::from("seams");
+
+        if let Some(ref name) = self.name {
+            let as_path = PathBuf::from(name);
+
+            // If it looks like an explicit path (has extension or path separators), use it directly.
+            if as_path.extension().is_some() || name.contains('/') || name.contains('\\') {
+                if !as_path.exists() {
+                    bail!("WAC file '{}' not found", as_path.display());
+                }
+                return Ok(vec![as_path]);
             }
-            return Ok(vec![file.clone()]);
+
+            // Otherwise treat it as a name and look under seams/
+            let wac_path = seams_dir.join(format!("{name}.wac"));
+            if wac_path.exists() {
+                return Ok(vec![wac_path]);
+            }
+
+            // Not found — list what's available
+            let available = Self::list_available_wac_files(&seams_dir);
+            if available.is_empty() {
+                bail!("WAC file 'seams/{name}.wac' not found and no .wac files exist in `seams/`");
+            }
+            bail!(
+                "WAC file 'seams/{name}.wac' not found. Available WAC files:\n{}",
+                available
+                    .iter()
+                    .map(|f| format!("  - {f}"))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
         }
 
-        let seams_dir = PathBuf::from("seams");
+        // No name given — compose all .wac files in seams/
         if !seams_dir.is_dir() {
             return Ok(Vec::new());
         }
@@ -72,6 +110,26 @@ impl Opts {
         }
         files.sort();
         Ok(files)
+    }
+
+    /// List available `.wac` file stems in the seams directory.
+    fn list_available_wac_files(seams_dir: &Path) -> Vec<String> {
+        let Ok(entries) = std::fs::read_dir(seams_dir) else {
+            return Vec::new();
+        };
+        let mut names: Vec<String> = entries
+            .filter_map(Result::ok)
+            .filter_map(|e| {
+                let path = e.path();
+                if path.extension().and_then(|e| e.to_str()) == Some("wac") {
+                    path.file_stem().and_then(|s| s.to_str()).map(String::from)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        names.sort();
+        names
     }
 
     /// Parse, resolve, and encode a single `.wac` file.
@@ -104,7 +162,7 @@ impl Opts {
             .map_err(|e| anyhow::anyhow!("resolution error in '{}': {e}", wac_file.display()))?;
 
         let mut encode_options = wac_graph::EncodeOptions::default();
-        if self.import_dependencies {
+        if matches!(self.linker, LinkerMode::Dynamic) {
             encode_options.define_components = false;
         }
 
@@ -117,27 +175,10 @@ impl Opts {
             .and_then(|s| s.to_str())
             .unwrap_or("composed");
 
-        match self.output {
-            OutputFormat::Build => {
-                let build_dir = PathBuf::from("build");
-                std::fs::create_dir_all(&build_dir).with_context(|| {
-                    format!(
-                        "could not create output directory '{}'",
-                        build_dir.display()
-                    )
-                })?;
-                let out_path = build_dir.join(format!("{stem}.wasm"));
-                std::fs::write(&out_path, bytes)
-                    .with_context(|| format!("could not write '{}'", out_path.display()))?;
-                println!("Composed component written to {}", out_path.display());
-            }
-            OutputFormat::Stdout => {
-                use std::io::Write;
-                std::io::stdout()
-                    .write_all(&bytes)
-                    .context("could not write to stdout")?;
-            }
-        }
+        let out_path = self.output.join(format!("{stem}.wasm"));
+        std::fs::write(&out_path, &bytes)
+            .with_context(|| format!("could not write '{}'", out_path.display()))?;
+        println!("Composed component written to {}", out_path.display());
 
         Ok(())
     }
