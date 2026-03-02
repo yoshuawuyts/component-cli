@@ -9,7 +9,7 @@ use wac_resolver::FileSystemPackageResolver;
 ///
 /// Resolution order:
 /// 1. Vendored artifacts listed in `deps/wasm.toml` (components → `deps/vendor/wasm/`,
-///    interfaces → `deps/vendor/wit/`).
+///    types → `deps/vendor/wit/`).
 /// 2. Local files found in the `types/` directory at the project root.
 ///
 /// The returned resolver is intended for use with
@@ -36,8 +36,8 @@ pub(crate) fn build_resolver(base: &Path) -> Result<FileSystemPackageResolver> {
             }
         }
 
-        // Map [interfaces] entries to vendored .wasm or .wit files
-        for name in manifest.interfaces.keys() {
+        // Map [types] entries to vendored .wasm or .wit files
+        for name in manifest.types.keys() {
             let wasm_file = wit_vendor.join(format!("{name}.wasm"));
             let wit_file = wit_vendor.join(format!("{name}.wit"));
             if wasm_file.exists() {
