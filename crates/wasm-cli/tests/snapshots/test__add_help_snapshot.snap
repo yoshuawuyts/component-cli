@@ -10,9 +10,8 @@ Arguments:
   <REFERENCE>...  The OCI references to add (e.g., ghcr.io/webassembly/wasi-logging:1.0.0)
 
 Options:
-      --name <NAME>  Override the dependency name used in the manifest
-  -h, --help         Print help
-  -V, --version      Print version
+  -h, --help     Print help
+  -V, --version  Print version
 
 Global Options:
       --color <WHEN>  When to use colored output [default: auto] [possible values: auto, always, never]

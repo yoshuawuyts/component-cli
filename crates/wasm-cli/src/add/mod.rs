@@ -10,10 +10,6 @@ pub(crate) struct Opts {
     /// The OCI references to add (e.g., ghcr.io/webassembly/wasi-logging:1.0.0).
     #[arg(value_parser = crate::util::parse_reference, value_name = "REFERENCE", required = true)]
     references: Vec<Reference>,
-
-    /// Override the dependency name used in the manifest.
-    #[arg(long, value_name = "NAME")]
-    name: Option<String>,
 }
 
 impl Opts {
@@ -39,11 +35,6 @@ impl Opts {
             Manager::open().await?
         };
 
-        // The --name flag is only valid when adding a single reference.
-        if self.name.is_some() && self.references.len() > 1 {
-            anyhow::bail!("--name can only be used when adding a single reference");
-        }
-
         // Build the set of existing names once; update it as we add entries.
         let mut existing_names: std::collections::HashSet<String> = manifest
             .components
@@ -53,9 +44,7 @@ impl Opts {
             .collect();
 
         for reference in &self.references {
-            let result = manager
-                .add(reference, self.name.as_deref(), &existing_names)
-                .await?;
+            let result = manager.add(reference, &existing_names).await?;
 
             // Add to manifest (compact format) — default to interfaces since
             // we don't inspect the layers to determine the type.
