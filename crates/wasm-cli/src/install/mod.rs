@@ -3,7 +3,8 @@
 use anyhow::{Context, Result};
 use futures_concurrency::prelude::*;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use wasm_package_manager::manager::{Manager, derive_component_name};
+use wasm_package_manager::manager::{Manager, InstallResult, derive_component_name};
+use wasm_package_manager::types::DependencyItem;
 use wasm_package_manager::{ProgressEvent, Reference};
 
 use crate::util::write_lock_file;
@@ -183,116 +184,15 @@ impl Opts {
             // Queue WIT dependencies for recursive installation (transitive deps).
             // These are only added to the lockfile, not the manifest.
             if !offline {
-                let mut work_queue = std::collections::VecDeque::from(result.dependencies);
-                let mut visited: std::collections::HashSet<(String, Option<String>)> =
-                    std::collections::HashSet::new();
-
-                while let Some(dep) = work_queue.pop_front() {
-                    let dep_key = (dep.package.clone(), dep.version.clone());
-                    if visited.contains(&dep_key) {
-                        continue;
-                    }
-                    visited.insert(dep_key);
-
-                    // Skip if already present in the lockfile
-                    let already_in_lockfile = lockfile.types.iter().any(|p| p.name == dep.package);
-                    if already_in_lockfile {
-                        continue;
-                    }
-
-                    // Try to resolve the WIT dependency to an OCI reference
-                    let dep_ref = match manager.resolve_wit_dependency(&dep) {
-                        Ok(Some(r)) => r,
-                        Ok(None) => {
-                            tracing::debug!(
-                                "Could not resolve WIT dependency '{}' — skipping",
-                                dep.package
-                            );
-                            continue;
-                        }
-                        Err(e) => {
-                            tracing::debug!(
-                                "Error resolving WIT dependency '{}': {} — skipping",
-                                dep.package,
-                                e
-                            );
-                            continue;
-                        }
-                    };
-
-                    // Install the dependency
-                    let dep_result = match install_one(
-                        manager_ref,
-                        multi.clone(),
-                        offline,
-                        &dep_ref,
-                        &wasm_vendor_dir,
-                    )
-                    .await
-                    {
-                        Ok(r) => r,
-                        Err(e) => {
-                            tracing::debug!(
-                                "Failed to install WIT dependency '{}': {} — skipping",
-                                dep.package,
-                                e
-                            );
-                            continue;
-                        }
-                    };
-
-                    // Vendor WIT files
-                    if let Err(e) = re_vendor_wit_files(&dep_result, &wit_vendor_dir).await {
-                        tracing::debug!(
-                            "Failed to vendor WIT files for '{}': {} — skipping",
-                            dep.package,
-                            e
-                        );
-                    }
-
-                    // Derive lockfile entry for the transitive dep
-                    let resolved_dep_name = dep_result.package_name.as_deref().map_or_else(
-                        || format!("{}/{}", dep_result.registry, dep_result.repository),
-                        |name| name.split('@').next().unwrap_or(name).to_string(),
-                    );
-                    let dep_version = dep_result.tag.clone().unwrap_or_default();
-                    let dep_registry_path =
-                        format!("{}/{}", dep_result.registry, dep_result.repository);
-                    let dep_digest = dep_result.digest.unwrap_or_default();
-
-                    let dep_lockfile_deps: Vec<wasm_manifest::PackageDependency> = dep_result
-                        .dependencies
-                        .iter()
-                        .map(|d| wasm_manifest::PackageDependency {
-                            name: d.package.clone(),
-                            version: d.version.clone().unwrap_or_default(),
-                        })
-                        .collect();
-
-                    let dep_package = wasm_manifest::Package {
-                        name: resolved_dep_name.clone(),
-                        version: dep_version,
-                        registry: dep_registry_path.clone(),
-                        digest: dep_digest,
-                        dependencies: dep_lockfile_deps,
-                    };
-
-                    // Add to lockfile types (transitive deps are always types)
-                    let existing = lockfile.types.iter().position(|p| {
-                        p.name == resolved_dep_name && p.registry == dep_registry_path
-                    });
-                    if let Some(existing_pkg) = existing.and_then(|idx| lockfile.types.get_mut(idx))
-                    {
-                        *existing_pkg = dep_package;
-                    } else {
-                        lockfile.types.push(dep_package);
-                    }
-
-                    // Queue transitive dependencies
-                    for transitive_dep in dep_result.dependencies {
-                        work_queue.push_back(transitive_dep);
-                    }
-                }
+                install_transitive_deps(
+                    result.dependencies,
+                    manager_ref,
+                    &multi,
+                    &wasm_vendor_dir,
+                    &wit_vendor_dir,
+                    &mut lockfile,
+                )
+                .await?;
             }
         }
 
@@ -326,7 +226,7 @@ async fn install_one(
     offline: bool,
     reference: &Reference,
     vendor_dir: &std::path::Path,
-) -> Result<wasm_package_manager::manager::InstallResult> {
+) -> Result<InstallResult> {
     let reference_display = reference.whole().clone();
 
     if offline {
@@ -381,7 +281,7 @@ async fn install_one(
 /// `deps/vendor/wasm/`. This function moves them to `deps/vendor/wit/` so that
 /// WIT tooling can find them at the conventional location.
 async fn re_vendor_wit_files(
-    result: &wasm_package_manager::manager::InstallResult,
+    result: &InstallResult,
     wit_vendor_dir: &std::path::Path,
 ) -> Result<()> {
     if result.is_component {
@@ -396,6 +296,126 @@ async fn re_vendor_wit_files(
         }
     }
     Ok(())
+}
+
+/// Recursively install transitive WIT dependencies of a component.
+///
+/// Uses a work queue and visited set to avoid cycles and duplicates.
+/// Each resolved dependency is installed, vendored to `wit/`, and added
+/// to `lockfile.types`. The manifest is **not** modified.
+async fn install_transitive_deps(
+    initial_deps: Vec<DependencyItem>,
+    manager: &Manager,
+    multi: &MultiProgress,
+    wasm_vendor_dir: &std::path::Path,
+    wit_vendor_dir: &std::path::Path,
+    lockfile: &mut wasm_manifest::Lockfile,
+) -> Result<()> {
+    let mut work_queue = std::collections::VecDeque::from(initial_deps);
+    let mut visited: std::collections::HashSet<(String, Option<String>)> =
+        std::collections::HashSet::new();
+
+    while let Some(dep) = work_queue.pop_front() {
+        let dep_key = (dep.package.clone(), dep.version.clone());
+        if !visited.insert(dep_key) {
+            continue;
+        }
+
+        // Skip if already present in the lockfile
+        if lockfile.types.iter().any(|p| p.name == dep.package) {
+            continue;
+        }
+
+        let Some(dep_ref) = resolve_dep_reference(manager, &dep) else {
+            continue;
+        };
+
+        let dep_result = match install_one(manager, multi.clone(), false, &dep_ref, wasm_vendor_dir)
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::debug!(
+                    "Failed to install WIT dependency '{}': {e} — skipping",
+                    dep.package,
+                );
+                continue;
+            }
+        };
+
+        if let Err(e) = re_vendor_wit_files(&dep_result, wit_vendor_dir).await {
+            tracing::debug!(
+                "Failed to vendor WIT files for '{}': {e} — skipping",
+                dep.package,
+            );
+        }
+
+        // Queue transitive dependencies before consuming dep_result
+        for transitive_dep in &dep_result.dependencies {
+            work_queue.push_back(transitive_dep.clone());
+        }
+
+        upsert_lockfile_type(lockfile, &dep_result);
+    }
+
+    Ok(())
+}
+
+/// Try to resolve a [`DependencyItem`] to an OCI [`Reference`].
+///
+/// Returns `None` (with a debug log) if the dependency cannot be resolved.
+fn resolve_dep_reference(manager: &Manager, dep: &DependencyItem) -> Option<Reference> {
+    match manager.resolve_wit_dependency(dep) {
+        Ok(Some(r)) => Some(r),
+        Ok(None) => {
+            tracing::debug!(
+                "Could not resolve WIT dependency '{}' — skipping",
+                dep.package
+            );
+            None
+        }
+        Err(e) => {
+            tracing::debug!(
+                "Error resolving WIT dependency '{}': {e} — skipping",
+                dep.package,
+            );
+            None
+        }
+    }
+}
+
+/// Build a [`wasm_manifest::Package`] from an [`InstallResult`] and upsert it
+/// into `lockfile.types`.
+fn upsert_lockfile_type(lockfile: &mut wasm_manifest::Lockfile, result: &InstallResult) {
+    let name = result.package_name.as_deref().map_or_else(
+        || format!("{}/{}", result.registry, result.repository),
+        |n| n.split('@').next().unwrap_or(n).to_string(),
+    );
+    let registry = format!("{}/{}", result.registry, result.repository);
+    let package = wasm_manifest::Package {
+        name: name.clone(),
+        version: result.tag.clone().unwrap_or_default(),
+        registry: registry.clone(),
+        digest: result.digest.clone().unwrap_or_default(),
+        dependencies: result
+            .dependencies
+            .iter()
+            .map(|d| wasm_manifest::PackageDependency {
+                name: d.package.clone(),
+                version: d.version.clone().unwrap_or_default(),
+            })
+            .collect(),
+    };
+
+    if let Some(existing) = lockfile
+        .types
+        .iter_mut()
+        .find(|p| p.name == name && p.registry == registry)
+    {
+        *existing = package;
+    } else {
+        lockfile.types.push(package);
+    }
 }
 
 /// Convert a manifest [`wasm_manifest::Dependency`] into an OCI [`Reference`].
