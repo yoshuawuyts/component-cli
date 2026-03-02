@@ -52,6 +52,7 @@ parsing and dispatches to one of the following command modules:
 |------------- |---------------- |-------- |
 | `run`        | `run/`          | Execute a Wasm Component via [wasmtime] with WASI sandboxing |
 | `init`       | `init/`         | Scaffold a `deps/` directory with manifest, lockfile, and vendor dirs |
+| `add`        | `add/`          | Add a dependency to the manifest without pulling layers |
 | `install`    | `install/`      | Pull packages and vendor them into `deps/vendor/` |
 | `compose`    | `compose/`      | Compose and manage sets of interdependent Wasm components via WAC |
 | `local`      | `local/`        | Detect `.wasm` files in the current project |
