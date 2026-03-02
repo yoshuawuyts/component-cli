@@ -11,7 +11,6 @@ mod wit_package;
 mod worlds;
 
 pub use detect::is_wit_package;
-pub use models::WitPackage;
 pub use parser::DependencyItem;
 pub(crate) use parser::extract_wit_metadata;
 pub(crate) use raw::RawWitPackage;

@@ -264,7 +264,7 @@ mod tests {
         let conn = setup_test_db();
         let manifest_id = insert_test_manifest(&conn, "ghcr.io", "webassembly/wasi/http");
 
-        WitPackage::insert(
+        RawWitPackage::insert(
             &conn,
             "wasi:http",
             Some("0.2.0"),
@@ -275,7 +275,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = WitPackage::find_oci_reference(&conn, "wasi:http", Some("0.2.0")).unwrap();
+        let result = RawWitPackage::find_oci_reference(&conn, "wasi:http", Some("0.2.0")).unwrap();
         assert!(result.is_some());
         let (registry, repository) = result.unwrap();
         assert_eq!(registry, "ghcr.io");
@@ -288,7 +288,7 @@ mod tests {
         let conn = setup_test_db();
 
         let result =
-            WitPackage::find_oci_reference(&conn, "wasi:nonexistent", Some("1.0.0")).unwrap();
+            RawWitPackage::find_oci_reference(&conn, "wasi:nonexistent", Some("1.0.0")).unwrap();
         assert!(result.is_none());
     }
 
@@ -298,7 +298,7 @@ mod tests {
         let conn = setup_test_db();
         let manifest_id = insert_test_manifest(&conn, "ghcr.io", "webassembly/wasi/clocks");
 
-        WitPackage::insert(
+        RawWitPackage::insert(
             &conn,
             "wasi:clocks",
             None,
@@ -309,7 +309,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = WitPackage::find_oci_reference(&conn, "wasi:clocks", None).unwrap();
+        let result = RawWitPackage::find_oci_reference(&conn, "wasi:clocks", None).unwrap();
         assert!(result.is_some());
         let (registry, repository) = result.unwrap();
         assert_eq!(registry, "ghcr.io");

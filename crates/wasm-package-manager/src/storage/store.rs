@@ -659,15 +659,15 @@ impl Store {
         package_name: &str,
         version: Option<&str>,
     ) -> anyhow::Result<Option<(String, String)>> {
-        WitPackage::find_oci_reference(&self.conn, package_name, version)
+        RawWitPackage::find_oci_reference(&self.conn, package_name, version)
     }
 
     /// Search for a known package by WIT name (e.g. "wasi:http" → "wasi/http").
     pub(crate) fn search_known_package_by_wit_name(
         &self,
         wit_name: &str,
-    ) -> anyhow::Result<Option<KnownPackage>> {
-        KnownPackage::search_by_wit_name(&self.conn, wit_name)
+    ) -> anyhow::Result<Option<RawKnownPackage>> {
+        RawKnownPackage::search_by_wit_name(&self.conn, wit_name)
     }
 
     /// Get a value from the `_sync_meta` table.
@@ -1344,7 +1344,7 @@ mod tests {
         .unwrap();
 
         // Insert a WIT package linked to the manifest
-        WitPackage::insert(
+        RawWitPackage::insert(
             &conn,
             "wasi:http",
             Some("0.2.0"),
@@ -1356,7 +1356,7 @@ mod tests {
         .unwrap();
 
         // Lookup should find the OCI reference
-        let result = WitPackage::find_oci_reference(&conn, "wasi:http", Some("0.2.0")).unwrap();
+        let result = RawWitPackage::find_oci_reference(&conn, "wasi:http", Some("0.2.0")).unwrap();
         assert_eq!(
             result,
             Some(("ghcr.io".to_string(), "webassembly/wasi/http".to_string()))
@@ -1367,7 +1367,7 @@ mod tests {
     #[test]
     fn find_oci_reference_returns_none_when_not_found() {
         let conn = setup_test_db();
-        let result = WitPackage::find_oci_reference(&conn, "wasi:nonexistent", None).unwrap();
+        let result = RawWitPackage::find_oci_reference(&conn, "wasi:nonexistent", None).unwrap();
         assert!(result.is_none());
     }
 }

@@ -286,7 +286,7 @@ impl RawKnownPackage {
     pub(crate) fn search_by_wit_name(
         conn: &Connection,
         wit_name: &str,
-    ) -> anyhow::Result<Option<KnownPackage>> {
+    ) -> anyhow::Result<Option<RawKnownPackage>> {
         // Convert "wasi:http" → "wasi/http" for repository search
         let search_pattern = wit_name.replace(':', "/");
         let like_pattern = format!("%{search_pattern}%");
@@ -313,7 +313,7 @@ impl RawKnownPackage {
             Ok((id, registry, repository, updated_at, created_at)) => {
                 let tags = Self::fetch_tags(conn, id);
                 let description = Self::fetch_description(conn, id);
-                Ok(Some(KnownPackage {
+                Ok(Some(RawKnownPackage {
                     id,
                     registry,
                     repository,
@@ -437,11 +437,11 @@ mod tests {
     #[test]
     fn test_known_package_search_by_wit_name() {
         let conn = setup_test_db();
-        KnownPackage::upsert(&conn, "ghcr.io", "webassembly/wasi/http", None, None).unwrap();
-        KnownPackage::upsert(&conn, "ghcr.io", "webassembly/wasi/clocks", None, None).unwrap();
+        RawKnownPackage::upsert(&conn, "ghcr.io", "webassembly/wasi/http", None, None).unwrap();
+        RawKnownPackage::upsert(&conn, "ghcr.io", "webassembly/wasi/clocks", None, None).unwrap();
 
         // "wasi:http" → search pattern "wasi/http" → should match "webassembly/wasi/http"
-        let result = KnownPackage::search_by_wit_name(&conn, "wasi:http").unwrap();
+        let result = RawKnownPackage::search_by_wit_name(&conn, "wasi:http").unwrap();
         assert!(result.is_some());
         let pkg = result.unwrap();
         assert_eq!(pkg.repository, "webassembly/wasi/http");
@@ -451,9 +451,9 @@ mod tests {
     #[test]
     fn test_known_package_search_by_wit_name_not_found() {
         let conn = setup_test_db();
-        KnownPackage::upsert(&conn, "ghcr.io", "webassembly/wasi/http", None, None).unwrap();
+        RawKnownPackage::upsert(&conn, "ghcr.io", "webassembly/wasi/http", None, None).unwrap();
 
-        let result = KnownPackage::search_by_wit_name(&conn, "wasi:nonexistent").unwrap();
+        let result = RawKnownPackage::search_by_wit_name(&conn, "wasi:nonexistent").unwrap();
         assert!(result.is_none());
     }
 }

@@ -625,8 +625,8 @@ impl Manager {
     /// Resolve a WIT dependency to an OCI [`Reference`].
     ///
     /// Resolution order:
-    /// 1. Exact match via `WitPackage::find_oci_reference()` (DB JOIN lookup).
-    /// 2. Fuzzy match via `KnownPackage::search_by_wit_name()` (repository pattern).
+    /// 1. Exact match via `RawWitPackage::find_oci_reference()` (DB JOIN lookup).
+    /// 2. Fuzzy match via `RawKnownPackage::search_by_wit_name()` (repository pattern).
     /// 3. Error with an actionable message.
     pub fn resolve_wit_dependency(
         &self,
