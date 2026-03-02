@@ -24,7 +24,7 @@ pub(crate) struct WorldMetadata {
 
 /// A dependency on another WIT package.
 #[derive(Debug, Clone)]
-pub(crate) struct DependencyItem {
+pub struct DependencyItem {
     /// The declared package name (e.g. "wasi:io").
     pub package: String,
     /// The declared version, if any.

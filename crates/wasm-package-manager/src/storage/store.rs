@@ -653,6 +653,23 @@ impl Store {
         WitPackage::get_all_with_images(&self.conn)
     }
 
+    /// Find the OCI reference for a WIT package by name and optional version.
+    pub(crate) fn find_oci_reference_by_wit_name(
+        &self,
+        package_name: &str,
+        version: Option<&str>,
+    ) -> anyhow::Result<Option<(String, String)>> {
+        WitPackage::find_oci_reference(&self.conn, package_name, version)
+    }
+
+    /// Search for a known package by WIT name (e.g. "wasi:http" → "wasi/http").
+    pub(crate) fn search_known_package_by_wit_name(
+        &self,
+        wit_name: &str,
+    ) -> anyhow::Result<Option<KnownPackage>> {
+        KnownPackage::search_by_wit_name(&self.conn, wit_name)
+    }
+
     /// Get a value from the `_sync_meta` table.
     #[allow(dead_code)]
     pub(crate) fn get_sync_meta(&self, key: &str) -> anyhow::Result<Option<String>> {
@@ -1302,5 +1319,55 @@ mod tests {
             Some(world_id),
             "component target should resolve to the matching world"
         );
+    }
+
+    // r[verify wit.find-oci-reference]
+    #[test]
+    fn find_oci_reference_returns_registry_and_repository() {
+        let conn = setup_test_db();
+
+        // Set up OCI repository and manifest
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "webassembly/wasi/http").unwrap();
+        let annotations = HashMap::new();
+        let (manifest_id, _) = OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:http123",
+            Some("application/vnd.oci.image.manifest.v1+json"),
+            Some("{}"),
+            Some(1024),
+            None,
+            None,
+            None,
+            &annotations,
+        )
+        .unwrap();
+
+        // Insert a WIT package linked to the manifest
+        WitPackage::insert(
+            &conn,
+            "wasi:http",
+            Some("0.2.0"),
+            None,
+            None,
+            Some(manifest_id),
+            None,
+        )
+        .unwrap();
+
+        // Lookup should find the OCI reference
+        let result = WitPackage::find_oci_reference(&conn, "wasi:http", Some("0.2.0")).unwrap();
+        assert_eq!(
+            result,
+            Some(("ghcr.io".to_string(), "webassembly/wasi/http".to_string()))
+        );
+    }
+
+    // r[verify wit.find-oci-reference.not-found]
+    #[test]
+    fn find_oci_reference_returns_none_when_not_found() {
+        let conn = setup_test_db();
+        let result = WitPackage::find_oci_reference(&conn, "wasi:nonexistent", None).unwrap();
+        assert!(result.is_none());
     }
 }

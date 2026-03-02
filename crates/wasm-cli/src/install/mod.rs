@@ -134,6 +134,16 @@ impl Opts {
                 }
             }
 
+            // Build lockfile dependencies from WIT metadata
+            let lockfile_deps: Vec<wasm_manifest::PackageDependency> = result
+                .dependencies
+                .iter()
+                .map(|d| wasm_manifest::PackageDependency {
+                    name: d.package.clone(),
+                    version: d.version.clone().unwrap_or_default(),
+                })
+                .collect();
+
             // Add to lockfile — route to components or types
             let registry_path = format!("{}/{}", result.registry, result.repository);
             let digest = result.digest.unwrap_or_default();
@@ -143,7 +153,7 @@ impl Opts {
                 version,
                 registry: registry_path.clone(),
                 digest,
-                dependencies: vec![],
+                dependencies: lockfile_deps,
             };
 
             if result.is_component {
@@ -167,6 +177,122 @@ impl Opts {
                     *existing_pkg = package;
                 } else {
                     lockfile.types.push(package);
+                }
+            }
+
+            // Queue WIT dependencies for recursive installation (transitive deps).
+            // These are only added to the lockfile, not the manifest.
+            if !offline {
+                let mut work_queue = std::collections::VecDeque::from(result.dependencies);
+                let mut visited: std::collections::HashSet<(String, Option<String>)> =
+                    std::collections::HashSet::new();
+
+                while let Some(dep) = work_queue.pop_front() {
+                    let dep_key = (dep.package.clone(), dep.version.clone());
+                    if visited.contains(&dep_key) {
+                        continue;
+                    }
+                    visited.insert(dep_key);
+
+                    // Skip if already present in the lockfile
+                    let already_in_lockfile = lockfile.types.iter().any(|p| p.name == dep.package);
+                    if already_in_lockfile {
+                        continue;
+                    }
+
+                    // Try to resolve the WIT dependency to an OCI reference
+                    let dep_ref = match manager.resolve_wit_dependency(&dep) {
+                        Ok(Some(r)) => r,
+                        Ok(None) => {
+                            tracing::debug!(
+                                "Could not resolve WIT dependency '{}' — skipping",
+                                dep.package
+                            );
+                            continue;
+                        }
+                        Err(e) => {
+                            tracing::debug!(
+                                "Error resolving WIT dependency '{}': {} — skipping",
+                                dep.package,
+                                e
+                            );
+                            continue;
+                        }
+                    };
+
+                    // Install the dependency
+                    let dep_result = match install_one(
+                        manager_ref,
+                        multi.clone(),
+                        offline,
+                        &dep_ref,
+                        &wasm_vendor_dir,
+                    )
+                    .await
+                    {
+                        Ok(r) => r,
+                        Err(e) => {
+                            tracing::debug!(
+                                "Failed to install WIT dependency '{}': {} — skipping",
+                                dep.package,
+                                e
+                            );
+                            continue;
+                        }
+                    };
+
+                    // Vendor WIT files
+                    if let Err(e) = re_vendor_wit_files(&dep_result, &wit_vendor_dir).await {
+                        tracing::debug!(
+                            "Failed to vendor WIT files for '{}': {} — skipping",
+                            dep.package,
+                            e
+                        );
+                    }
+
+                    // Derive lockfile entry for the transitive dep
+                    let dep_dep_name = dep_result.package_name.as_deref().map_or_else(
+                        || format!("{}/{}", dep_result.registry, dep_result.repository),
+                        |name| name.split('@').next().unwrap_or(name).to_string(),
+                    );
+                    let dep_version = dep_result.tag.clone().unwrap_or_default();
+                    let dep_registry_path =
+                        format!("{}/{}", dep_result.registry, dep_result.repository);
+                    let dep_digest = dep_result.digest.unwrap_or_default();
+
+                    let dep_lockfile_deps: Vec<wasm_manifest::PackageDependency> = dep_result
+                        .dependencies
+                        .iter()
+                        .map(|d| wasm_manifest::PackageDependency {
+                            name: d.package.clone(),
+                            version: d.version.clone().unwrap_or_default(),
+                        })
+                        .collect();
+
+                    let dep_package = wasm_manifest::Package {
+                        name: dep_dep_name.clone(),
+                        version: dep_version,
+                        registry: dep_registry_path.clone(),
+                        digest: dep_digest,
+                        dependencies: dep_lockfile_deps,
+                    };
+
+                    // Add to lockfile types (transitive deps are always types)
+                    let existing = lockfile
+                        .types
+                        .iter()
+                        .position(|p| p.name == dep_dep_name && p.registry == dep_registry_path);
+                    if let Some(existing_pkg) = existing.and_then(|idx| lockfile.types.get_mut(idx))
+                    {
+                        *existing_pkg = dep_package;
+                    } else {
+                        lockfile.types.push(dep_package);
+                    }
+
+                    // Queue transitive dependencies
+                    for transitive_dep in dep_result.dependencies {
+                        work_queue.push_back(transitive_dep);
+                    }
                 }
             }
         }

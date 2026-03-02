@@ -78,6 +78,8 @@ pub struct InstallResult {
     pub vendored_files: Vec<std::path::PathBuf>,
     /// Whether this package is a compiled component (`true`) or a WIT interface (`false`).
     pub is_component: bool,
+    /// Dependencies on other WIT packages extracted from the component metadata.
+    pub dependencies: Vec<crate::types::DependencyItem>,
 }
 
 /// Result of an add operation.
@@ -406,6 +408,7 @@ impl Manager {
         let mut vendored_files = Vec::new();
         let mut package_name = None;
         let mut is_component = true; // Default to component
+        let mut dependencies = Vec::new();
 
         // Extract the OCI image.title annotation from the manifest.
         let oci_title = pull_result
@@ -443,6 +446,7 @@ impl Manager {
                     is_component = !is_wit_package(&data);
                     if let Some(metadata) = extract_wit_metadata(&data) {
                         package_name = metadata.package_name;
+                        dependencies = metadata.dependencies;
                     }
                 }
             }
@@ -457,6 +461,7 @@ impl Manager {
             oci_title,
             vendored_files,
             is_component,
+            dependencies,
         })
     }
 
@@ -484,6 +489,7 @@ impl Manager {
         let mut vendored_files = Vec::new();
         let mut package_name = None;
         let mut is_component = true; // Default to component
+        let mut dependencies = Vec::new();
 
         // Extract the OCI image.title annotation from the manifest.
         let oci_title = pull_result
@@ -521,6 +527,7 @@ impl Manager {
                     is_component = !is_wit_package(&data);
                     if let Some(metadata) = extract_wit_metadata(&data) {
                         package_name = metadata.package_name;
+                        dependencies = metadata.dependencies;
                     }
                 }
             }
@@ -537,6 +544,7 @@ impl Manager {
             oci_title,
             vendored_files,
             is_component,
+            dependencies,
         })
     }
 
@@ -612,6 +620,41 @@ impl Manager {
             .into_iter()
             .map(ImageView::from)
             .collect())
+    }
+
+    /// Resolve a WIT dependency to an OCI [`Reference`].
+    ///
+    /// Resolution order:
+    /// 1. Exact match via `WitPackage::find_oci_reference()` (DB JOIN lookup).
+    /// 2. Fuzzy match via `KnownPackage::search_by_wit_name()` (repository pattern).
+    /// 3. Error with an actionable message.
+    pub fn resolve_wit_dependency(
+        &self,
+        dep: &crate::types::DependencyItem,
+    ) -> anyhow::Result<Option<Reference>> {
+        // 1. Exact DB lookup: WIT package → OCI reference
+        if let Some((registry, repository)) = self
+            .store
+            .find_oci_reference_by_wit_name(&dep.package, dep.version.as_deref())?
+        {
+            let tag = dep.version.as_deref().unwrap_or("latest");
+            let ref_str = format!("{registry}/{repository}:{tag}");
+            return Ok(Some(ref_str.parse()?));
+        }
+
+        // 2. Fallback: search known packages by WIT name
+        if let Some(known) = self.store.search_known_package_by_wit_name(&dep.package)? {
+            let tag = dep
+                .version
+                .as_deref()
+                .or(known.tags.first().map(String::as_str))
+                .unwrap_or("latest");
+            let ref_str = format!("{}/{}:{}", known.registry, known.repository, tag);
+            return Ok(Some(ref_str.parse()?));
+        }
+
+        // 3. Not resolvable
+        Ok(None)
     }
 
     /// Get data from the store

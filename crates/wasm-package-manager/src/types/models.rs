@@ -191,4 +191,32 @@ impl WitPackage {
             created_at: row.get(7)?,
         })
     }
+
+    /// Find the OCI reference (registry, repository) for a WIT package by name and version.
+    ///
+    /// JOINs through `oci_manifest` → `oci_repository` to resolve
+    /// the registry location of a previously-pulled WIT package.
+    pub(crate) fn find_oci_reference(
+        conn: &Connection,
+        package_name: &str,
+        version: Option<&str>,
+    ) -> anyhow::Result<Option<(String, String)>> {
+        let result = conn.query_row(
+            "SELECT r.registry, r.repository
+             FROM wit_package w
+             JOIN oci_manifest m ON w.oci_manifest_id = m.id
+             JOIN oci_repository r ON m.oci_repository_id = r.id
+             WHERE w.package_name = ?1
+               AND COALESCE(w.version, '') = COALESCE(?2, '')
+             LIMIT 1",
+            rusqlite::params![package_name, version],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        );
+
+        match result {
+            Ok(pair) => Ok(Some(pair)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
 }

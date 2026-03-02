@@ -275,6 +275,57 @@ impl KnownPackage {
             Err(e) => Err(e.into()),
         }
     }
+
+    /// Search for a known package by WIT package name.
+    ///
+    /// Converts a WIT name like `"wasi:http"` to the search pattern `"wasi/http"`
+    /// and searches the `repository` column. Returns the best matching package.
+    pub(crate) fn search_by_wit_name(
+        conn: &Connection,
+        wit_name: &str,
+    ) -> anyhow::Result<Option<KnownPackage>> {
+        // Convert "wasi:http" → "wasi/http" for repository search
+        let search_pattern = wit_name.replace(':', "/");
+        let like_pattern = format!("%{search_pattern}%");
+
+        let result = conn.query_row(
+            "SELECT id, registry, repository, updated_at, created_at
+             FROM oci_repository
+             WHERE repository LIKE ?1
+             ORDER BY updated_at DESC
+             LIMIT 1",
+            [&like_pattern],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                ))
+            },
+        );
+
+        match result {
+            Ok((id, registry, repository, updated_at, created_at)) => {
+                let tags = Self::fetch_tags(conn, id);
+                let description = Self::fetch_description(conn, id);
+                Ok(Some(KnownPackage {
+                    id,
+                    registry,
+                    repository,
+                    description,
+                    tags,
+                    signature_tags: Vec::new(),
+                    attestation_tags: Vec::new(),
+                    last_seen_at: updated_at,
+                    created_at,
+                }))
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -377,5 +428,29 @@ mod tests {
             packages.first().unwrap().reference_with_tag(),
             "ghcr.io/user/repo:latest"
         );
+    }
+
+    // r[verify db.known-packages.search-by-wit-name]
+    #[test]
+    fn test_known_package_search_by_wit_name() {
+        let conn = setup_test_db();
+        KnownPackage::upsert(&conn, "ghcr.io", "webassembly/wasi/http", None, None).unwrap();
+        KnownPackage::upsert(&conn, "ghcr.io", "webassembly/wasi/clocks", None, None).unwrap();
+
+        // "wasi:http" → search pattern "wasi/http" → should match "webassembly/wasi/http"
+        let result = KnownPackage::search_by_wit_name(&conn, "wasi:http").unwrap();
+        assert!(result.is_some());
+        let pkg = result.unwrap();
+        assert_eq!(pkg.repository, "webassembly/wasi/http");
+    }
+
+    // r[verify db.known-packages.search-by-wit-name-not-found]
+    #[test]
+    fn test_known_package_search_by_wit_name_not_found() {
+        let conn = setup_test_db();
+        KnownPackage::upsert(&conn, "ghcr.io", "webassembly/wasi/http", None, None).unwrap();
+
+        let result = KnownPackage::search_by_wit_name(&conn, "wasi:nonexistent").unwrap();
+        assert!(result.is_none());
     }
 }
