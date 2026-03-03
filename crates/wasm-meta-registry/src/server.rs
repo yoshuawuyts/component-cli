@@ -129,6 +129,7 @@ mod tests {
     use super::*;
     use std::sync::Arc;
 
+    // r[verify server.health]
     /// Verify the server starts, binds to a port, and responds to `/v1/health`.
     #[tokio::test]
     async fn server_starts_and_listens() {

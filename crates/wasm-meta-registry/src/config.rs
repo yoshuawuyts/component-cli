@@ -188,6 +188,7 @@ mod tests {
     use super::*;
     use std::fs;
 
+    // r[verify registry.parse.interfaces]
     #[test]
     fn test_parse_registry_file_with_interfaces() {
         let toml = r#"
@@ -215,6 +216,7 @@ repository = "wasi/clocks"
         assert_eq!(file.interface[1].repository, "wasi/clocks");
     }
 
+    // r[verify registry.parse.components]
     #[test]
     fn test_parse_registry_file_with_components() {
         let toml = r#"
@@ -240,6 +242,7 @@ repository = "eval-py"
         assert_eq!(file.component[1].name, "eval-py");
     }
 
+    // r[verify registry.parse.mixed]
     #[test]
     fn test_parse_registry_file_mixed() {
         let toml = r#"
@@ -261,6 +264,7 @@ repository = "my-api"
         assert_eq!(file.interface.len(), 1);
     }
 
+    // r[verify registry.parse.namespace-only]
     #[test]
     fn test_parse_registry_file_namespace_only() {
         let toml = r#"
@@ -275,12 +279,14 @@ registry = "ghcr.io/empty"
         assert!(file.interface.is_empty());
     }
 
+    // r[verify registry.parse.invalid-toml]
     #[test]
     fn test_parse_registry_file_invalid_toml() {
         let toml = "this is not valid toml [[[";
         assert!(RegistryFile::from_toml(toml).is_err());
     }
 
+    // r[verify registry.parse.missing-namespace]
     #[test]
     fn test_parse_registry_file_missing_namespace() {
         let toml = r#"
@@ -291,6 +297,7 @@ repository = "foo"
         assert!(RegistryFile::from_toml(toml).is_err());
     }
 
+    // r[verify registry.parse.missing-fields]
     #[test]
     fn test_parse_registry_file_missing_entry_fields() {
         let toml = r#"
@@ -305,6 +312,7 @@ name = "foo"
         assert!(RegistryFile::from_toml(toml).is_err());
     }
 
+    // r[verify registry.sources.convert]
     #[test]
     fn test_into_package_sources() {
         let toml = r#"
@@ -338,6 +346,7 @@ repository = "wasi/io"
         assert_eq!(interface.kind, PackageKind::Interface);
     }
 
+    // r[verify registry.dir.load]
     #[test]
     fn test_from_registry_dir() {
         let dir = tempfile::tempdir().unwrap();
@@ -377,6 +386,7 @@ repository = "sample-wasi-http-rust/sample-wasi-http-rust"
         assert_eq!(config.packages.len(), 2);
     }
 
+    // r[verify registry.dir.filename-match]
     #[test]
     fn test_from_registry_dir_filename_mismatch() {
         let dir = tempfile::tempdir().unwrap();
@@ -397,6 +407,7 @@ registry = "ghcr.io/webassembly"
         assert!(err.contains("does not match"));
     }
 
+    // r[verify registry.dir.empty]
     #[test]
     fn test_from_registry_dir_empty() {
         let dir = tempfile::tempdir().unwrap();
@@ -405,6 +416,7 @@ registry = "ghcr.io/webassembly"
         assert!(config.packages.is_empty());
     }
 
+    // r[verify registry.dir.ignore-non-toml]
     #[test]
     fn test_from_registry_dir_ignores_non_toml() {
         let dir = tempfile::tempdir().unwrap();
