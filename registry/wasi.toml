@@ -1,0 +1,27 @@
+[namespace]
+name = "wasi"
+registry = "ghcr.io/webassembly"
+
+[[interface]]
+name = "io"
+repository = "wasi/io"
+
+[[interface]]
+name = "clocks"
+repository = "wasi/clocks"
+
+[[interface]]
+name = "random"
+repository = "wasi/random"
+
+[[interface]]
+name = "filesystem"
+repository = "wasi/filesystem"
+
+[[interface]]
+name = "sockets"
+repository = "wasi/sockets"
+
+[[interface]]
+name = "cli"
+repository = "wasi/cli"

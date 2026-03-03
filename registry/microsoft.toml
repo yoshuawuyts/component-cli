@@ -1,0 +1,27 @@
+[namespace]
+name = "microsoft"
+registry = "ghcr.io/microsoft"
+
+[[component]]
+name = "fetch-rs"
+repository = "fetch-rs"
+
+[[component]]
+name = "eval-py"
+repository = "eval-py"
+
+[[component]]
+name = "filesystem-rs"
+repository = "filesystem-rs"
+
+[[component]]
+name = "get-weather-js"
+repository = "get-weather-js"
+
+[[component]]
+name = "gomodule-go"
+repository = "gomodule-go"
+
+[[component]]
+name = "timeserver-js"
+repository = "timeserver-js"

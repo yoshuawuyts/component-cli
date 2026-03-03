@@ -1,0 +1,7 @@
+[namespace]
+name = "wasmcp"
+registry = "ghcr.io/wasmcp"
+
+[[interface]]
+name = "mcp"
+repository = "mcp"
