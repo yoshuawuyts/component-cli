@@ -189,6 +189,8 @@ jobs:
           generate_release_notes: true
           files: release-assets/*
 
+      # Force-update the major version tag (e.g. v0) so users pinned to
+      # @v0 automatically receive the latest patch/minor release.
       - name: Update major version tag
         run: |
           MAJOR=$(echo "${{ needs.prepare.outputs.version }}" | cut -d. -f1)

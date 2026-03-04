@@ -52,11 +52,12 @@ runs:
         if [[ "$ACTION_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
           echo "tag=$ACTION_REF" >> "$GITHUB_OUTPUT"
         else
-          TAG=$(curl -s https://api.github.com/repos/yoshuawuyts/wasm-cli/releases/latest \
-            | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+          TAG=$(curl -sf https://api.github.com/repos/yoshuawuyts/wasm-cli/releases/latest \
+            | jq -r '.tag_name // empty') || true
           if [ -n "$TAG" ]; then
             echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           else
+            echo "::warning::Could not resolve latest release tag, falling back to cargo install"
             echo "tag=" >> "$GITHUB_OUTPUT"
           fi
         fi
@@ -110,7 +111,9 @@ runs:
           unzip -o /tmp/wasm.zip -d "$DEST"
           rm -f /tmp/wasm.zip
         fi
-        chmod +x "$DEST/wasm"* 2>/dev/null || true
+        if [ -f "$DEST/wasm" ]; then
+          chmod +x "$DEST/wasm"
+        fi
 
     - name: Add binary to PATH
       if: steps.version.outputs.tag != '' && steps.platform.outputs.target != ''
