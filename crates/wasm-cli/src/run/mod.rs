@@ -8,7 +8,7 @@
 
 use std::path::PathBuf;
 
-use miette::{IntoDiagnostic, WrapErr, bail};
+use miette::{Context, IntoDiagnostic, bail};
 use wasmparser::{Encoding, Parser, Payload};
 use wasmtime::component::Component;
 use wasmtime::{Engine, Store};
@@ -255,7 +255,8 @@ fn execute_component(
 ) -> miette::Result<Result<(), ()>> {
     let engine = Engine::default();
     let component = Component::new(&engine, bytes)
-        .map_err(|e| miette::miette!("failed to compile Wasm Component: {e}"))?;
+        .map_err(crate::util::into_miette)
+        .wrap_err("failed to compile Wasm Component")?;
 
     // Build WASI context from resolved permissions.
     let mut builder = WasiCtxBuilder::new();
@@ -285,7 +286,8 @@ fn execute_component(
                 DirPerms::all(),
                 FilePerms::all(),
             )
-            .map_err(|e| miette::miette!("failed to pre-open directory: {}: {e}", dir.display()))?;
+            .map_err(crate::util::into_miette)
+            .wrap_err_with(|| format!("failed to pre-open directory: {}", dir.display()))?;
     }
     if permissions.inherit_network {
         builder.inherit_network();
@@ -302,7 +304,8 @@ fn execute_component(
     wasmtime_wasi::p2::add_to_linker_sync(&mut linker).map_err(crate::util::into_miette)?;
 
     let command = Command::instantiate(&mut store, &component, &linker)
-        .map_err(|e| miette::miette!("failed to instantiate Wasm Component: {e}"))?;
+        .map_err(crate::util::into_miette)
+        .wrap_err("failed to instantiate Wasm Component")?;
 
     let result = command.wasi_cli_run().call_run(&mut store);
     match result {

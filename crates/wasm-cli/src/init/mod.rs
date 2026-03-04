@@ -31,13 +31,16 @@ impl Opts {
         // Create composition workspace directories
         tokio::fs::create_dir_all(base.join("types"))
             .await
-            .into_diagnostic()?;
+            .into_diagnostic()
+            .wrap_err("failed to create types directory")?;
         tokio::fs::create_dir_all(base.join("seams"))
             .await
-            .into_diagnostic()?;
+            .into_diagnostic()
+            .wrap_err("failed to create seams directory")?;
         tokio::fs::create_dir_all(base.join("build"))
             .await
-            .into_diagnostic()?;
+            .into_diagnostic()
+            .wrap_err("failed to create build directory")?;
 
         let manifest = wasm_manifest::Manifest::default();
         let manifest = toml::to_string_pretty(&manifest).into_diagnostic()?;
