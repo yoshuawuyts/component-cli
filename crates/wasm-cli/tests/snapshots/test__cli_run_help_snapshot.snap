@@ -7,7 +7,7 @@ Execute a Wasm Component
 Usage: wasm run [OPTIONS] <INPUT>
 
 Arguments:
-  <INPUT>  Local file path or OCI reference to a Wasm Component
+  <INPUT>  Local file path, OCI reference, or manifest key (scope:component) for a Wasm Component
 
 Options:
       --env <KEY=VAL>    Pass an environment variable to the guest (repeatable)

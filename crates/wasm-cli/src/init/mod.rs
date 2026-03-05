@@ -1,3 +1,5 @@
+#![allow(clippy::print_stdout)]
+
 use std::path::PathBuf;
 
 use miette::{IntoDiagnostic, WrapErr};
@@ -54,6 +56,12 @@ impl Opts {
             .await
             .into_diagnostic()
             .wrap_err("failed to write wasm.lock.toml")?;
+
+        println!(
+            "{:>12} wasm project at `{}`",
+            console::style("Created").green().bold(),
+            base.display()
+        );
 
         Ok(())
     }

@@ -21,7 +21,8 @@ use wasm_package_manager::manager::Manager;
 /// Options for the `wasm run` command.
 #[derive(clap::Parser)]
 pub(crate) struct Opts {
-    /// Local file path or OCI reference to a Wasm Component.
+    /// Local file path, OCI reference, or manifest key (scope:component)
+    /// for a Wasm Component.
     #[arg(value_name = "INPUT")]
     input: String,
 
@@ -64,49 +65,39 @@ impl WasiView for WasiState {
 impl Opts {
     /// Execute the `run` command.
     pub(crate) async fn run(self, offline: bool) -> miette::Result<()> {
-        // 1. Resolve input — local files take priority over OCI references.
+        // 1. Resolve input — local files take priority, then manifest keys,
+        //    then OCI references.
         let local_path = PathBuf::from(&self.input);
         let is_local = local_path.exists();
 
-        // Only try OCI when the input is not a local file.
-        let reference = if is_local {
+        // Try manifest key lookup (scope:component syntax).
+        let manifest_path = if is_local {
+            None
+        } else {
+            resolve_manifest_key(&self.input)?
+        };
+
+        // Only try OCI when the input is not a local file and not a manifest key.
+        let reference = if is_local || manifest_path.is_some() {
             None
         } else {
             crate::util::parse_reference(&self.input).ok()
         };
 
         // 2. Get Wasm bytes.
-        let bytes = match reference {
-            Some(ref oci_ref) => {
-                let manager = if offline {
-                    Manager::open_offline().await
-                } else {
-                    Manager::open().await
-                }
-                .map_err(crate::util::into_miette)?;
-                let pull_result = manager
-                    .pull(oci_ref.clone())
-                    .await
-                    .map_err(crate::util::into_miette)?;
-                let manifest = pull_result
-                    .manifest
-                    .as_ref()
-                    .ok_or_else(|| miette::miette!("pulled image has no manifest"))?;
-                let wasm_layers = wasm_package_manager::oci::filter_wasm_layers(&manifest.layers);
-                let layer = wasm_layers.first().ok_or_else(|| {
-                    miette::miette!("manifest contains no application/wasm layer")
-                })?;
-                let key = &layer.digest;
-                manager
-                    .get(key)
-                    .await
-                    .into_diagnostic()
-                    .wrap_err_with(|| format!("failed to read cached component for {key}"))?
-            }
-            None => tokio::fs::read(&local_path)
+        let bytes = if let Some(ref vendored) = manifest_path {
+            tokio::fs::read(vendored)
                 .await
                 .into_diagnostic()
-                .wrap_err_with(|| format!("failed to read {}", local_path.display()))?,
+                .wrap_err_with(|| format!("failed to read {}", vendored.display()))?
+        } else {
+            match reference {
+                Some(ref oci_ref) => fetch_oci_bytes(oci_ref, offline).await?,
+                None => tokio::fs::read(&local_path)
+                    .await
+                    .into_diagnostic()
+                    .wrap_err_with(|| format!("failed to read {}", local_path.display()))?,
+            }
         };
 
         // 3. Validate — must be a Wasm Component.
@@ -319,4 +310,100 @@ fn execute_component(
             Ok(Err(()))
         }
     }
+}
+
+/// Resolve a `scope:component` manifest key to a vendored file path.
+///
+/// Reads the lockfile to find the matching component entry, then
+/// reconstructs the vendor filename from registry, version, and digest.
+/// Returns `None` if the input doesn't match any manifest entry.
+fn resolve_manifest_key(input: &str) -> miette::Result<Option<PathBuf>> {
+    let lockfile_path = PathBuf::from("deps/wasm.lock.toml");
+    let manifest_path = PathBuf::from("deps/wasm.toml");
+
+    let Ok(manifest_str) = std::fs::read_to_string(&manifest_path) else {
+        return Ok(None);
+    };
+    let Ok(manifest) = toml::from_str::<wasm_manifest::Manifest>(&manifest_str) else {
+        return Ok(None);
+    };
+
+    // Check if the input matches a manifest component key
+    if !manifest.components.contains_key(input) {
+        return Ok(None);
+    }
+
+    let Ok(lockfile_str) = std::fs::read_to_string(&lockfile_path) else {
+        return Ok(None);
+    };
+    let Ok(lockfile) = toml::from_str::<wasm_manifest::Lockfile>(&lockfile_str) else {
+        return Ok(None);
+    };
+
+    // Find the matching lockfile entry
+    let package = lockfile
+        .components
+        .iter()
+        .find(|p| p.name == input)
+        .ok_or_else(|| {
+            miette::miette!(
+                "component '{input}' is in the manifest but not in the lockfile; run `wasm install` first"
+            )
+        })?;
+
+    // Reconstruct the vendor filename from lockfile data.
+    // The lockfile `registry` field is "host/repository" (e.g., "ghcr.io/user/repo").
+    let (registry_host, repository) = package
+        .registry
+        .split_once('/')
+        .unwrap_or((&package.registry, ""));
+
+    let filename = wasm_package_manager::manager::vendor_filename(
+        registry_host,
+        repository,
+        Some(package.version.as_str()),
+        &package.digest,
+    );
+
+    let vendored_path = PathBuf::from("deps/vendor/wasm").join(filename);
+    if !vendored_path.exists() {
+        return Err(miette::miette!(
+            "vendored file '{}' not found; run `wasm install {}` first",
+            vendored_path.display(),
+            input
+        ));
+    }
+
+    Ok(Some(vendored_path))
+}
+
+/// Fetch component bytes from an OCI registry.
+async fn fetch_oci_bytes(
+    oci_ref: &wasm_package_manager::Reference,
+    offline: bool,
+) -> miette::Result<Vec<u8>> {
+    let manager = if offline {
+        Manager::open_offline().await
+    } else {
+        Manager::open().await
+    }
+    .map_err(crate::util::into_miette)?;
+    let pull_result = manager
+        .pull(oci_ref.clone())
+        .await
+        .map_err(crate::util::into_miette)?;
+    let manifest = pull_result
+        .manifest
+        .as_ref()
+        .ok_or_else(|| miette::miette!("pulled image has no manifest"))?;
+    let wasm_layers = wasm_package_manager::oci::filter_wasm_layers(&manifest.layers);
+    let layer = wasm_layers
+        .first()
+        .ok_or_else(|| miette::miette!("manifest contains no application/wasm layer"))?;
+    let key = &layer.digest;
+    manager
+        .get(key)
+        .await
+        .into_diagnostic()
+        .wrap_err_with(|| format!("failed to read cached component for {key}"))
 }
