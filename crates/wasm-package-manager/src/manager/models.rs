@@ -3,6 +3,15 @@ use oci_client::manifest::OciImageManifest;
 use crate::oci::InsertResult;
 
 /// Result of syncing the package index from a meta-registry.
+///
+/// # Example
+///
+/// ```
+/// use wasm_package_manager::manager::SyncResult;
+///
+/// let result = SyncResult::Updated { count: 42 };
+/// assert!(matches!(result, SyncResult::Updated { count: 42 }));
+/// ```
 #[derive(Debug)]
 pub enum SyncResult {
     /// Sync was skipped because the minimum interval has not elapsed.
@@ -23,6 +32,15 @@ pub enum SyncResult {
 
 /// Controls whether `sync_from_meta_registry` respects the minimum sync
 /// interval or forces an immediate fetch.
+///
+/// # Example
+///
+/// ```
+/// use wasm_package_manager::manager::SyncPolicy;
+///
+/// let policy = SyncPolicy::IfStale;
+/// assert_eq!(policy, SyncPolicy::IfStale);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SyncPolicy {
     /// Only sync if the minimum interval has elapsed since the last sync.
@@ -35,6 +53,19 @@ pub enum SyncPolicy {
 ///
 /// Contains the insert result along with the content digest and manifest
 /// from the pulled image.
+///
+/// # Example
+///
+/// ```
+/// use wasm_package_manager::{oci::InsertResult, manager::PullResult};
+///
+/// let result = PullResult {
+///     insert_result: InsertResult::Inserted,
+///     digest: Some("sha256:abc123".to_string()),
+///     manifest: None,
+/// };
+/// assert_eq!(result.insert_result, InsertResult::Inserted);
+/// ```
 #[derive(Debug, Clone)]
 pub struct PullResult {
     /// Whether the image was newly inserted or already existed.
@@ -49,6 +80,25 @@ pub struct PullResult {
 ///
 /// Contains metadata about the installed package for updating
 /// manifest and lockfile entries.
+///
+/// # Example
+///
+/// ```
+/// use wasm_package_manager::manager::InstallResult;
+///
+/// let result = InstallResult {
+///     registry: "ghcr.io".to_string(),
+///     repository: "webassembly/wasi-logging".to_string(),
+///     tag: Some("1.0.0".to_string()),
+///     digest: Some("sha256:abc123".to_string()),
+///     package_name: Some("wasi:logging@0.1.0".to_string()),
+///     oci_title: None,
+///     vendored_files: vec![],
+///     is_component: false,
+///     dependencies: vec![],
+/// };
+/// assert_eq!(result.registry, "ghcr.io");
+/// ```
 #[derive(Debug, Clone)]
 pub struct InstallResult {
     /// The registry hostname (e.g., "ghcr.io").

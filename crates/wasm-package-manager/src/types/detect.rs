@@ -11,6 +11,16 @@ use wasmparser::{Encoding, Parser, Payload};
 /// Returns `true` if the bytes are a WIT package, `false` if they contain
 /// code/instantiation (a real component), are a core module, or if parsing
 /// fails.
+///
+/// # Example
+///
+/// ```
+/// use wasm_package_manager::types::is_wit_package;
+///
+/// // Invalid or non-component bytes are not WIT packages.
+/// assert!(!is_wit_package(b"not a wasm component"));
+/// assert!(!is_wit_package(&[]));
+/// ```
 #[must_use]
 pub fn is_wit_package(bytes: &[u8]) -> bool {
     let parser = Parser::new(0);

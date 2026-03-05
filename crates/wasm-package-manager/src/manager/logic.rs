@@ -11,6 +11,15 @@ const DIGEST_PREFIX_LEN: usize = 12;
 ///
 /// The filename encodes the registry, repository, optional tag, and a
 /// truncated image digest so that vendored files are human-identifiable.
+///
+/// # Example
+///
+/// ```
+/// use wasm_package_manager::manager::vendor_filename;
+///
+/// let name = vendor_filename("ghcr.io", "user/repo", Some("v1.0"), "sha256:abcdef1234567890");
+/// assert_eq!(name, "ghcr-io-user-repo-v1.0-abcdef123456.wasm");
+/// ```
 #[must_use]
 pub fn vendor_filename(
     registry: &str,
@@ -30,6 +39,21 @@ pub fn vendor_filename(
 ///
 /// Returns `true` when enough time has elapsed since `last_synced_epoch`,
 /// or when the last-sync timestamp is unknown.
+///
+/// # Example
+///
+/// ```
+/// use wasm_package_manager::manager::should_sync;
+///
+/// // No previous sync — always sync.
+/// assert!(should_sync(None, 3600, 1000));
+///
+/// // Last synced long ago — sync again.
+/// assert!(should_sync(Some(1000), 3600, 5000));
+///
+/// // Recently synced — skip.
+/// assert!(!should_sync(Some(1000), 3600, 2000));
+/// ```
 #[must_use]
 pub fn should_sync(last_synced_epoch: Option<i64>, sync_interval: u64, now_epoch: i64) -> bool {
     match last_synced_epoch {
@@ -43,6 +67,16 @@ pub fn should_sync(last_synced_epoch: Option<i64>, sync_interval: u64, now_epoch
 /// WIT identifiers must match `[a-z][a-z0-9]*(-[a-z][a-z0-9]*)*`.
 /// Returns `None` if the input cannot be sanitized into a valid identifier
 /// (e.g. it contains only digits or special characters).
+///
+/// # Example
+///
+/// ```
+/// use wasm_package_manager::manager::sanitize_to_wit_identifier;
+///
+/// assert_eq!(sanitize_to_wit_identifier("My_Component"), Some("my-component".to_string()));
+/// assert_eq!(sanitize_to_wit_identifier("123fetch"), Some("fetch".to_string()));
+/// assert_eq!(sanitize_to_wit_identifier("!!!"), None);
+/// ```
 #[must_use]
 pub fn sanitize_to_wit_identifier(input: &str) -> Option<String> {
     // Lowercase and replace non-alphanumeric characters with hyphens.
@@ -80,6 +114,22 @@ pub fn sanitize_to_wit_identifier(input: &str) -> Option<String> {
 /// 3. **Last segment of the repository path** — sanitized; used when no
 ///    collision with `existing_names`.
 /// 4. **Full repository path** — with `/` replaced by `-`; used on collision.
+///
+/// # Example
+///
+/// ```
+/// use std::collections::HashSet;
+/// use wasm_package_manager::manager::derive_component_name;
+///
+/// let existing = HashSet::new();
+/// let name = derive_component_name(
+///     Some("wasi:http@0.2.10"),
+///     None,
+///     "webassembly/wasi-http",
+///     &existing,
+/// );
+/// assert_eq!(name, "wasi:http");
+/// ```
 #[must_use]
 pub fn derive_component_name<S: std::hash::BuildHasher>(
     package_name: Option<&str>,

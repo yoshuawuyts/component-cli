@@ -23,6 +23,19 @@ pub(crate) struct WorldMetadata {
 }
 
 /// A dependency on another WIT package.
+///
+/// # Example
+///
+/// ```
+/// use wasm_package_manager::types::DependencyItem;
+///
+/// let dep = DependencyItem {
+///     package: "wasi:io".to_string(),
+///     version: Some("0.2.0".to_string()),
+/// };
+/// assert_eq!(dep.package, "wasi:io");
+/// assert_eq!(dep.version.as_deref(), Some("0.2.0"));
+/// ```
 #[derive(Debug, Clone)]
 pub struct DependencyItem {
     /// The declared package name (e.g. "wasi:io").

@@ -5,6 +5,24 @@ use std::path::{Path, PathBuf};
 use super::models::Migrations;
 
 /// Information about the current state of the package manager.
+///
+/// # Example
+///
+/// ```
+/// use std::path::PathBuf;
+/// use wasm_package_manager::storage::{Migrations, StateInfo};
+///
+/// let migrations = Migrations { current: 3, total: 5 };
+/// let state = StateInfo::new_at(
+///     PathBuf::from("/tmp/data"),
+///     PathBuf::from("/tmp/config.toml"),
+///     &migrations,
+///     1024,
+///     512,
+/// );
+/// assert_eq!(state.migration_current(), 3);
+/// assert_eq!(state.store_size(), 1024);
+/// ```
 #[derive(Debug, Clone)]
 pub struct StateInfo {
     /// Path to the current executable

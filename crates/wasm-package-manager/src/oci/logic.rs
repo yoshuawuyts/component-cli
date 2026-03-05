@@ -8,6 +8,33 @@ use std::collections::HashSet;
 use std::ffi::OsStr;
 
 /// Filter manifest layers to only those with `application/wasm` media type.
+///
+/// # Example
+///
+/// ```
+/// use oci_client::manifest::OciDescriptor;
+/// use wasm_package_manager::oci::filter_wasm_layers;
+///
+/// let layers = vec![
+///     OciDescriptor {
+///         media_type: "application/wasm".to_string(),
+///         digest: "sha256:aaa".to_string(),
+///         size: 100,
+///         urls: None,
+///         annotations: None,
+///     },
+///     OciDescriptor {
+///         media_type: "application/json".to_string(),
+///         digest: "sha256:bbb".to_string(),
+///         size: 50,
+///         urls: None,
+///         annotations: None,
+///     },
+/// ];
+/// let wasm = filter_wasm_layers(&layers);
+/// assert_eq!(wasm.len(), 1);
+/// assert_eq!(wasm[0].digest, "sha256:aaa");
+/// ```
 #[must_use]
 pub fn filter_wasm_layers(layers: &[OciDescriptor]) -> Vec<&OciDescriptor> {
     layers
@@ -21,6 +48,21 @@ pub fn filter_wasm_layers(layers: &[OciDescriptor]) -> Vec<&OciDescriptor> {
 /// Given the digests belonging to the manifests being deleted and the digests
 /// belonging to all other (retained) manifests, returns those that appear only
 /// in the deleted set and can safely be purged from the content store.
+///
+/// # Example
+///
+/// ```
+/// use std::collections::HashSet;
+/// use wasm_package_manager::oci::compute_orphaned_layers;
+///
+/// let deleted: HashSet<String> = ["sha256:aaa", "sha256:shared"]
+///     .iter().map(|s| s.to_string()).collect();
+/// let retained: HashSet<String> = ["sha256:shared", "sha256:ccc"]
+///     .iter().map(|s| s.to_string()).collect();
+///
+/// let orphaned = compute_orphaned_layers(&deleted, &retained);
+/// assert_eq!(orphaned, vec!["sha256:aaa"]);
+/// ```
 #[must_use]
 pub fn compute_orphaned_layers<S: std::hash::BuildHasher>(
     deleted_digests: &HashSet<String, S>,
@@ -38,6 +80,16 @@ pub fn compute_orphaned_layers<S: std::hash::BuildHasher>(
 ///   - `.sig` suffix → signature tag
 ///   - `.att` suffix → attestation tag
 ///   - everything else → release tag
+///
+/// # Example
+///
+/// ```
+/// use wasm_package_manager::oci::{classify_tag, TagKind};
+///
+/// assert_eq!(classify_tag("v1.0"), TagKind::Release);
+/// assert_eq!(classify_tag("sha256-abc123.sig"), TagKind::Signature);
+/// assert_eq!(classify_tag("sha256-abc123.att"), TagKind::Attestation);
+/// ```
 #[must_use]
 pub fn classify_tag(tag: &str) -> TagKind {
     if tag.starts_with("sha256-") {
@@ -55,6 +107,15 @@ pub fn classify_tag(tag: &str) -> TagKind {
 }
 
 /// The kind of an OCI tag.
+///
+/// # Example
+///
+/// ```
+/// use wasm_package_manager::oci::TagKind;
+///
+/// let kind = TagKind::Release;
+/// assert_eq!(kind, TagKind::Release);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TagKind {
     /// A normal release tag (e.g., `v1.0`, `latest`).
@@ -69,6 +130,22 @@ pub enum TagKind {
 ///
 /// This is a convenience wrapper around [`classify_tag`] that partitions
 /// a slice of tags into three vectors.
+///
+/// # Example
+///
+/// ```
+/// use wasm_package_manager::oci::classify_tags;
+///
+/// let tags: Vec<String> = vec![
+///     "v1.0".into(),
+///     "sha256-abc123.sig".into(),
+///     "sha256-abc123.att".into(),
+/// ];
+/// let (release, signature, attestation) = classify_tags(&tags);
+/// assert_eq!(release, vec!["v1.0"]);
+/// assert_eq!(signature, vec!["sha256-abc123.sig"]);
+/// assert_eq!(attestation, vec!["sha256-abc123.att"]);
+/// ```
 #[must_use]
 pub fn classify_tags(tags: &[String]) -> (Vec<String>, Vec<String>, Vec<String>) {
     let mut release = Vec::new();

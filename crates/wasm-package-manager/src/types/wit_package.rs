@@ -5,6 +5,21 @@ use super::raw::RawWitPackage;
 /// This type is freely constructable and is the primary public API type
 /// for representing WIT packages. Internal code uses [`RawWitPackage`]
 /// with database IDs; this type strips those away.
+///
+/// # Example
+///
+/// ```
+/// use wasm_package_manager::types::WitPackage;
+///
+/// let pkg = WitPackage {
+///     package_name: "wasi:http".to_string(),
+///     version: Some("0.2.10".to_string()),
+///     description: Some("HTTP types and handler".to_string()),
+///     wit_text: None,
+///     created_at: "2025-01-01T00:00:00Z".to_string(),
+/// };
+/// assert_eq!(pkg.package_name, "wasi:http");
+/// ```
 #[derive(Debug, Clone)]
 pub struct WitPackage {
     /// The WIT package name (e.g. "wasi:http").

@@ -13,6 +13,18 @@ pub use repository::OciRepository;
 pub use tag::OciTag;
 
 /// Result of an insert operation.
+///
+/// # Example
+///
+/// ```
+/// use wasm_package_manager::oci::InsertResult;
+///
+/// let result = InsertResult::Inserted;
+/// assert_eq!(result, InsertResult::Inserted);
+///
+/// let result = InsertResult::AlreadyExists;
+/// assert_eq!(result, InsertResult::AlreadyExists);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InsertResult {
     /// The entry was inserted successfully.

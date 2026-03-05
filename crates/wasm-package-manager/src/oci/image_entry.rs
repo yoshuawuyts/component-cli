@@ -7,6 +7,24 @@ use super::raw::RawImageEntry;
 /// This type is freely constructable and is the primary public API type
 /// for representing stored OCI images. Internal code uses [`RawImageEntry`]
 /// with database IDs; this type strips those away.
+///
+/// # Example
+///
+/// ```
+/// use oci_client::manifest::OciImageManifest;
+/// use wasm_package_manager::oci::ImageEntry;
+///
+/// let entry = ImageEntry {
+///     ref_registry: "ghcr.io".to_string(),
+///     ref_repository: "user/repo".to_string(),
+///     ref_mirror_registry: None,
+///     ref_tag: Some("v1.0".to_string()),
+///     ref_digest: None,
+///     manifest: OciImageManifest::default(),
+///     size_on_disk: 2048,
+/// };
+/// assert_eq!(entry.ref_registry, "ghcr.io");
+/// ```
 #[derive(Debug, Clone)]
 pub struct ImageEntry {
     /// Registry hostname
@@ -27,6 +45,24 @@ pub struct ImageEntry {
 
 impl ImageEntry {
     /// Returns the full reference string for this image (e.g., "ghcr.io/user/repo:tag").
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use oci_client::manifest::OciImageManifest;
+    /// use wasm_package_manager::oci::ImageEntry;
+    ///
+    /// let entry = ImageEntry {
+    ///     ref_registry: "ghcr.io".to_string(),
+    ///     ref_repository: "user/repo".to_string(),
+    ///     ref_mirror_registry: None,
+    ///     ref_tag: Some("v1.0".to_string()),
+    ///     ref_digest: None,
+    ///     manifest: OciImageManifest::default(),
+    ///     size_on_disk: 0,
+    /// };
+    /// assert_eq!(entry.reference(), "ghcr.io/user/repo:v1.0");
+    /// ```
     #[must_use]
     pub fn reference(&self) -> String {
         let mut reference = format!("{}/{}", self.ref_registry, self.ref_repository);
