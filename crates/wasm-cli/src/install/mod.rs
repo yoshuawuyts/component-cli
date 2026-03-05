@@ -12,10 +12,12 @@ use crate::util::write_lock_file;
 /// Options for the `install` command.
 #[derive(clap::Parser)]
 pub(crate) struct Opts {
-    /// The OCI references to install (e.g., ghcr.io/webassembly/wasi-logging:1.0.0 or oci://ghcr.io/webassembly/wasi-logging:1.0.0).
-    /// If no references are provided, installs all packages listed in the manifest.
-    #[arg(value_parser = crate::util::parse_reference, value_name = "REFERENCE", num_args = 0..)]
-    references: Vec<Reference>,
+    /// Components to install. Accepts OCI references
+    /// (e.g., ghcr.io/webassembly/wasi-logging:1.0.0) or manifest keys
+    /// using scope:component syntax (e.g., wasi:logging).
+    /// If no arguments are provided, installs all packages listed in the manifest.
+    #[arg(value_name = "COMPONENT", num_args = 0..)]
+    inputs: Vec<String>,
 }
 
 impl Opts {
@@ -56,17 +58,18 @@ impl Opts {
         let start_time = std::time::Instant::now();
 
         // Determine the list of (reference, update_manifest) pairs to install.
-        // When no references are provided, install everything from the manifest
-        // and skip re-adding those entries to the manifest. When references are
-        // provided explicitly, add each one to the manifest after installing.
-        let to_install: Vec<(Reference, bool)> = if self.references.is_empty() {
+        // When no inputs are provided, install everything from the manifest.
+        // When inputs are provided, each can be:
+        //   - An OCI reference → install and add to manifest
+        //   - A scope:component manifest key → resolve from manifest and install
+        let to_install: Vec<(Reference, bool)> = if self.inputs.is_empty() {
             manifest
                 .all_dependencies()
                 .map(|(_, dep, _)| reference_from_dependency(dep).map(|r| (r, false)))
                 .collect::<anyhow::Result<Vec<_>>>()
                 .map_err(crate::util::into_miette)?
         } else {
-            self.references.into_iter().map(|r| (r, true)).collect()
+            resolve_install_inputs(&self.inputs, &manifest)?
         };
 
         // Shared progress display for all concurrent installs.
@@ -449,6 +452,42 @@ fn reference_from_dependency(dep: &wasm_manifest::Dependency) -> anyhow::Result<
         } => format!("{registry}/{namespace}/{package}:{version}"),
     };
     crate::util::parse_reference(&s).map_err(|e| anyhow::anyhow!("{e}"))
+}
+
+/// Resolve CLI install inputs into `(Reference, update_manifest)` pairs.
+///
+/// Each input is first checked against manifest keys (e.g., `wasi:logging`).
+/// If no match is found, it is tried as an OCI reference. Returns an error
+/// when neither interpretation works.
+fn resolve_install_inputs(
+    inputs: &[String],
+    manifest: &wasm_manifest::Manifest,
+) -> miette::Result<Vec<(Reference, bool)>> {
+    let mut result = Vec::with_capacity(inputs.len());
+    for input in inputs {
+        // Try as scope:component manifest key first
+        let dep = manifest
+            .components
+            .get(input)
+            .or_else(|| manifest.interfaces.get(input));
+
+        if let Some(dep) = dep {
+            let reference = reference_from_dependency(dep).map_err(crate::util::into_miette)?;
+            result.push((reference, false));
+            continue;
+        }
+
+        // Try as OCI reference
+        match crate::util::parse_reference(input) {
+            Ok(reference) => result.push((reference, true)),
+            Err(_) => {
+                return Err(miette::miette!(
+                    "'{input}' is not a valid OCI reference or manifest key"
+                ));
+            }
+        }
+    }
+    Ok(result)
 }
 
 /// Consume progress events and render tree-style multi-progress bars.

@@ -4,10 +4,10 @@ expression: output
 ---
 Install a dependency from an OCI registry
 
-Usage: wasm install [OPTIONS] [REFERENCE]...
+Usage: wasm install [OPTIONS] [COMPONENT]...
 
 Arguments:
-  [REFERENCE]...  The OCI references to install (e.g., ghcr.io/webassembly/wasi-logging:1.0.0 or oci://ghcr.io/webassembly/wasi-logging:1.0.0). If no references are provided, installs all packages listed in the manifest
+  [COMPONENT]...  Components to install. Accepts OCI references (e.g., ghcr.io/webassembly/wasi-logging:1.0.0) or manifest keys using scope:component syntax (e.g., wasi:logging). If no arguments are provided, installs all packages listed in the manifest
 
 Options:
   -h, --help     Print help

@@ -619,6 +619,92 @@ fn test_run_missing_file() {
     assert_snapshot!(stderr);
 }
 
+#[test]
+fn test_init_prints_success_message() {
+    let dir = TempDir::new().expect("Failed to create temp dir");
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["init"])
+        .current_dir(dir.path())
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(
+        output.status.success(),
+        "init failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Created"),
+        "expected success message in stdout, got: {stdout}"
+    );
+}
+
+#[test]
+fn test_install_scope_component_not_in_manifest() {
+    let dir = TempDir::new().expect("Failed to create temp dir");
+
+    // First, run `wasm init` to create the project files
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["init"])
+        .current_dir(dir.path())
+        .output()
+        .expect("Failed to execute command");
+    assert!(output.status.success());
+
+    // Try installing a scope:component key that doesn't exist in the manifest.
+    // Use --offline so the OCI fallback doesn't hit the network.
+    let stderr = run_cli_error(
+        &["install", "--offline", "missing:component"],
+        Some(dir.path()),
+    );
+    assert!(
+        stderr.contains("offline") || stderr.contains("not found"),
+        "expected offline or not-found error, got: {stderr}"
+    );
+}
+
+#[test]
+fn test_run_scope_component_not_installed() {
+    let dir = TempDir::new().expect("Failed to create temp dir");
+
+    // Run `wasm init` to create the project files
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["init"])
+        .current_dir(dir.path())
+        .output()
+        .expect("Failed to execute command");
+    assert!(output.status.success());
+
+    // Write a manifest with a component entry
+    let manifest = r#"
+[components]
+"test:hello" = "ghcr.io/example/hello:0.1.0"
+"#;
+    std::fs::write(dir.path().join("deps/wasm.toml"), manifest).expect("Failed to write manifest");
+
+    // Write a lockfile with a matching component entry
+    let lockfile = r#"
+lockfile_version = 3
+
+[[components]]
+name = "test:hello"
+version = "0.1.0"
+registry = "ghcr.io/example/hello"
+digest = "sha256:abcdef123456"
+"#;
+    std::fs::write(dir.path().join("deps/wasm.lock.toml"), lockfile)
+        .expect("Failed to write lockfile");
+
+    // Try running — should fail because the vendored file doesn't exist
+    let stderr = run_cli_error(&["run", "test:hello"], Some(dir.path()));
+    assert!(
+        stderr.contains("not found") && stderr.contains("wasm install"),
+        "expected error about missing vendored file with install hint, got: {stderr}"
+    );
+}
+
 // =============================================================================
 // Dotenv Tests
 // =============================================================================
