@@ -308,7 +308,12 @@ mod tests {
         let manifest: Manifest = toml::from_str(toml).expect("Failed to parse manifest");
 
         assert_eq!(manifest.dependencies.interfaces.len(), 2);
-        assert!(manifest.dependencies.interfaces.contains_key("wasi:logging"));
+        assert!(
+            manifest
+                .dependencies
+                .interfaces
+                .contains_key("wasi:logging")
+        );
         assert!(
             manifest
                 .dependencies

@@ -69,7 +69,9 @@ pub enum ValidationError {
     /// See spec: `r[validation.invalid-version-constraint]`
     #[diagnostic(
         code(wasm::validation::invalid_version_constraint),
-        help("use a valid semver constraint such as '1.0.0', '>=1.0, <2.0', '~1.2', '=1.2.3', or '*'")
+        help(
+            "'{name}' has version '{version}': {reason}. Use a valid semver constraint such as '1.0.0', '>=1.0, <2.0', '~1.2', '=1.2.3', or '*'"
+        )
     )]
     InvalidVersionConstraint {
         /// The dependency name with the invalid constraint.
@@ -85,7 +87,9 @@ pub enum ValidationError {
     /// See spec: `r[validation.version-conflict]`
     #[diagnostic(
         code(wasm::validation::version_conflict),
-        help("align versions for '{name}' or use compatible ranges")
+        help(
+            "'{name}' has '{version_a}' in one section and '{version_b}' in another; align versions or use compatible ranges"
+        )
     )]
     VersionConflict {
         /// The package name with conflicting constraints.
