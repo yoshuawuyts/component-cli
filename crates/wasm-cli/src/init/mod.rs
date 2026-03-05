@@ -44,9 +44,34 @@ impl Opts {
             .into_diagnostic()
             .wrap_err("failed to create build directory")?;
 
-        let manifest = wasm_manifest::Manifest::default();
-        let manifest = toml::to_string_pretty(&manifest).into_diagnostic()?;
-        tokio::fs::write(deps.join("wasm.toml"), manifest.as_bytes())
+        let manifest_content = "\
+# WASM Package Manifest
+# See https://github.com/yoshuawuyts/wasm for documentation.
+#
+# Dependencies are declared under [dependencies.components] and
+# [dependencies.interfaces]. Each key is a scope:name pair and the value
+# is either a compact OCI reference or an explicit table.
+#
+# Examples:
+#   [dependencies.components]
+#   \"my-org:my-component\" = \"ghcr.io/my-org/my-component:0.1.0\"
+#
+#   [dependencies.interfaces]
+#   \"wasi:logging\" = \"ghcr.io/webassembly/wasi-logging:1.0.0\"
+#
+#   [dependencies.interfaces.\"wasi:key-value\"]
+#   registry = \"ghcr.io\"
+#   namespace = \"webassembly\"
+#   package = \"wasi-key-value\"
+#   version = \"^2.0.0\"
+#
+# Version constraints follow semver (e.g. \"1.0.0\", \"^1.2.3\", \">=1.0.0, <2.0.0\").
+
+[dependencies.components]
+
+[dependencies.interfaces]
+";
+        tokio::fs::write(deps.join("wasm.toml"), manifest_content.as_bytes())
             .await
             .into_diagnostic()
             .wrap_err("failed to write wasm.toml")?;

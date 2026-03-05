@@ -9,7 +9,7 @@
 //! use wasm_manifest::Manifest;
 //!
 //! let toml = r#"
-//! [interfaces]
+//! [dependencies.interfaces]
 //! "wasi:logging" = "ghcr.io/webassembly/wasi-logging:1.0.0"
 //! "#;
 //!
@@ -44,6 +44,6 @@ mod permissions;
 mod validation;
 
 pub use lockfile::{LOCKFILE_VERSION, Lockfile, Package, PackageDependency};
-pub use manifest::{Dependency, Manifest, PackageType};
+pub use manifest::{Dependencies, Dependency, Manifest, PackageType};
 pub use permissions::{ResolvedPermissions, RunPermissions};
 pub use validation::{ValidationError, validate};

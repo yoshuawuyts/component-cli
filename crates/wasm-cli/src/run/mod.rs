@@ -196,7 +196,12 @@ fn find_matching_permissions(
     let ref_registry = reference.registry();
     let ref_repository = reference.repository();
 
-    for (_, dep) in manifest.components.iter().chain(manifest.interfaces.iter()) {
+    for (_, dep) in manifest
+        .dependencies
+        .components
+        .iter()
+        .chain(manifest.dependencies.interfaces.iter())
+    {
         match dep {
             wasm_manifest::Dependency::Explicit {
                 registry,
@@ -329,7 +334,7 @@ fn resolve_manifest_key(input: &str) -> miette::Result<Option<PathBuf>> {
     };
 
     // Check if the input matches a manifest component key
-    if !manifest.components.contains_key(input) {
+    if !manifest.dependencies.components.contains_key(input) {
         return Ok(None);
     }
 

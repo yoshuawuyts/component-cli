@@ -17,3 +17,11 @@ Validation errors MUST have human-readable display messages.
 
 r[validation.mixed-types]
 Validation MUST handle both component and interface sections.
+
+r[validation.invalid-version-constraint]
+Validation MUST detect and report invalid semver version constraints in
+manifest dependencies.
+
+r[validation.version-conflict]
+Validation MUST detect conflicting version constraints for the same package
+name across components and interfaces sections.

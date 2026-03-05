@@ -23,6 +23,13 @@ use std::collections::HashSet;
 ///     dependency: "wasi:http".to_string(),
 /// };
 /// assert!(err.to_string().contains("wasi:http"));
+///
+/// let err = ValidationError::InvalidVersionConstraint {
+///     name: "wasi:logging".to_string(),
+///     version: "not-a-version".to_string(),
+///     reason: "unexpected character 'n' while parsing major version number".to_string(),
+/// };
+/// assert!(err.to_string().contains("wasi:logging"));
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[must_use]
@@ -38,6 +45,24 @@ pub enum ValidationError {
         package: String,
         /// The name of the dependency that doesn't exist.
         dependency: String,
+    },
+    /// A dependency has an invalid version constraint string.
+    InvalidVersionConstraint {
+        /// The name of the dependency with the invalid constraint.
+        name: String,
+        /// The invalid version string.
+        version: String,
+        /// The reason the version string is invalid.
+        reason: String,
+    },
+    /// Two dependencies resolve to conflicting versions of the same package.
+    VersionConflict {
+        /// The name of the package with conflicting versions.
+        name: String,
+        /// The version constraint from the first source.
+        constraint_a: String,
+        /// The version constraint from the second source.
+        constraint_b: String,
     },
 }
 
@@ -59,6 +84,26 @@ impl std::fmt::Display for ValidationError {
                     "Package '{package}' depends on '{dependency}' which doesn't exist in the lockfile",
                 )
             }
+            ValidationError::InvalidVersionConstraint {
+                name,
+                version,
+                reason,
+            } => {
+                write!(
+                    f,
+                    "Dependency '{name}' has invalid version constraint '{version}': {reason}",
+                )
+            }
+            ValidationError::VersionConflict {
+                name,
+                constraint_a,
+                constraint_b,
+            } => {
+                write!(
+                    f,
+                    "Conflicting version constraints for '{name}': '{constraint_a}' vs '{constraint_b}'",
+                )
+            }
         }
     }
 }
@@ -70,6 +115,8 @@ impl std::error::Error for ValidationError {}
 /// This function checks that:
 /// - All packages in the lockfile have corresponding entries in the manifest
 /// - All package dependencies reference packages that exist in the lockfile
+/// - All version constraints in the manifest are valid semver requirements
+/// - No conflicting version constraints exist for the same package
 ///
 /// # Example
 ///
@@ -77,7 +124,7 @@ impl std::error::Error for ValidationError {}
 /// use wasm_manifest::{Manifest, Lockfile, validate};
 ///
 /// let manifest_toml = r#"
-/// [interfaces]
+/// [dependencies.interfaces]
 /// "wasi:logging" = "ghcr.io/webassembly/wasi-logging:1.0.0"
 /// "#;
 ///
@@ -104,19 +151,78 @@ impl std::error::Error for ValidationError {}
 pub fn validate(manifest: &Manifest, lockfile: &Lockfile) -> Result<(), Vec<ValidationError>> {
     let mut errors = Vec::new();
 
-    // Build a set of all dependency names from the manifest
+    validate_version_constraints(manifest, &mut errors);
+    validate_version_conflicts(manifest, &mut errors);
+    validate_lockfile_consistency(manifest, lockfile, &mut errors);
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+/// Check that all version constraints in the manifest are valid semver requirements.
+fn validate_version_constraints(manifest: &Manifest, errors: &mut Vec<ValidationError>) {
+    for (name, dep, _) in manifest.all_dependencies() {
+        if let Err(e) = dep.parse_version_req() {
+            let version = dep.version().unwrap_or("").to_string();
+            errors.push(ValidationError::InvalidVersionConstraint {
+                name: name.clone(),
+                version,
+                reason: e.to_string(),
+            });
+        }
+    }
+}
+
+/// Check for conflicting version constraints on the same package name
+/// across components and interfaces sections.
+fn validate_version_conflicts(manifest: &Manifest, errors: &mut Vec<ValidationError>) {
+    let component_keys: HashSet<&str> = manifest
+        .dependencies
+        .components
+        .keys()
+        .map(String::as_str)
+        .collect();
+
+    for name in manifest.dependencies.interfaces.keys() {
+        if component_keys.contains(name.as_str()) {
+            let Some(comp_dep) = manifest.dependencies.components.get(name) else {
+                continue;
+            };
+            let Some(iface_dep) = manifest.dependencies.interfaces.get(name) else {
+                continue;
+            };
+            let comp_version = comp_dep.version().unwrap_or("*").to_string();
+            let iface_version = iface_dep.version().unwrap_or("*").to_string();
+            if comp_version != iface_version {
+                errors.push(ValidationError::VersionConflict {
+                    name: name.clone(),
+                    constraint_a: comp_version,
+                    constraint_b: iface_version,
+                });
+            }
+        }
+    }
+}
+
+/// Validate lockfile consistency with manifest.
+fn validate_lockfile_consistency(
+    manifest: &Manifest,
+    lockfile: &Lockfile,
+    errors: &mut Vec<ValidationError>,
+) {
     let manifest_deps: HashSet<&str> = manifest
         .all_dependencies()
         .map(|(name, _, _)| name.as_str())
         .collect();
 
-    // Build a set of all package names from the lockfile for quick lookup
     let lockfile_packages: HashSet<&str> = lockfile
         .all_packages()
         .map(|(p, _)| p.name.as_str())
         .collect();
 
-    // Check that all packages in the lockfile exist in the manifest
     for (package, _pkg_type) in lockfile.all_packages() {
         if !manifest_deps.contains(package.name.as_str()) {
             errors.push(ValidationError::MissingDependency {
@@ -124,7 +230,6 @@ pub fn validate(manifest: &Manifest, lockfile: &Lockfile) -> Result<(), Vec<Vali
             });
         }
 
-        // Check that all dependencies of this package exist in the lockfile
         for dep in &package.dependencies {
             if !lockfile_packages.contains(dep.name.as_str()) {
                 errors.push(ValidationError::InvalidDependency {
@@ -134,18 +239,12 @@ pub fn validate(manifest: &Manifest, lockfile: &Lockfile) -> Result<(), Vec<Vali
             }
         }
     }
-
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(errors)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Dependency, Package, PackageDependency};
+    use crate::{Dependencies, Dependency, Package, PackageDependency};
     use std::collections::HashMap;
 
     // r[verify validation.success]
@@ -162,8 +261,10 @@ mod tests {
         );
 
         let manifest = Manifest {
-            interfaces,
-            ..Default::default()
+            dependencies: Dependencies {
+                interfaces,
+                ..Default::default()
+            },
         };
 
         let lockfile = Lockfile {
@@ -204,8 +305,10 @@ mod tests {
         // Missing wasi:key-value in manifest
 
         let manifest = Manifest {
-            interfaces,
-            ..Default::default()
+            dependencies: Dependencies {
+                interfaces,
+                ..Default::default()
+            },
         };
 
         let lockfile = Lockfile {
@@ -256,8 +359,10 @@ mod tests {
         );
 
         let manifest = Manifest {
-            interfaces,
-            ..Default::default()
+            dependencies: Dependencies {
+                interfaces,
+                ..Default::default()
+            },
         };
 
         let lockfile = Lockfile {
@@ -337,6 +442,22 @@ mod tests {
             err2.to_string(),
             "Package 'wasi:key-value' depends on 'wasi:http' which doesn't exist in the lockfile"
         );
+
+        let err3 = ValidationError::InvalidVersionConstraint {
+            name: "wasi:logging".to_string(),
+            version: "bad".to_string(),
+            reason: "unexpected".to_string(),
+        };
+        assert!(err3.to_string().contains("wasi:logging"));
+        assert!(err3.to_string().contains("bad"));
+
+        let err4 = ValidationError::VersionConflict {
+            name: "wasi:logging".to_string(),
+            constraint_a: "1.0.0".to_string(),
+            constraint_b: "2.0.0".to_string(),
+        };
+        assert!(err4.to_string().contains("Conflicting"));
+        assert!(err4.to_string().contains("wasi:logging"));
     }
 
     // r[verify validation.mixed-types]
@@ -354,8 +475,10 @@ mod tests {
         );
 
         let manifest = Manifest {
-            components,
-            interfaces,
+            dependencies: Dependencies {
+                components,
+                interfaces,
+            },
         };
 
         let lockfile = Lockfile {
@@ -377,5 +500,70 @@ mod tests {
         };
 
         assert!(validate(&manifest, &lockfile).is_ok());
+    }
+
+    // r[verify validation.invalid-version-constraint]
+    #[test]
+    fn test_validate_invalid_version_constraint() {
+        let mut interfaces = HashMap::new();
+        interfaces.insert(
+            "wasi:logging".to_string(),
+            Dependency::Explicit {
+                registry: "ghcr.io".to_string(),
+                namespace: "webassembly".to_string(),
+                package: "wasi-logging".to_string(),
+                version: "not-a-version".to_string(),
+                permissions: None,
+            },
+        );
+
+        let manifest = Manifest {
+            dependencies: Dependencies {
+                interfaces,
+                ..Default::default()
+            },
+        };
+
+        let lockfile = Lockfile::default();
+        let result = validate(&manifest, &lockfile);
+        assert!(result.is_err());
+
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e,
+            ValidationError::InvalidVersionConstraint { name, .. } if name == "wasi:logging"
+        )));
+    }
+
+    // r[verify validation.version-conflict]
+    #[test]
+    fn test_validate_version_conflict() {
+        let mut components = HashMap::new();
+        components.insert(
+            "shared:pkg".to_string(),
+            Dependency::Compact("ghcr.io/example/pkg:1.0.0".to_string()),
+        );
+        let mut interfaces = HashMap::new();
+        interfaces.insert(
+            "shared:pkg".to_string(),
+            Dependency::Compact("ghcr.io/example/pkg:2.0.0".to_string()),
+        );
+
+        let manifest = Manifest {
+            dependencies: Dependencies {
+                components,
+                interfaces,
+            },
+        };
+
+        let lockfile = Lockfile::default();
+        let result = validate(&manifest, &lockfile);
+        assert!(result.is_err());
+
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e,
+            ValidationError::VersionConflict { name, .. } if name == "shared:pkg"
+        )));
     }
 }

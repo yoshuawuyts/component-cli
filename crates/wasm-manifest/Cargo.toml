@@ -12,6 +12,7 @@ categories = { workspace = true }
 keywords = { workspace = true }
 
 [dependencies]
+semver = "1.0.27"
 serde = { workspace = true, features = ["derive"] }
 toml = { workspace = true }
 

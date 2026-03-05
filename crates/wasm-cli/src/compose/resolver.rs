@@ -28,16 +28,16 @@ pub(crate) fn build_resolver(base: &Path) -> Result<FileSystemPackageResolver> {
             .with_context(|| format!("could not read '{}'", manifest_path.display()))?;
         let manifest: wasm_manifest::Manifest = toml::from_str(&manifest_str)?;
 
-        // Map [components] entries to vendored .wasm files
-        for name in manifest.components.keys() {
+        // Map [dependencies.components] entries to vendored .wasm files
+        for name in manifest.dependencies.components.keys() {
             let wasm_file = wasm_vendor.join(format!("{name}.wasm"));
             if wasm_file.exists() {
                 overrides.insert(name.clone(), wasm_file);
             }
         }
 
-        // Map [interfaces] entries to vendored .wasm or .wit files
-        for name in manifest.interfaces.keys() {
+        // Map [dependencies.interfaces] entries to vendored .wasm or .wit files
+        for name in manifest.dependencies.interfaces.keys() {
             let wasm_file = wit_vendor.join(format!("{name}.wasm"));
             let wit_file = wit_vendor.join(format!("{name}.wit"));
             if wasm_file.exists() {
