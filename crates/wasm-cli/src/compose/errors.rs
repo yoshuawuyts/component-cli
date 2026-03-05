@@ -37,6 +37,66 @@ pub(crate) enum ComposeError {
         /// A contextual hint (e.g. listing available files).
         hint: String,
     },
+
+    /// A `.wac` file could not be parsed.
+    #[diagnostic(
+        code(wasm::compose::parse_failed),
+        help("check the WAC syntax in '{file}': {reason}")
+    )]
+    ParseFailed {
+        /// The path to the WAC file.
+        file: String,
+        /// The underlying parse error.
+        reason: String,
+    },
+
+    /// Could not determine the set of packages referenced by a `.wac` file.
+    #[diagnostic(
+        code(wasm::compose::package_discovery_failed),
+        help("check the import declarations in '{file}': {reason}")
+    )]
+    PackageDiscoveryFailed {
+        /// The path to the WAC file.
+        file: String,
+        /// The underlying error message.
+        reason: String,
+    },
+
+    /// Could not resolve the packages required by a `.wac` file.
+    #[diagnostic(
+        code(wasm::compose::package_resolution_failed),
+        help("ensure all dependencies for '{file}' are installed via `wasm install`: {reason}")
+    )]
+    PackageResolutionFailed {
+        /// The path to the WAC file.
+        file: String,
+        /// The underlying resolution error.
+        reason: String,
+    },
+
+    /// The WAC document resolution step failed.
+    #[diagnostic(
+        code(wasm::compose::resolution_failed),
+        help("check the component wiring in '{file}': {reason}")
+    )]
+    ResolutionFailed {
+        /// The path to the WAC file.
+        file: String,
+        /// The underlying resolution error.
+        reason: String,
+    },
+
+    /// Encoding the composed component failed.
+    #[diagnostic(
+        code(wasm::compose::encode_failed),
+        help("encoding of '{file}' failed: {reason}")
+    )]
+    EncodeFailed {
+        /// The path to the WAC file.
+        file: String,
+        /// The underlying encode error.
+        reason: String,
+    },
 }
 
 impl std::fmt::Display for ComposeError {
@@ -54,6 +114,21 @@ impl std::fmt::Display for ComposeError {
             ComposeError::WacNotFound { name, .. } => {
                 write!(f, "WAC file 'seams/{name}.wac' not found")
             }
+            ComposeError::ParseFailed { file, .. } => {
+                write!(f, "parse error in '{file}'")
+            }
+            ComposeError::PackageDiscoveryFailed { file, .. } => {
+                write!(f, "could not determine packages in '{file}'")
+            }
+            ComposeError::PackageResolutionFailed { file, .. } => {
+                write!(f, "could not resolve packages for '{file}'")
+            }
+            ComposeError::ResolutionFailed { file, .. } => {
+                write!(f, "resolution error in '{file}'")
+            }
+            ComposeError::EncodeFailed { file, .. } => {
+                write!(f, "encode error for '{file}'")
+            }
         }
     }
 }
@@ -68,48 +143,60 @@ mod tests {
     fn test_all_variants_have_error_codes() {
         use miette::Diagnostic;
 
-        let no_wac = ComposeError::NoWacFiles;
-        assert_eq!(
-            no_wac
-                .code()
-                .expect("NoWacFiles must have a diagnostic code")
-                .to_string(),
+        let variants: Vec<Box<dyn Diagnostic>> = vec![
+            Box::new(ComposeError::NoWacFiles),
+            Box::new(ComposeError::InvalidName {
+                name: "foo/bar".to_string(),
+            }),
+            Box::new(ComposeError::WacNotFound {
+                name: "test".to_string(),
+                hint: "no .wac files exist in `seams/`".to_string(),
+            }),
+            Box::new(ComposeError::ParseFailed {
+                file: "seams/test.wac".to_string(),
+                reason: "unexpected token".to_string(),
+            }),
+            Box::new(ComposeError::PackageDiscoveryFailed {
+                file: "seams/test.wac".to_string(),
+                reason: "unknown import".to_string(),
+            }),
+            Box::new(ComposeError::PackageResolutionFailed {
+                file: "seams/test.wac".to_string(),
+                reason: "missing dep".to_string(),
+            }),
+            Box::new(ComposeError::ResolutionFailed {
+                file: "seams/test.wac".to_string(),
+                reason: "type mismatch".to_string(),
+            }),
+            Box::new(ComposeError::EncodeFailed {
+                file: "seams/test.wac".to_string(),
+                reason: "invalid graph".to_string(),
+            }),
+        ];
+
+        let expected_codes = [
             "wasm::compose::no_wac_files",
-        );
-        assert!(
-            no_wac.help().is_some(),
-            "NoWacFiles must have a help message"
-        );
-
-        let invalid_name = ComposeError::InvalidName {
-            name: "foo/bar".to_string(),
-        };
-        assert_eq!(
-            invalid_name
-                .code()
-                .expect("InvalidName must have a diagnostic code")
-                .to_string(),
             "wasm::compose::invalid_name",
-        );
-        assert!(
-            invalid_name.help().is_some(),
-            "InvalidName must have a help message"
-        );
-
-        let not_found = ComposeError::WacNotFound {
-            name: "test".to_string(),
-            hint: "no .wac files exist in `seams/`".to_string(),
-        };
-        assert_eq!(
-            not_found
-                .code()
-                .expect("WacNotFound must have a diagnostic code")
-                .to_string(),
             "wasm::compose::wac_not_found",
-        );
-        assert!(
-            not_found.help().is_some(),
-            "WacNotFound must have a help message"
-        );
+            "wasm::compose::parse_failed",
+            "wasm::compose::package_discovery_failed",
+            "wasm::compose::package_resolution_failed",
+            "wasm::compose::resolution_failed",
+            "wasm::compose::encode_failed",
+        ];
+
+        for (variant, expected_code) in variants.iter().zip(expected_codes.iter()) {
+            assert_eq!(
+                variant
+                    .code()
+                    .unwrap_or_else(|| panic!("{expected_code} must have a diagnostic code"))
+                    .to_string(),
+                *expected_code,
+            );
+            assert!(
+                variant.help().is_some(),
+                "{expected_code} must have a help message"
+            );
+        }
     }
 }

@@ -61,6 +61,18 @@ pub enum ManagerError {
         /// The underlying error message from the failed sync.
         reason: String,
     },
+
+    /// No tags were found for the given package reference.
+    #[diagnostic(
+        code(wasm::manager::no_tags_found),
+        help("verify the package name '{registry}/{repository}' is correct")
+    )]
+    NoTagsFound {
+        /// The registry host (e.g. `ghcr.io`).
+        registry: String,
+        /// The repository path (e.g. `webassembly/wasi-logging`).
+        repository: String,
+    },
 }
 
 impl std::fmt::Display for ManagerError {
@@ -77,6 +89,12 @@ impl std::fmt::Display for ManagerError {
             }
             ManagerError::SyncNoLocalData { reason } => {
                 write!(f, "{reason}. No local data available",)
+            }
+            ManagerError::NoTagsFound {
+                registry,
+                repository,
+            } => {
+                write!(f, "no tags found for {registry}/{repository}")
             }
         }
     }
@@ -144,6 +162,22 @@ mod tests {
         assert!(
             sync_failed.help().is_some(),
             "SyncNoLocalData must have a help message"
+        );
+
+        let no_tags = ManagerError::NoTagsFound {
+            registry: "ghcr.io".to_string(),
+            repository: "example/component".to_string(),
+        };
+        assert_eq!(
+            no_tags
+                .code()
+                .expect("NoTagsFound must have a diagnostic code")
+                .to_string(),
+            "wasm::manager::no_tags_found",
+        );
+        assert!(
+            no_tags.help().is_some(),
+            "NoTagsFound must have a help message"
         );
     }
 }

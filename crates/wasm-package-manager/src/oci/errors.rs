@@ -55,6 +55,13 @@ pub enum OciLayerError {
         /// The media type that was found.
         found: String,
     },
+    /// The Docker credential store returned an identity token, which is not
+    /// supported by this client.
+    #[diagnostic(
+        code(wasm::oci::identity_token_not_supported),
+        help("configure username/password credentials instead of an identity token")
+    )]
+    IdentityTokenNotSupported,
 }
 
 impl std::fmt::Display for OciLayerError {
@@ -68,6 +75,9 @@ impl std::fmt::Display for OciLayerError {
                     f,
                     "expected layer media type `application/wasm`, found `{found}`",
                 )
+            }
+            OciLayerError::IdentityTokenNotSupported => {
+                write!(f, "identity tokens are not supported")
             }
         }
     }
@@ -109,6 +119,19 @@ mod tests {
         assert!(
             invalid_media.help().is_some(),
             "InvalidMediaType must have a help message"
+        );
+
+        let identity_token = OciLayerError::IdentityTokenNotSupported;
+        assert_eq!(
+            identity_token
+                .code()
+                .expect("IdentityTokenNotSupported must have a diagnostic code")
+                .to_string(),
+            "wasm::oci::identity_token_not_supported",
+        );
+        assert!(
+            identity_token.help().is_some(),
+            "IdentityTokenNotSupported must have a help message"
         );
     }
 }

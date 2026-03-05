@@ -457,7 +457,8 @@ fn reference_from_dependency(dep: &wasm_manifest::Dependency) -> anyhow::Result<
             ..
         } => format!("{registry}/{namespace}/{package}:{version}"),
     };
-    crate::util::parse_reference(&s).map_err(|e| anyhow::anyhow!("{e}"))
+    crate::util::parse_reference(&s)
+        .map_err(|e| InstallError::InvalidReference { reason: e.clone() }.into())
 }
 
 /// Resolve CLI install inputs into `(Reference, update_manifest)` pairs.
@@ -487,9 +488,10 @@ fn resolve_install_inputs(
         match crate::util::parse_reference(input) {
             Ok(reference) => result.push((reference, true)),
             Err(_) => {
-                return Err(miette::miette!(
-                    "'{input}' is not a valid OCI reference or manifest key"
-                ));
+                return Err(InstallError::InvalidInput {
+                    input: input.clone(),
+                }
+                .into());
             }
         }
     }

@@ -140,29 +140,37 @@ impl Opts {
         let source = std::fs::read_to_string(wac_file)
             .with_context(|| format!("could not read '{}'", wac_file.display()))?;
 
-        let document = wac_parser::Document::parse(&source)
-            .map_err(|e| anyhow::anyhow!("parse error in '{}': {e}", wac_file.display()))?;
+        let document =
+            wac_parser::Document::parse(&source).map_err(|e| ComposeError::ParseFailed {
+                file: wac_file.display().to_string(),
+                reason: e.to_string(),
+            })?;
 
         let base = std::env::current_dir().context("could not determine current directory")?;
         let fs_resolver = resolver::build_resolver(&base)?;
 
         let keys = wac_resolver::packages(&document).map_err(|e| {
-            anyhow::anyhow!(
-                "could not determine packages in '{}': {e}",
-                wac_file.display()
-            )
+            ComposeError::PackageDiscoveryFailed {
+                file: wac_file.display().to_string(),
+                reason: e.to_string(),
+            }
         })?;
 
-        let packages = fs_resolver.resolve(&keys).map_err(|e| {
-            anyhow::anyhow!(
-                "could not resolve packages for '{}': {e}",
-                wac_file.display()
-            )
-        })?;
+        let packages =
+            fs_resolver
+                .resolve(&keys)
+                .map_err(|e| ComposeError::PackageResolutionFailed {
+                    file: wac_file.display().to_string(),
+                    reason: e.to_string(),
+                })?;
 
-        let resolution = document
-            .resolve(packages)
-            .map_err(|e| anyhow::anyhow!("resolution error in '{}': {e}", wac_file.display()))?;
+        let resolution =
+            document
+                .resolve(packages)
+                .map_err(|e| ComposeError::ResolutionFailed {
+                    file: wac_file.display().to_string(),
+                    reason: e.to_string(),
+                })?;
 
         let mut encode_options = wac_graph::EncodeOptions::default();
         if matches!(self.linker, LinkerMode::Dynamic) {
@@ -171,7 +179,10 @@ impl Opts {
 
         let bytes = resolution
             .encode(encode_options)
-            .map_err(|e| anyhow::anyhow!("encode error for '{}': {e}", wac_file.display()))?;
+            .map_err(|e| ComposeError::EncodeFailed {
+                file: wac_file.display().to_string(),
+                reason: e.to_string(),
+            })?;
 
         let stem = wac_file
             .file_stem()
