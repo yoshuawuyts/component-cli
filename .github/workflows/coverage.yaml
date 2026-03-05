@@ -19,7 +19,7 @@ jobs:
       - name: Install sqlite3def
         run: cargo xtask sql install
       - name: Collect coverage data
-        run: cargo llvm-cov --workspace --all-features --no-report
+        run: cargo llvm-cov --workspace --all-features --exclude xtask --no-report
       - name: Generate text summary
         run: cargo llvm-cov report --text 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Generate HTML report
