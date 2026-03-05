@@ -420,7 +420,9 @@ async fn fetch_oci_bytes(
 ///
 /// Manifest keys use `scope:component` syntax (e.g. `wasi:http`, `test:hello`)
 /// without dots or slashes, which distinguishes them from OCI references
-/// (e.g. `ghcr.io/user/repo:tag`).
+/// (e.g. `ghcr.io/user/repo:tag`). WIT-style names never contain dots or
+/// slashes, so rejecting those characters safely separates manifest keys
+/// from OCI references.
 fn looks_like_manifest_key(input: &str) -> bool {
     let Some((scope, component)) = input.split_once(':') else {
         return false;
@@ -433,8 +435,12 @@ fn looks_like_manifest_key(input: &str) -> bool {
 /// Checks the global cache and the known-package index for a matching
 /// component and returns the most actionable hint available.
 async fn not_installed_error(input: &str) -> miette::Report {
+    // Convert `scope:component` to `scope/component` to match the repository
+    // path format used in the OCI cache and known-package index.
     let search_pattern = input.replace(':', "/");
 
+    // Best-effort lookup: if the manager can't be opened (e.g. no cache
+    // directory yet for first-time users), fall back to the generic hint.
     let hint = match Manager::open().await {
         Ok(manager) => build_hint_from_manager(&manager, input, &search_pattern),
         Err(_) => default_install_hint(input),
@@ -464,11 +470,17 @@ fn build_hint_from_manager(manager: &Manager, input: &str, search_pattern: &str)
 }
 
 /// Check whether a component matching `pattern` exists in the local cache.
+///
+/// Matches when a cached image's repository equals the pattern or ends
+/// with `/<pattern>` to avoid false positives from substring matching.
 fn is_in_cache(manager: &Manager, pattern: &str) -> bool {
     let Ok(entries) = manager.list_all() else {
         return false;
     };
-    entries.iter().any(|e| e.ref_repository.contains(pattern))
+    let suffix = format!("/{pattern}");
+    entries
+        .iter()
+        .any(|e| e.ref_repository == pattern || e.ref_repository.ends_with(&suffix))
 }
 
 /// Check whether a component matching `pattern` exists in the known-package index.
