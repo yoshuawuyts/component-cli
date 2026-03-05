@@ -85,8 +85,12 @@ try {
         Write-Host "warning: $InstallDir is not in your PATH"
         Write-Host ''
 
-        # Add to user PATH
-        $NewPath = "$UserPath;$InstallDir"
+        # Add to user PATH (avoid duplicates by checking before appending)
+        if ($UserPath) {
+            $NewPath = "$UserPath;$InstallDir"
+        } else {
+            $NewPath = $InstallDir
+        }
         [Environment]::SetEnvironmentVariable('Path', $NewPath, 'User')
         $env:Path = "$env:Path;$InstallDir"
 

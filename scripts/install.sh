@@ -75,9 +75,9 @@ resolve_version() {
         _url="https://github.com/${REPO}/releases/latest"
         # Follow the redirect and extract the tag from the final URL
         if command -v curl > /dev/null 2>&1; then
-            _redirect="$(curl --proto '=https' --tlsv1.2 -sI -o /dev/null -w '%{url_effective}' -L "$_url")"
+            _redirect="$(curl --proto '=https' --tlsv1.2 -Ls -o /dev/null -w '%{url_effective}' "$_url")"
         elif command -v wget > /dev/null 2>&1; then
-            _redirect="$(wget --max-redirect=10 -q -S -O /dev/null "$_url" 2>&1 | grep -i 'Location:' | tail -1 | awk '{print $2}' | tr -d '\r')"
+            _redirect="$(wget -q -O /dev/null --server-response "$_url" 2>&1 | grep -i 'Location:' | tail -1 | awk '{print $2}' | tr -d '\r')"
         else
             err "need 'curl' or 'wget' to resolve latest version"
         fi
