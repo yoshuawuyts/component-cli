@@ -16,6 +16,28 @@ use wasm_package_manager::manager::Manager;
 use crate::config::Config;
 
 /// Background indexer that syncs package metadata from OCI registries.
+///
+/// # Example
+///
+/// ```no_run
+/// use wasm_meta_registry::{Config, Indexer};
+/// use wasm_package_manager::manager::Manager;
+/// use std::path::Path;
+///
+/// # async fn example() -> anyhow::Result<()> {
+/// let config = Config::from_registry_dir(
+///     Path::new("registry/"),
+///     3600,
+///     "0.0.0.0:8080".to_string(),
+/// )?;
+/// let manager = Manager::open().await?;
+/// let indexer = Indexer::new(config, manager);
+///
+/// // Run the indexer loop (blocks indefinitely)
+/// indexer.run().await;
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug)]
 pub struct Indexer {
     config: Config,
@@ -24,6 +46,25 @@ pub struct Indexer {
 
 impl Indexer {
     /// Create a new indexer with the given configuration and its own manager.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use wasm_meta_registry::{Config, Indexer};
+    /// use wasm_package_manager::manager::Manager;
+    /// use std::path::Path;
+    ///
+    /// # async fn example() -> anyhow::Result<()> {
+    /// let config = Config::from_registry_dir(
+    ///     Path::new("registry/"),
+    ///     3600,
+    ///     "0.0.0.0:8080".to_string(),
+    /// )?;
+    /// let manager = Manager::open().await?;
+    /// let indexer = Indexer::new(config, manager);
+    /// # Ok(())
+    /// # }
+    /// ```
     #[must_use]
     pub fn new(config: Config, manager: Manager) -> Self {
         Self { config, manager }

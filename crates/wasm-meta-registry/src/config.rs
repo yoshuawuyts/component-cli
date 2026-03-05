@@ -15,6 +15,26 @@ use crate::registry_file::RegistryFile;
 ///
 /// Built by loading a registry directory of per-namespace TOML files
 /// and combining with server settings from CLI arguments.
+///
+/// # Example
+///
+/// ```
+/// use wasm_meta_registry::config::{Config, PackageSource, PackageKind};
+///
+/// let config = Config {
+///     sync_interval: 3600,
+///     bind: "0.0.0.0:8080".to_string(),
+///     packages: vec![PackageSource {
+///         registry: "ghcr.io/webassembly".to_string(),
+///         repository: "wasi/io".to_string(),
+///         name: "io".to_string(),
+///         kind: PackageKind::Interface,
+///     }],
+/// };
+///
+/// assert_eq!(config.sync_interval, 3600);
+/// assert_eq!(config.packages.len(), 1);
+/// ```
 #[derive(Debug, Clone)]
 #[must_use]
 pub struct Config {
@@ -29,6 +49,22 @@ pub struct Config {
 }
 
 /// A single OCI package source to index.
+///
+/// # Example
+///
+/// ```
+/// use wasm_meta_registry::config::{PackageSource, PackageKind};
+///
+/// let source = PackageSource {
+///     registry: "ghcr.io/webassembly".to_string(),
+///     repository: "wasi/clocks".to_string(),
+///     name: "clocks".to_string(),
+///     kind: PackageKind::Interface,
+/// };
+///
+/// assert_eq!(source.registry, "ghcr.io/webassembly");
+/// assert_eq!(source.name, "clocks");
+/// ```
 #[derive(Debug, Clone)]
 #[must_use]
 pub struct PackageSource {
@@ -43,6 +79,18 @@ pub struct PackageSource {
 }
 
 /// The kind of package: either a runnable component or a WIT interface type.
+///
+/// # Example
+///
+/// ```
+/// use wasm_meta_registry::config::PackageKind;
+///
+/// let kind = PackageKind::Component;
+/// assert_eq!(kind, PackageKind::Component);
+///
+/// let kind = PackageKind::Interface;
+/// assert_eq!(kind, PackageKind::Interface);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageKind {
     /// A runnable Wasm component.
@@ -64,6 +112,22 @@ impl Config {
     ///
     /// Returns an error if the directory cannot be read, any TOML file is
     /// invalid, or a filename does not match its namespace name.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use std::path::Path;
+    /// use wasm_meta_registry::Config;
+    ///
+    /// let config = Config::from_registry_dir(
+    ///     Path::new("registry/"),
+    ///     3600,
+    ///     "0.0.0.0:8080".to_string(),
+    /// )
+    /// .expect("failed to load registry config");
+    ///
+    /// println!("Loaded {} packages", config.packages.len());
+    /// ```
     pub fn from_registry_dir(dir: &Path, sync_interval: u64, bind: String) -> anyhow::Result<Self> {
         let mut packages = Vec::new();
 

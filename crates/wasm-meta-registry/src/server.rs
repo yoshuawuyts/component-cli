@@ -18,9 +18,37 @@ use wasm_package_manager::manager::Manager;
 ///
 /// This is safe because all handler methods on `Manager` are synchronous
 /// (no `.await` while holding the lock).
+///
+/// # Example
+///
+/// ```no_run
+/// use wasm_meta_registry::server::AppState;
+/// use wasm_package_manager::manager::Manager;
+/// use std::sync::{Arc, Mutex};
+///
+/// # async fn example() -> anyhow::Result<()> {
+/// let manager = Manager::open().await?;
+/// let state: AppState = Arc::new(Mutex::new(manager));
+/// # Ok(())
+/// # }
+/// ```
 pub type AppState = Arc<std::sync::Mutex<Manager>>;
 
 /// Query parameters for search.
+///
+/// # Example
+///
+/// ```
+/// use wasm_meta_registry::server::SearchParams;
+///
+/// let params = SearchParams {
+///     q: "wasi".to_string(),
+///     offset: 0,
+///     limit: 20,
+/// };
+///
+/// assert_eq!(params.q, "wasi");
+/// ```
 #[derive(Debug, Deserialize)]
 pub struct SearchParams {
     /// Search query string.
@@ -34,6 +62,19 @@ pub struct SearchParams {
 }
 
 /// Query parameters for listing packages.
+///
+/// # Example
+///
+/// ```
+/// use wasm_meta_registry::server::ListParams;
+///
+/// let params = ListParams {
+///     offset: 0,
+///     limit: 50,
+/// };
+///
+/// assert_eq!(params.limit, 50);
+/// ```
 #[derive(Debug, Deserialize)]
 pub struct ListParams {
     /// Pagination offset (default: 0).
@@ -49,6 +90,24 @@ fn default_limit() -> u32 {
 }
 
 /// Build the axum router with all API routes.
+///
+/// # Example
+///
+/// ```no_run
+/// use wasm_meta_registry::router;
+/// use wasm_package_manager::manager::Manager;
+/// use std::sync::{Arc, Mutex};
+///
+/// # async fn example() -> anyhow::Result<()> {
+/// let manager = Manager::open().await?;
+/// let state = Arc::new(Mutex::new(manager));
+/// let app = router(state);
+///
+/// let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
+/// axum::serve(listener, app).await?;
+/// # Ok(())
+/// # }
+/// ```
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/v1/health", get(health))

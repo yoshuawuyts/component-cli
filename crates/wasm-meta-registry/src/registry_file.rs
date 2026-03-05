@@ -9,7 +9,7 @@ use crate::config::{PackageKind, PackageSource};
 /// Each file defines a single namespace with its OCI registry base path,
 /// plus zero or more `[[component]]` and `[[interface]]` entries.
 ///
-/// # Example
+/// # TOML format
 ///
 /// ```toml
 /// [namespace]
@@ -19,6 +19,26 @@ use crate::config::{PackageKind, PackageSource};
 /// [[interface]]
 /// name = "io"
 /// repository = "wasi/io"
+/// ```
+///
+/// # Example
+///
+/// ```
+/// use wasm_meta_registry::RegistryFile;
+///
+/// let toml = r#"
+/// [namespace]
+/// name = "wasi"
+/// registry = "ghcr.io/webassembly"
+///
+/// [[interface]]
+/// name = "io"
+/// repository = "wasi/io"
+/// "#;
+///
+/// let file = RegistryFile::from_toml(toml).unwrap();
+/// assert_eq!(file.namespace.name, "wasi");
+/// assert_eq!(file.interface.len(), 1);
 /// ```
 #[derive(Debug, Clone, Deserialize)]
 #[must_use]
@@ -34,6 +54,19 @@ pub struct RegistryFile {
 }
 
 /// A WIT namespace mapped to an OCI registry base path.
+///
+/// # Example
+///
+/// ```
+/// use wasm_meta_registry::registry_file::Namespace;
+///
+/// let ns = Namespace {
+///     name: "wasi".to_string(),
+///     registry: "ghcr.io/webassembly".to_string(),
+/// };
+///
+/// assert_eq!(ns.name, "wasi");
+/// ```
 #[derive(Debug, Clone, Deserialize)]
 #[must_use]
 pub struct Namespace {
@@ -44,6 +77,19 @@ pub struct Namespace {
 }
 
 /// A package entry within a namespace.
+///
+/// # Example
+///
+/// ```
+/// use wasm_meta_registry::registry_file::PackageEntry;
+///
+/// let entry = PackageEntry {
+///     name: "clocks".to_string(),
+///     repository: "wasi/clocks".to_string(),
+/// };
+///
+/// assert_eq!(entry.name, "clocks");
+/// ```
 #[derive(Debug, Clone, Deserialize)]
 #[must_use]
 pub struct PackageEntry {
@@ -59,12 +105,56 @@ impl RegistryFile {
     /// # Errors
     ///
     /// Returns an error if the TOML is invalid or missing required fields.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use wasm_meta_registry::RegistryFile;
+    ///
+    /// let toml = r#"
+    /// [namespace]
+    /// name = "wasi"
+    /// registry = "ghcr.io/webassembly"
+    ///
+    /// [[component]]
+    /// name = "my-app"
+    /// repository = "wasi/my-app"
+    /// "#;
+    ///
+    /// let file = RegistryFile::from_toml(toml).unwrap();
+    /// assert_eq!(file.namespace.name, "wasi");
+    /// assert_eq!(file.component.len(), 1);
+    /// ```
     pub fn from_toml(toml_str: &str) -> anyhow::Result<Self> {
         let file: RegistryFile = toml::from_str(toml_str)?;
         Ok(file)
     }
 
     /// Convert this registry file into a list of [`PackageSource`] entries.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use wasm_meta_registry::RegistryFile;
+    /// use wasm_meta_registry::config::PackageKind;
+    ///
+    /// let toml = r#"
+    /// [namespace]
+    /// name = "wasi"
+    /// registry = "ghcr.io/webassembly"
+    ///
+    /// [[interface]]
+    /// name = "io"
+    /// repository = "wasi/io"
+    /// "#;
+    ///
+    /// let file = RegistryFile::from_toml(toml).unwrap();
+    /// let sources = file.into_package_sources();
+    ///
+    /// assert_eq!(sources.len(), 1);
+    /// assert_eq!(sources[0].name, "io");
+    /// assert_eq!(sources[0].kind, PackageKind::Interface);
+    /// ```
     #[must_use]
     pub fn into_package_sources(self) -> Vec<PackageSource> {
         let registry = self.namespace.registry;
