@@ -77,6 +77,12 @@ impl Opts {
             resolve_manifest_key(&self.input)?
         };
 
+        // Block OCI fallthrough for inputs that look like manifest keys
+        // (scope:component) but aren't installed in the local project.
+        if !is_local && manifest_path.is_none() && looks_like_manifest_key(&self.input) {
+            return Err(not_installed_error(&self.input).await);
+        }
+
         // Only try OCI when the input is not a local file and not a manifest key.
         let reference = if is_local || manifest_path.is_some() {
             None
@@ -408,4 +414,84 @@ async fn fetch_oci_bytes(
         .await
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to read cached component for {key}"))
+}
+
+/// Check whether `input` looks like a manifest key (`scope:component`).
+///
+/// Manifest keys use `scope:component` syntax (e.g. `wasi:http`, `test:hello`)
+/// without dots or slashes, which distinguishes them from OCI references
+/// (e.g. `ghcr.io/user/repo:tag`). WIT-style names never contain dots or
+/// slashes, so rejecting those characters safely separates manifest keys
+/// from OCI references.
+fn looks_like_manifest_key(input: &str) -> bool {
+    let Some((scope, component)) = input.split_once(':') else {
+        return false;
+    };
+    !scope.is_empty() && !component.is_empty() && !input.contains('/') && !input.contains('.')
+}
+
+/// Build an error for a manifest-key input that is not installed locally.
+///
+/// Checks the global cache and the known-package index for a matching
+/// component and returns the most actionable hint available.
+async fn not_installed_error(input: &str) -> miette::Report {
+    // Convert `scope:component` to `scope/component` to match the repository
+    // path format used in the OCI cache and known-package index.
+    let search_pattern = input.replace(':', "/");
+
+    // Best-effort lookup: if the manager can't be opened (e.g. no cache
+    // directory yet for first-time users), fall back to the generic hint.
+    let hint = match Manager::open().await {
+        Ok(manager) => build_hint_from_manager(&manager, input, &search_pattern),
+        Err(_) => default_install_hint(input),
+    };
+
+    miette::miette!(
+        help = hint,
+        "component '{input}' is not installed in the local project"
+    )
+}
+
+/// Inspect the manager's cache and known-package index and return a hint.
+fn build_hint_from_manager(manager: &Manager, input: &str, search_pattern: &str) -> String {
+    if is_in_cache(manager, search_pattern) {
+        return format!(
+            "a copy of the component is available from the local cache. \
+             Call `wasm run -g {input}` to run it."
+        );
+    }
+    if is_in_registry(manager, search_pattern) {
+        return format!(
+            "a component with the same name is available from the registry. \
+             Call `wasm run -i {input}` to install it before running it."
+        );
+    }
+    default_install_hint(input)
+}
+
+/// Check whether a component matching `pattern` exists in the local cache.
+///
+/// Matches when a cached image's repository equals the pattern or ends
+/// with `/<pattern>` to avoid false positives from substring matching.
+fn is_in_cache(manager: &Manager, pattern: &str) -> bool {
+    let Ok(entries) = manager.list_all() else {
+        return false;
+    };
+    let suffix = format!("/{pattern}");
+    entries
+        .iter()
+        .any(|e| e.ref_repository == pattern || e.ref_repository.ends_with(&suffix))
+}
+
+/// Check whether a component matching `pattern` exists in the known-package index.
+fn is_in_registry(manager: &Manager, pattern: &str) -> bool {
+    let Ok(packages) = manager.search_packages(pattern, 0, 1) else {
+        return false;
+    };
+    !packages.is_empty()
+}
+
+/// Fallback hint when neither cache nor registry has the component.
+fn default_install_hint(input: &str) -> String {
+    format!("run `wasm install {input}` to add it to the project before running it.")
 }

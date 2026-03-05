@@ -11,6 +11,19 @@ The run command MUST reject core WebAssembly modules with a clear error message.
 r[run.missing-file]
 The run command MUST report a clear error when the target file does not exist.
 
+r[run.not-installed]
+When the input looks like a manifest key (`scope:component` syntax) but is not
+listed in `[components]` in `wasm.toml`, the run command MUST abort with a
+user-friendly error.
+
+r[run.not-installed.hint-cache]
+If a copy of the component is available in the local cache, the error MUST
+suggest using the `--global/-g` flag.
+
+r[run.not-installed.hint-registry]
+If the component is not cached but is found in the package index, the error
+MUST suggest using the `--install/-i` flag.
+
 r[run.oci-layer-lookup]
 When running an OCI reference, the run command MUST retrieve the component
 bytes using the `application/wasm` layer digest from the pulled manifest, not

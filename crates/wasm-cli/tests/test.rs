@@ -706,6 +706,34 @@ digest = "sha256:abcdef123456"
     );
 }
 
+// r[verify run.not-installed]
+#[test]
+fn test_run_scope_component_not_in_manifest() {
+    let dir = TempDir::new().expect("Failed to create temp dir");
+
+    // Run `wasm init` to create the project files
+    let output = Command::new(env!("CARGO_BIN_EXE_wasm"))
+        .args(&["init"])
+        .current_dir(dir.path())
+        .output()
+        .expect("Failed to execute command");
+    assert!(output.status.success());
+
+    // Try running a scope:component key that doesn't exist in the manifest
+    let stderr = run_cli_error(&["run", "missing:component"], Some(dir.path()));
+    assert!(
+        stderr.contains("not installed in the local project"),
+        "expected error about component not installed, got: {stderr}"
+    );
+    // Should include a hint (either about cache, registry, or `wasm install`)
+    assert!(
+        stderr.contains("wasm run -g")
+            || stderr.contains("wasm run -i")
+            || stderr.contains("wasm install"),
+        "expected actionable hint in error, got: {stderr}"
+    );
+}
+
 // =============================================================================
 // Dotenv Tests
 // =============================================================================
