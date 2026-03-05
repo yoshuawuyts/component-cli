@@ -47,6 +47,16 @@ const DEFAULT_CONFIG: &str = r#"# wasm(1) configuration file
 "#;
 
 /// The main configuration struct.
+///
+/// # Examples
+///
+/// ```rust
+/// use wasm_package_manager::Config;
+///
+/// let config = Config::default();
+/// assert!(config.registries.is_empty());
+/// assert!(config.run.is_none());
+/// ```
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -84,6 +94,15 @@ impl Clone for CredentialCache {
 }
 
 /// Configuration for a specific registry.
+///
+/// # Examples
+///
+/// ```rust
+/// use wasm_package_manager::RegistryConfig;
+///
+/// let registry = RegistryConfig { credential_helper: None };
+/// assert!(registry.credential_helper.is_none());
+/// ```
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RegistryConfig {
@@ -93,6 +112,15 @@ pub struct RegistryConfig {
 }
 
 /// Runtime configuration for `wasm run`.
+///
+/// # Examples
+///
+/// ```rust
+/// use wasm_package_manager::RunConfig;
+///
+/// let run = RunConfig { permissions: wasm_manifest::RunPermissions::default() };
+/// assert!(run.permissions.inherit_network.is_none());
+/// ```
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RunConfig {
@@ -113,6 +141,18 @@ impl Config {
     /// # Errors
     ///
     /// Returns an error if a configuration file exists but cannot be read or parsed.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use wasm_package_manager::Config;
+    ///
+    /// let config = Config::load()?;
+    /// for (name, registry) in &config.registries {
+    ///     println!("Registry: {name}");
+    /// }
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn load() -> Result<Self> {
         let global = Self::load_from(None).with_context(|| "Failed to load global config")?;
         let local = Self::load_from_path(&Self::local_config_path())
@@ -128,6 +168,18 @@ impl Config {
     /// # Errors
     ///
     /// Returns an error if the configuration file exists but cannot be read or parsed.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use wasm_package_manager::Config;
+    /// use std::path::PathBuf;
+    ///
+    /// // Load from a custom directory
+    /// let config = Config::load_from(Some(PathBuf::from("/tmp/my-config")))?;
+    /// assert!(config.registries.is_empty());
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn load_from(config_dir: Option<PathBuf>) -> Result<Self> {
         let config_path = Self::config_path_from(config_dir);
         Self::load_from_path(&config_path)
@@ -137,6 +189,22 @@ impl Config {
     ///
     /// Per-registry settings from `other` override those in `self`.
     /// The `run` section is merged at the permissions level.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use wasm_package_manager::{Config, RegistryConfig};
+    ///
+    /// let mut global = Config::default();
+    /// global.registries.insert("ghcr.io".into(), RegistryConfig::default());
+    ///
+    /// let mut local = Config::default();
+    /// local.registries.insert("my-registry.io".into(), RegistryConfig::default());
+    ///
+    /// let merged = global.merge(local);
+    /// assert!(merged.registries.contains_key("ghcr.io"));
+    /// assert!(merged.registries.contains_key("my-registry.io"));
+    /// ```
     #[must_use]
     pub fn merge(mut self, other: Self) -> Self {
         for (name, registry) in other.registries {
@@ -160,6 +228,16 @@ impl Config {
     /// # Errors
     ///
     /// Returns an error if the configuration file exists but cannot be read or parsed.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use wasm_package_manager::Config;
+    /// use std::path::Path;
+    ///
+    /// let config = Config::load_from_path(Path::new("/etc/wasm/config.toml"))?;
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn load_from_path(config_path: &Path) -> Result<Self> {
         if !config_path.exists() {
             return Ok(Self::default());
@@ -175,12 +253,31 @@ impl Config {
     }
 
     /// Returns the path to the configuration file.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use wasm_package_manager::Config;
+    ///
+    /// let path = Config::config_path();
+    /// println!("Config file: {}", path.display());
+    /// ```
     #[must_use]
     pub fn config_path() -> PathBuf {
         Self::config_path_from(None)
     }
 
     /// Returns the path to the configuration file from a specified directory.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use wasm_package_manager::Config;
+    /// use std::path::PathBuf;
+    ///
+    /// let path = Config::config_path_from(Some(PathBuf::from("/tmp/cfg")));
+    /// assert_eq!(path, PathBuf::from("/tmp/cfg/wasm/config.toml"));
+    /// ```
     #[must_use]
     pub fn config_path_from(config_dir: Option<PathBuf>) -> PathBuf {
         let base = config_dir
@@ -194,6 +291,16 @@ impl Config {
     /// current working directory, and takes precedence over the global config.
     /// The returned path is relative to the current working directory at the time
     /// it is used (e.g., when checking existence or reading the file).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use wasm_package_manager::Config;
+    /// use std::path::PathBuf;
+    ///
+    /// let path = Config::local_config_path();
+    /// assert_eq!(path, PathBuf::from(".config/wasm/config.toml"));
+    /// ```
     #[must_use]
     pub fn local_config_path() -> PathBuf {
         PathBuf::from(".config").join("wasm").join("config.toml")
@@ -204,12 +311,31 @@ impl Config {
     /// Located at `$XDG_CONFIG_HOME/wasm/components.toml`. This file uses the
     /// same format as the local `wasm.toml` manifest and provides global
     /// per-component permission overrides.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use wasm_package_manager::Config;
+    ///
+    /// let path = Config::components_path();
+    /// println!("Components manifest: {}", path.display());
+    /// ```
     #[must_use]
     pub fn components_path() -> PathBuf {
         Self::components_path_from(None)
     }
 
     /// Returns the path to the global components manifest from a specified directory.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use wasm_package_manager::Config;
+    /// use std::path::PathBuf;
+    ///
+    /// let path = Config::components_path_from(Some(PathBuf::from("/tmp/cfg")));
+    /// assert_eq!(path, PathBuf::from("/tmp/cfg/wasm/components.toml"));
+    /// ```
     #[must_use]
     pub fn components_path_from(config_dir: Option<PathBuf>) -> PathBuf {
         let base = config_dir
@@ -225,6 +351,17 @@ impl Config {
     /// # Errors
     ///
     /// Returns an error if the file exists but cannot be read or parsed.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use wasm_package_manager::Config;
+    ///
+    /// if let Some(manifest) = Config::load_components()? {
+    ///     println!("Loaded global components manifest");
+    /// }
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn load_components() -> Result<Option<wasm_manifest::Manifest>> {
         Self::load_components_from(None)
     }
@@ -234,6 +371,16 @@ impl Config {
     /// # Errors
     ///
     /// Returns an error if the file exists but cannot be read or parsed.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use wasm_package_manager::Config;
+    /// use std::path::PathBuf;
+    ///
+    /// let manifest = Config::load_components_from(Some(PathBuf::from("/tmp/cfg")))?;
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn load_components_from(
         config_dir: Option<PathBuf>,
     ) -> Result<Option<wasm_manifest::Manifest>> {
@@ -253,6 +400,16 @@ impl Config {
     /// # Errors
     ///
     /// Returns an error if the directory or file cannot be created.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use wasm_package_manager::Config;
+    ///
+    /// let path = Config::ensure_exists()?;
+    /// println!("Config file at: {}", path.display());
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn ensure_exists() -> Result<PathBuf> {
         Self::ensure_exists_at(None)
     }
@@ -262,6 +419,17 @@ impl Config {
     /// # Errors
     ///
     /// Returns an error if the directory or file cannot be created.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use wasm_package_manager::Config;
+    /// use std::path::PathBuf;
+    ///
+    /// let path = Config::ensure_exists_at(Some(PathBuf::from("/tmp/my-config")))?;
+    /// assert!(path.exists());
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn ensure_exists_at(config_dir: Option<PathBuf>) -> Result<PathBuf> {
         let config_path = Self::config_path_from(config_dir);
 
@@ -295,6 +463,18 @@ impl Config {
     /// # Errors
     ///
     /// Returns an error if the credential helper command fails or returns invalid output.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use wasm_package_manager::Config;
+    ///
+    /// let config = Config::load()?;
+    /// if let Some((user, pass)) = config.get_credentials("ghcr.io")? {
+    ///     println!("Authenticated as {user}");
+    /// }
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn get_credentials(&self, registry: &str) -> Result<Option<(String, String)>> {
         // Check cache first - if lock is poisoned, skip cache and fetch fresh credentials
         if let Ok(cache) = self.credential_cache.cache.read()
@@ -325,6 +505,15 @@ impl Config {
     }
 
     /// Clear the credential cache.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use wasm_package_manager::Config;
+    ///
+    /// let config = Config::default();
+    /// config.clear_credential_cache();
+    /// ```
     pub fn clear_credential_cache(&self) {
         // If lock is poisoned, the cache is already in an undefined state - just skip clearing
         if let Ok(mut cache) = self.credential_cache.cache.write() {

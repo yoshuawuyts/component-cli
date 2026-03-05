@@ -2,6 +2,22 @@
 ///
 /// These events are sent via a `tokio::sync::mpsc::Sender<ProgressEvent>` channel
 /// and can be consumed by CLI progress bars or TUI progress displays.
+///
+/// # Examples
+///
+/// ```rust
+/// use wasm_package_manager::ProgressEvent;
+///
+/// let event = ProgressEvent::ManifestFetched {
+///     layer_count: 3,
+///     image_digest: "sha256:abc123".into(),
+/// };
+///
+/// let progress = ProgressEvent::LayerProgress {
+///     index: 0,
+///     bytes_downloaded: 4096,
+/// };
+/// ```
 #[derive(Debug, Clone)]
 pub enum ProgressEvent {
     /// Manifest has been fetched from the registry.

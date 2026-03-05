@@ -13,6 +13,23 @@ use std::process::Command;
 /// Supports two formats:
 /// - JSON: Single command that outputs JSON with username and password
 /// - Split: Separate commands for username and password
+///
+/// # Examples
+///
+/// ```rust
+/// use wasm_package_manager::CredentialHelper;
+///
+/// // Single JSON command (e.g., for 1Password)
+/// let json_helper = CredentialHelper::Json(
+///     "op item get ghcr --format json --fields username,password".into(),
+/// );
+///
+/// // Separate commands for username and password
+/// let split_helper = CredentialHelper::Split {
+///     username: "/path/to/get-user.sh".into(),
+///     password: "/path/to/get-pass.sh".into(),
+/// };
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CredentialHelper {
@@ -39,6 +56,17 @@ impl CredentialHelper {
     /// # Errors
     ///
     /// Returns an error if the credential helper command fails or returns invalid output.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use wasm_package_manager::CredentialHelper;
+    ///
+    /// let helper = CredentialHelper::Json("my-credential-tool --get creds".into());
+    /// let (username, password) = helper.execute()?;
+    /// println!("Authenticated as {username}");
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn execute(&self) -> Result<(String, String)> {
         match self {
             CredentialHelper::Json(cmd) => execute_json_helper(cmd),

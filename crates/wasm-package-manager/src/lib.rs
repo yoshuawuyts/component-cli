@@ -54,6 +54,17 @@ pub use oci_client::Reference;
 pub use progress::ProgressEvent;
 
 /// Format a byte size as a human-readable string (B, KB, MB, GB).
+///
+/// # Examples
+///
+/// ```rust
+/// use wasm_package_manager::format_size;
+///
+/// assert_eq!(format_size(0), "0 B");
+/// assert_eq!(format_size(1024), "1.00 KB");
+/// assert_eq!(format_size(1_048_576), "1.00 MB");
+/// assert_eq!(format_size(1_073_741_824), "1.00 GB");
+/// ```
 #[must_use]
 pub fn format_size(bytes: u64) -> String {
     const KB: u64 = 1024;
