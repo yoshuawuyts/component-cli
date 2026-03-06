@@ -8,9 +8,7 @@ Usage: wasm compose [OPTIONS] [NAME]
 
 Arguments:
   [NAME]
-          Name of a `.wac` file in `seams/` to compose.
-          
-          For example, `wasm compose foo` resolves to `seams/foo.wac`. If omitted, all `.wac` files in `seams/` are composed.
+          Name of a `.wac` file in `seams/` to compose. For example, `wasm compose foo` resolves to `seams/foo.wac`. If omitted, all `.wac` files in `seams/` are composed
 
 Options:
       --linker <LINKER>
@@ -42,3 +40,9 @@ Global Options:
 
       --offline
           Run in offline mode
+
+  -v, --verbose...
+          Increase logging verbosity
+
+  -q, --quiet...
+          Decrease logging verbosity

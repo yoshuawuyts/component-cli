@@ -679,6 +679,27 @@ impl Store {
         RawKnownPackage::upsert(&self.conn, registry, repository, tag, description)
     }
 
+    /// Add or update a known package with optional WIT namespace mapping.
+    pub(crate) fn add_known_package_with_wit(
+        &self,
+        registry: &str,
+        repository: &str,
+        tag: Option<&str>,
+        description: Option<&str>,
+        wit_namespace: Option<&str>,
+        wit_name: Option<&str>,
+    ) -> anyhow::Result<()> {
+        RawKnownPackage::upsert_with_wit(
+            &self.conn,
+            registry,
+            repository,
+            tag,
+            description,
+            wit_namespace,
+            wit_name,
+        )
+    }
+
     /// Get all WIT packages.
     #[allow(dead_code)]
     pub(crate) fn list_wit_packages(&self) -> anyhow::Result<Vec<RawWitPackage>> {

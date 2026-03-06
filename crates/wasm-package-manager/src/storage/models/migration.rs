@@ -20,6 +20,11 @@ const MIGRATIONS: &[MigrationDef] = &[
         name: "rename_wit_interface_to_wit_type",
         sql: include_str!("../migrations/02_rename_wit_interface_to_wit_type.sql"),
     },
+    MigrationDef {
+        version: 3,
+        name: "add_wit_namespace",
+        sql: include_str!("../migrations/03_add_wit_namespace.sql"),
+    },
 ];
 
 /// Information about the current migration state.

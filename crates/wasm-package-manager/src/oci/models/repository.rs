@@ -32,12 +32,29 @@ impl OciRepository {
         registry: &str,
         repository: &str,
     ) -> anyhow::Result<i64> {
+        Self::upsert_with_wit(conn, registry, repository, None, None)
+    }
+
+    /// Insert or update a repository with optional WIT namespace mapping,
+    /// returning its row id.
+    ///
+    /// When `wit_namespace` / `wit_name` are `Some`, they are stored; when
+    /// `None`, any existing values are preserved (COALESCE).
+    pub(crate) fn upsert_with_wit(
+        conn: &Connection,
+        registry: &str,
+        repository: &str,
+        wit_namespace: Option<&str>,
+        wit_name: Option<&str>,
+    ) -> anyhow::Result<i64> {
         conn.execute(
-            "INSERT INTO oci_repository (registry, repository)
-             VALUES (?1, ?2)
+            "INSERT INTO oci_repository (registry, repository, wit_namespace, wit_name)
+             VALUES (?1, ?2, ?3, ?4)
              ON CONFLICT(registry, repository) DO UPDATE SET
-                 updated_at = CURRENT_TIMESTAMP",
-            (registry, repository),
+                 updated_at = CURRENT_TIMESTAMP,
+                 wit_namespace = COALESCE(?3, oci_repository.wit_namespace),
+                 wit_name = COALESCE(?4, oci_repository.wit_name)",
+            rusqlite::params![registry, repository, wit_namespace, wit_name],
         )?;
 
         let id: i64 = conn.query_row(

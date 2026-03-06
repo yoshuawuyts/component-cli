@@ -1,6 +1,6 @@
 target/
 tmp/
-deps/
+vendor/
 Cargo.lock
 .DS_Store
 registry.toml

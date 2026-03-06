@@ -25,6 +25,8 @@ use crate::KnownPackage;
 ///         attestation_tags: vec![],
 ///         last_seen_at: String::new(),
 ///         created_at: String::new(),
+///         wit_namespace: None,
+///         wit_name: None,
 ///     }],
 ///     etag: Some("\"abc123\"".into()),
 /// };

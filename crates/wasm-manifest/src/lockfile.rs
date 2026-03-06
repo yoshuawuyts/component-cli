@@ -17,7 +17,7 @@ pub const LOCKFILE_VERSION: u32 = 3;
 
 /// The root lockfile structure for a WASM package.
 ///
-/// The lockfile (`deps/wasm.lock`) is auto-generated and tracks resolved dependencies
+/// The lockfile (`wasm.lock.toml`) is auto-generated and tracks resolved dependencies
 /// with their exact versions and content digests, separated into components and interfaces.
 ///
 /// # Example

@@ -51,8 +51,8 @@ parsing and dispatches to one of the following command modules:
 | Command      | Module          | Purpose |
 |------------- |---------------- |-------- |
 | `run`        | `run/`          | Execute a Wasm Component via [wasmtime] with WASI sandboxing |
-| `init`       | `init/`         | Scaffold a `deps/` directory with manifest, lockfile, and vendor dirs |
-| `install`    | `install/`      | Pull packages and vendor them into `deps/vendor/` |
+| `init`       | `init/`         | Scaffold a project with manifest, lockfile, and vendor dirs |
+| `install`    | `install/`      | Pull packages and vendor them into `vendor/` |
 | `compose`    | `compose/`      | Compose Wasm components from WAC scripts |
 | `local`      | `local/`        | Detect `.wasm` files in the current project |
 | `registry`   | `registry/`     | Manage cached packages (pull, tags, search, sync, delete, list, known, inspect) |
@@ -95,7 +95,7 @@ Permissions are resolved through a four-layer merge:
 
 1. **Global config** — `$XDG_CONFIG_HOME/wasm/config.toml` defaults
 2. **Global components** — `$XDG_CONFIG_HOME/wasm/components.toml` per-component overrides
-3. **Project manifest** — `deps/wasm.toml` per-component permissions
+3. **Project manifest** — `wasm.toml` per-component permissions
 4. **CLI flags** — command-line overrides (highest precedence)
 
 The `RunPermissions` type is defined in `wasm-manifest` and controls environment
@@ -194,8 +194,8 @@ To change the schema, edit `schema.sql` and run
 ## wasm-manifest
 
 A small serialization library in `crates/wasm-manifest`. It defines the types
-for reading and writing project manifests (`deps/wasm.toml`) and lockfiles
-(`deps/wasm.lock.toml`).
+for reading and writing project manifests (`wasm.toml`) and lockfiles
+(`wasm.lock.toml`).
 
 Key types:
 

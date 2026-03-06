@@ -33,11 +33,10 @@ pub(crate) struct Opts {
 
 impl Opts {
     pub(crate) async fn run(self, offline: bool) -> miette::Result<()> {
-        let deps = std::path::Path::new("deps");
-        let manifest_path = deps.join("wasm.toml");
-        let lockfile_path = deps.join("wasm.lock.toml");
-        let wasm_vendor_dir = deps.join("vendor/wasm");
-        let wit_vendor_dir = deps.join("vendor/wit");
+        let manifest_path = std::path::PathBuf::from("wasm.toml");
+        let lockfile_path = std::path::PathBuf::from("wasm.lock.toml");
+        let wasm_vendor_dir = std::path::PathBuf::from("vendor/wasm");
+        let wit_vendor_dir = std::path::PathBuf::from("vendor/wit");
 
         // Abort early if `wasm.toml` does not exist — guide the user
         if !manifest_path.exists() {
@@ -97,10 +96,14 @@ impl Opts {
         //   - An OCI reference → install and add to manifest
         //   - A scope:component manifest key → resolve from manifest and install
         //   - A WIT-style name (e.g. wasi:http) → resolve via known-package DB
-        let to_install: Vec<(Reference, bool)> = if self.inputs.is_empty() {
+        // Each entry is (reference, update_manifest, explicit_name).
+        // `explicit_name` is set when the user provided a WIT-style name
+        // (e.g. `ba:sample-wasi-http-rust`) so that we use it as the manifest
+        // key instead of re-deriving from binary metadata.
+        let to_install: Vec<(Reference, bool, Option<String>)> = if self.inputs.is_empty() {
             manifest
                 .all_dependencies()
-                .map(|(_, dep, _)| reference_from_dependency(dep).map(|r| (r, false)))
+                .map(|(_, dep, _)| reference_from_dependency(dep).map(|r| (r, false, None)))
                 .collect::<anyhow::Result<Vec<_>>>()
                 .map_err(crate::util::into_miette)?
         } else {
@@ -117,7 +120,7 @@ impl Opts {
         // Run all installs concurrently.
         let results: anyhow::Result<Vec<_>> = to_install
             .into_co_stream()
-            .map(|(reference, update_manifest)| {
+            .map(|(reference, update_manifest, explicit_name)| {
                 let multi = multi.clone();
                 let vendor_dir = wasm_vendor_dir.clone();
                 let wit_vendor_dir = wit_vendor_dir.clone();
@@ -125,18 +128,25 @@ impl Opts {
                     let result =
                         install_one(manager_ref, multi, offline, &reference, &vendor_dir).await?;
                     re_vendor_wit_files(&result, &wit_vendor_dir).await?;
-                    anyhow::Ok((result, reference, update_manifest))
+                    anyhow::Ok((result, reference, update_manifest, explicit_name))
                 }
             })
             .collect()
             .await;
 
-        for (result, _reference, update_manifest) in results.map_err(crate::util::into_miette)? {
+        for (result, _reference, update_manifest, explicit_name) in
+            results.map_err(crate::util::into_miette)?
+        {
             // Derive the dependency name.
-            // For components, use `derive_component_name` which tries WIT metadata,
-            // OCI title annotation, last repository segment, then full path.
-            // For interfaces, use the WIT package name (always available).
-            let dep_name = if result.is_component {
+            // When the user provided an explicit WIT-style name (e.g.
+            // `ba:sample-wasi-http-rust`), use that directly — the embedded
+            // WIT metadata may contain a placeholder like `root:component`.
+            // Otherwise, for components use `derive_component_name` which
+            // tries WIT metadata, OCI title, last repository segment, then
+            // full path.  For interfaces, use the WIT package name.
+            let dep_name = if let Some(name) = explicit_name {
+                name
+            } else if result.is_component {
                 let existing_names: std::collections::HashSet<String> = manifest
                     .dependencies
                     .components
@@ -313,7 +323,7 @@ async fn install_one(
 /// Move vendored WIT files from the wasm vendor dir into the wit vendor dir.
 ///
 /// WIT-only packages (types) are initially stored alongside components in
-/// `deps/vendor/wasm/`. This function moves them to `deps/vendor/wit/` so that
+/// `vendor/wasm/`. This function moves them to `vendor/wit/` so that
 /// WIT tooling can find them at the conventional location.
 async fn re_vendor_wit_files(
     result: &InstallResult,
@@ -510,7 +520,7 @@ fn resolve_install_inputs(
     inputs: &[String],
     manifest: &wasm_manifest::Manifest,
     manager: &Manager,
-) -> miette::Result<Vec<(Reference, bool)>> {
+) -> miette::Result<Vec<(Reference, bool, Option<String>)>> {
     let mut result = Vec::with_capacity(inputs.len());
     for input in inputs {
         // Try as scope:component manifest key first
@@ -522,22 +532,24 @@ fn resolve_install_inputs(
 
         if let Some(dep) = dep {
             let reference = reference_from_dependency(dep).map_err(crate::util::into_miette)?;
-            result.push((reference, false));
+            result.push((reference, false, None));
             continue;
         }
 
         // If it looks like a WIT-style name (e.g. `wasi:http`), resolve via
         // the known-package database instead of treating it as a bare OCI
         // reference (which would incorrectly default to docker.io/library/).
+        // Preserve the user's input as the explicit name so it becomes the
+        // manifest key — the embedded WIT metadata may use a placeholder.
         if looks_like_wit_name(input) {
             let reference = resolve_wit_name(input, manager).map_err(crate::util::into_miette)?;
-            result.push((reference, true));
+            result.push((reference, true, Some(input.clone())));
             continue;
         }
 
         // Try as OCI reference
         match crate::util::parse_reference(input) {
-            Ok(reference) => result.push((reference, true)),
+            Ok(reference) => result.push((reference, true, None)),
             Err(_) => {
                 return Err(InstallError::InvalidInput {
                     input: input.clone(),
@@ -551,23 +563,47 @@ fn resolve_install_inputs(
 
 /// Check whether `input` looks like a WIT-style name (`namespace:package`).
 ///
-/// WIT-style names use `namespace:package` syntax (e.g. `wasi:http`)
-/// without dots or slashes, which distinguishes them from OCI references
-/// (e.g. `ghcr.io/user/repo:tag`).
+/// WIT-style names use `namespace:package` syntax (e.g. `wasi:http`) or
+/// `namespace:package@version` (e.g. `wasi:http@0.2.10`) without dots or
+/// slashes in the namespace/package part, which distinguishes them from OCI
+/// references (e.g. `ghcr.io/user/repo:tag`).
+///
+/// Inputs with an empty version after `@` (e.g. `wasi:http@`) or multiple
+/// `@` signs are rejected.
 fn looks_like_wit_name(input: &str) -> bool {
-    let Some((scope, component)) = input.split_once(':') else {
+    let Some((scope, rest)) = input.split_once(':') else {
         return false;
     };
-    !scope.is_empty() && !component.is_empty() && !input.contains('/') && !input.contains('.')
+    // Split the component from an optional `@version` suffix.
+    let component = match rest.split_once('@') {
+        Some((comp, ver)) => {
+            // Reject empty version or multiple `@` signs.
+            if ver.is_empty() || ver.contains('@') {
+                return false;
+            }
+            comp
+        }
+        None => rest,
+    };
+    !scope.is_empty()
+        && !component.is_empty()
+        && !scope.contains('/')
+        && !scope.contains('.')
+        && !component.contains('/')
+        && !component.contains('.')
 }
 
-/// Resolve a WIT-style name (e.g. `wasi:http`) to an OCI [`Reference`]
-/// via the known-package database.
+/// Resolve a WIT-style name (e.g. `wasi:http` or `wasi:http@0.2.10`) to
+/// an OCI [`Reference`] via the known-package database.
+///
+/// The caller must ensure the input passes [`looks_like_wit_name`] first,
+/// which rejects empty versions and multiple `@` signs.
 fn resolve_wit_name(input: &str, manager: &Manager) -> anyhow::Result<Reference> {
-    let dep = DependencyItem {
-        package: input.to_string(),
-        version: None,
+    let (package, version) = match input.split_once('@') {
+        Some((pkg, ver)) if !ver.is_empty() => (pkg.to_string(), Some(ver.to_string())),
+        _ => (input.to_string(), None),
     };
+    let dep = DependencyItem { package, version };
     match manager.resolve_wit_dependency(&dep)? {
         Some(reference) => Ok(reference),
         None => Err(InstallError::UnknownPackage {
@@ -677,5 +713,45 @@ async fn run_progress_bars(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn looks_like_wit_name_bare() {
+        assert!(looks_like_wit_name("wasi:http"));
+        assert!(looks_like_wit_name("wasi:logging"));
+    }
+
+    #[test]
+    fn looks_like_wit_name_with_version() {
+        assert!(looks_like_wit_name("wasi:http@0.2.10"));
+        assert!(looks_like_wit_name("wasi:http@0.3.0-preview-2026-02-20"));
+    }
+
+    #[test]
+    fn looks_like_wit_name_rejects_oci() {
+        assert!(!looks_like_wit_name("ghcr.io/user/repo:tag"));
+        assert!(!looks_like_wit_name("docker.io/library/nginx:latest"));
+    }
+
+    #[test]
+    fn looks_like_wit_name_rejects_invalid() {
+        assert!(!looks_like_wit_name("no-colon"));
+        assert!(!looks_like_wit_name(":missing-scope"));
+        assert!(!looks_like_wit_name("missing-component:"));
+    }
+
+    #[test]
+    fn looks_like_wit_name_rejects_empty_version() {
+        assert!(!looks_like_wit_name("wasi:http@"));
+    }
+
+    #[test]
+    fn looks_like_wit_name_rejects_multiple_at() {
+        assert!(!looks_like_wit_name("wasi:http@0.2@extra"));
     }
 }

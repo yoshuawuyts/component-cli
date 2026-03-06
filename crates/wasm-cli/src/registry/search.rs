@@ -127,6 +127,8 @@ mod tests {
                 attestation_tags: vec![],
                 last_seen_at: "2025-01-01 00:00:00".into(),
                 created_at: "2025-01-01 00:00:00".into(),
+                wit_namespace: None,
+                wit_name: None,
             },
             KnownPackage {
                 registry: "ghcr.io".into(),
@@ -137,6 +139,8 @@ mod tests {
                 attestation_tags: vec![],
                 last_seen_at: "2025-01-01 00:00:00".into(),
                 created_at: "2025-01-01 00:00:00".into(),
+                wit_namespace: None,
+                wit_name: None,
             },
         ];
 

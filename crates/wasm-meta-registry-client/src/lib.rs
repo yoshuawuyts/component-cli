@@ -56,6 +56,8 @@ pub use client::{FetchResult, RegistryClient};
 ///     attestation_tags: vec![],
 ///     last_seen_at: "2025-01-01T00:00:00Z".into(),
 ///     created_at: "2024-06-15T12:00:00Z".into(),
+///     wit_namespace: None,
+///     wit_name: None,
 /// };
 ///
 /// assert_eq!(pkg.reference(), "ghcr.io/user/my-component");
@@ -80,6 +82,12 @@ pub struct KnownPackage {
     pub last_seen_at: String,
     /// Timestamp of creation.
     pub created_at: String,
+    /// Optional WIT namespace (e.g. `"ba"`, `"wasi"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wit_namespace: Option<String>,
+    /// Optional WIT package name within the namespace (e.g. `"http"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wit_name: Option<String>,
 }
 
 impl KnownPackage {
@@ -99,6 +107,8 @@ impl KnownPackage {
     ///     attestation_tags: vec![],
     ///     last_seen_at: String::new(),
     ///     created_at: String::new(),
+    ///     wit_namespace: None,
+    ///     wit_name: None,
     /// };
     ///
     /// assert_eq!(pkg.reference(), "ghcr.io/user/repo");
@@ -127,6 +137,8 @@ impl KnownPackage {
     ///     attestation_tags: vec![],
     ///     last_seen_at: String::new(),
     ///     created_at: String::new(),
+    ///     wit_namespace: None,
+    ///     wit_name: None,
     /// };
     ///
     /// assert_eq!(pkg.reference_with_tag(), "ghcr.io/user/repo:v1.0");
@@ -157,6 +169,8 @@ mod tests {
             attestation_tags: vec![],
             last_seen_at: String::new(),
             created_at: String::new(),
+            wit_namespace: None,
+            wit_name: None,
         };
         assert_eq!(pkg.reference(), "ghcr.io/user/repo");
     }
@@ -173,6 +187,8 @@ mod tests {
             attestation_tags: vec![],
             last_seen_at: String::new(),
             created_at: String::new(),
+            wit_namespace: None,
+            wit_name: None,
         };
         assert_eq!(pkg.reference_with_tag(), "ghcr.io/user/repo:v1.0");
     }
@@ -189,6 +205,8 @@ mod tests {
             attestation_tags: vec![],
             last_seen_at: String::new(),
             created_at: String::new(),
+            wit_namespace: None,
+            wit_name: None,
         };
         assert_eq!(pkg.reference_with_tag(), "ghcr.io/user/repo:latest");
     }

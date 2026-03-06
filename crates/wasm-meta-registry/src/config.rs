@@ -27,6 +27,7 @@ use crate::registry_file::RegistryFile;
 ///     packages: vec![PackageSource {
 ///         registry: "ghcr.io/webassembly".to_string(),
 ///         repository: "wasi/io".to_string(),
+///         namespace: "wasi".to_string(),
 ///         name: "io".to_string(),
 ///         kind: PackageKind::Interface,
 ///     }],
@@ -58,6 +59,7 @@ pub struct Config {
 /// let source = PackageSource {
 ///     registry: "ghcr.io/webassembly".to_string(),
 ///     repository: "wasi/clocks".to_string(),
+///     namespace: "wasi".to_string(),
 ///     name: "clocks".to_string(),
 ///     kind: PackageKind::Interface,
 /// };
@@ -72,6 +74,8 @@ pub struct PackageSource {
     pub registry: String,
     /// OCI repository path, relative to the registry (e.g., "wasi/clocks").
     pub repository: String,
+    /// The WIT namespace this package belongs to (e.g., "wasi", "ba").
+    pub namespace: String,
     /// The package name under its namespace (e.g., "clocks").
     pub name: String,
     /// Whether the package is a component or interface type.
@@ -316,12 +320,14 @@ repository = "wasi/io"
         let component = &sources[0];
         assert_eq!(component.registry, "ghcr.io/webassembly");
         assert_eq!(component.repository, "wasi/my-component");
+        assert_eq!(component.namespace, "wasi");
         assert_eq!(component.name, "my-component");
         assert_eq!(component.kind, PackageKind::Component);
 
         let interface = &sources[1];
         assert_eq!(interface.registry, "ghcr.io/webassembly");
         assert_eq!(interface.repository, "wasi/io");
+        assert_eq!(interface.namespace, "wasi");
         assert_eq!(interface.name, "io");
         assert_eq!(interface.kind, PackageKind::Interface);
     }

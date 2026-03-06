@@ -28,7 +28,7 @@ jobs:
         uses: ./
         with:
           command: run
-          input: deps/vendor/wasm/sample-wasi-http-rust.wasm
+          input: vendor/wasm/sample-wasi-http-rust.wasm
           inherit-network: 'false'
 
       - name: Show exit code

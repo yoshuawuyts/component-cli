@@ -16,6 +16,8 @@ impl From<RawKnownPackage> for KnownPackage {
             attestation_tags: pkg.attestation_tags,
             last_seen_at: pkg.last_seen_at,
             created_at: pkg.created_at,
+            wit_namespace: pkg.wit_namespace,
+            wit_name: pkg.wit_name,
         }
     }
 }

@@ -309,6 +309,8 @@ fn test_search_view_with_packages_snapshot() {
             attestation_tags: vec![],
             last_seen_at: "2024-01-15T10:30:00Z".to_string(),
             created_at: "2024-01-01T08:00:00Z".to_string(),
+            wit_namespace: None,
+            wit_name: None,
         },
         KnownPackage {
             registry: "ghcr.io".to_string(),
@@ -319,6 +321,8 @@ fn test_search_view_with_packages_snapshot() {
             attestation_tags: vec![],
             last_seen_at: "2024-02-01T12:00:00Z".to_string(),
             created_at: "2024-01-20T09:00:00Z".to_string(),
+            wit_namespace: None,
+            wit_name: None,
         },
     ];
     let output = render_to_string(SearchView::new(&packages), 100, 15);
@@ -354,6 +358,8 @@ fn test_search_view_with_many_tags_snapshot() {
         attestation_tags: vec!["v3.0.0.att".to_string()],
         last_seen_at: "2024-03-01T10:00:00Z".to_string(),
         created_at: "2023-06-01T08:00:00Z".to_string(),
+        wit_namespace: None,
+        wit_name: None,
     }];
     let output = render_to_string(SearchView::new(&packages), 100, 12);
     assert_snapshot!(output);
@@ -379,6 +385,8 @@ fn test_known_package_detail_view_snapshot() {
         attestation_tags: vec!["v1.0.0.att".to_string()],
         last_seen_at: "2024-01-15T10:30:00Z".to_string(),
         created_at: "2024-01-01T08:00:00Z".to_string(),
+        wit_namespace: None,
+        wit_name: None,
     };
     let output = render_to_string(KnownPackageDetailView::new(&package), 80, 20);
     assert_snapshot!(output);
@@ -396,6 +404,8 @@ fn test_known_package_detail_view_minimal_snapshot() {
         attestation_tags: vec![],
         last_seen_at: "2024-02-01T12:00:00Z".to_string(),
         created_at: "2024-02-01T12:00:00Z".to_string(),
+        wit_namespace: None,
+        wit_name: None,
     };
     let output = render_to_string(KnownPackageDetailView::new(&package), 80, 15);
     assert_snapshot!(output);

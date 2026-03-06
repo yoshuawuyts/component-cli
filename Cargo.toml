@@ -102,6 +102,7 @@ dotenvy = "0.15.7"
 miette = { version = "7.6.0" }
 bytesize = "2.3.1"
 clap = { version = "4.5.54", features = ["derive", "string", "color"] }
+clap-verbosity-flag = { version = "3.0.4", default-features = false, features = ["tracing"] }
 clap_complete = "4.5.66"
 clap_mangen = "0.2.21"
 comfy-table = "7.2.1"
@@ -114,6 +115,8 @@ termcolor = "1.4.1"
 wasm-metadata = "0.245.1"
 wasmtime = "42.0.1"
 wasmtime-wasi = "42.0.1"
+wasmtime-wasi-http = "42.0.1"
+hyper = { version = "1", features = ["http1", "server"] }
 ratatui = "0.30.0"
 crossterm = "0.29.0"
 

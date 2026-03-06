@@ -7,7 +7,7 @@ and lockfiles (`wasm.lock`).
 
 ## Manifest Format
 
-The manifest file (`deps/wasm.toml`) supports two dependency formats:
+The manifest file (`wasm.toml`) supports two dependency formats:
 
 ### Compact format
 ```toml
@@ -27,7 +27,7 @@ version = "1.0.0"
 
 ## Lockfile Format
 
-The lockfile (`deps/wasm.lock`) tracks resolved dependencies:
+The lockfile (`wasm.lock.toml`) tracks resolved dependencies:
 
 ```toml
 version = 1

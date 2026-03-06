@@ -342,12 +342,11 @@ my-workspace/
 ├── types/         # WIT interface definition files (.wit)
 ├── seams/         # WAC composition scripts (.wac)
 ├── build/         # Composed output artifacts
-└── deps/
-    ├── vendor/
-    │   ├── wasm/  # Vendored component binaries
-    │   └── wit/   # Vendored WIT interfaces
-    ├── wasm.toml
-    └── wasm.lock.toml
+├── vendor/
+│   ├── wasm/      # Vendored component binaries
+│   └── wit/       # Vendored WIT interfaces
+├── wasm.toml
+└── wasm.lock.toml
 ```
 
 ### WAC Scripts
@@ -378,8 +377,8 @@ wasm compose my-composition -o output/
 
 When resolving packages referenced in WAC files, the resolver checks:
 
-1. **Manifest entries** — components and interfaces in `deps/wasm.toml` mapped
-   to vendored files in `deps/vendor/wasm/` and `deps/vendor/wit/`.
+1. **Manifest entries** — components and interfaces in `wasm.toml` mapped
+   to vendored files in `vendor/wasm/` and `vendor/wit/`.
 2. **Local directories** — `.wasm` and `.wit` files in `types/`.
 
 ## Getting Help

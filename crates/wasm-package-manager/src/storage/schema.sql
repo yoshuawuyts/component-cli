@@ -92,6 +92,13 @@ CREATE TABLE oci_repository (
     -- ISO 8601 timestamp of the most recent modification to this
     -- row.  Maintained automatically by trg_oci_repository_updated_at.
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Optional WIT namespace this repository is published under,
+    -- e.g. "wasi", "ba".  NULL when the repository was discovered
+    -- via a direct OCI reference rather than through the meta-registry.
+    wit_namespace TEXT,
+    -- Optional WIT package name within the namespace, e.g. "http",
+    -- "sample-wasi-http-rust".  NULL when wit_namespace is NULL.
+    wit_name TEXT,
     UNIQUE(registry, repository)
 );
 

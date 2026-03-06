@@ -32,6 +32,12 @@ pub struct RawKnownPackage {
     pub last_seen_at: String,
     /// Timestamp of creation
     pub created_at: String,
+    /// Optional WIT namespace (e.g. "ba", "wasi").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wit_namespace: Option<String>,
+    /// Optional WIT package name within the namespace (e.g. "http").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wit_name: Option<String>,
 }
 
 impl RawKnownPackage {
@@ -64,7 +70,21 @@ impl RawKnownPackage {
         tag: Option<&str>,
         description: Option<&str>,
     ) -> anyhow::Result<()> {
-        let repo_id = OciRepository::upsert(conn, registry, repository)?;
+        Self::upsert_with_wit(conn, registry, repository, tag, description, None, None)
+    }
+
+    /// Inserts or updates a known package with optional WIT namespace mapping.
+    pub(crate) fn upsert_with_wit(
+        conn: &Connection,
+        registry: &str,
+        repository: &str,
+        tag: Option<&str>,
+        description: Option<&str>,
+        wit_namespace: Option<&str>,
+        wit_name: Option<&str>,
+    ) -> anyhow::Result<()> {
+        let repo_id =
+            OciRepository::upsert_with_wit(conn, registry, repository, wit_namespace, wit_name)?;
 
         // Store description on the most recent manifest that doesn't have one.
         // Uses a subquery instead of LIMIT in UPDATE (SQLITE_ENABLE_UPDATE_DELETE_LIMIT
@@ -156,7 +176,8 @@ impl RawKnownPackage {
     ) -> anyhow::Result<Vec<RawKnownPackage>> {
         let search_pattern = format!("%{query}%");
         let mut stmt = conn.prepare(
-            "SELECT id, registry, repository, updated_at, created_at
+            "SELECT id, registry, repository, updated_at, created_at,
+                    wit_namespace, wit_name
              FROM oci_repository
              WHERE registry LIKE ?1 OR repository LIKE ?1
              ORDER BY repository ASC, registry ASC
@@ -170,12 +191,14 @@ impl RawKnownPackage {
                 row.get::<_, String>(2)?,
                 row.get::<_, String>(3)?,
                 row.get::<_, String>(4)?,
+                row.get::<_, Option<String>>(5)?,
+                row.get::<_, Option<String>>(6)?,
             ))
         })?;
 
         let mut packages = Vec::new();
         for row in rows {
-            let (id, registry, repository, updated_at, created_at) = row?;
+            let (id, registry, repository, updated_at, created_at, wit_ns, wit_n) = row?;
             let tags = Self::fetch_tags(conn, id);
             let description = Self::fetch_description(conn, id);
             packages.push(RawKnownPackage {
@@ -188,6 +211,8 @@ impl RawKnownPackage {
                 attestation_tags: Vec::new(),
                 last_seen_at: updated_at,
                 created_at,
+                wit_namespace: wit_ns,
+                wit_name: wit_n,
             });
         }
         Ok(packages)
@@ -200,7 +225,8 @@ impl RawKnownPackage {
         limit: u32,
     ) -> anyhow::Result<Vec<RawKnownPackage>> {
         let mut stmt = conn.prepare(
-            "SELECT id, registry, repository, updated_at, created_at
+            "SELECT id, registry, repository, updated_at, created_at,
+                    wit_namespace, wit_name
              FROM oci_repository
              ORDER BY repository ASC, registry ASC
              LIMIT ?1 OFFSET ?2",
@@ -213,12 +239,14 @@ impl RawKnownPackage {
                 row.get::<_, String>(2)?,
                 row.get::<_, String>(3)?,
                 row.get::<_, String>(4)?,
+                row.get::<_, Option<String>>(5)?,
+                row.get::<_, Option<String>>(6)?,
             ))
         })?;
 
         let mut packages = Vec::new();
         for row in rows {
-            let (id, registry, repository, updated_at, created_at) = row?;
+            let (id, registry, repository, updated_at, created_at, wit_ns, wit_n) = row?;
             let tags = Self::fetch_tags(conn, id);
             let description = Self::fetch_description(conn, id);
             packages.push(RawKnownPackage {
@@ -231,6 +259,8 @@ impl RawKnownPackage {
                 attestation_tags: Vec::new(),
                 last_seen_at: updated_at,
                 created_at,
+                wit_namespace: wit_ns,
+                wit_name: wit_n,
             });
         }
         Ok(packages)
@@ -243,7 +273,8 @@ impl RawKnownPackage {
         repository: &str,
     ) -> anyhow::Result<Option<RawKnownPackage>> {
         let result = conn.query_row(
-            "SELECT id, registry, repository, updated_at, created_at
+            "SELECT id, registry, repository, updated_at, created_at,
+                    wit_namespace, wit_name
              FROM oci_repository
              WHERE registry = ?1 AND repository = ?2",
             [registry, repository],
@@ -254,12 +285,14 @@ impl RawKnownPackage {
                     row.get::<_, String>(2)?,
                     row.get::<_, String>(3)?,
                     row.get::<_, String>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, Option<String>>(6)?,
                 ))
             },
         );
 
         match result {
-            Ok((id, reg, repo, updated_at, created_at)) => {
+            Ok((id, reg, repo, updated_at, created_at, wit_ns, wit_n)) => {
                 let tags = Self::fetch_tags(conn, id);
                 let description = Self::fetch_description(conn, id);
                 Ok(Some(RawKnownPackage {
@@ -272,6 +305,8 @@ impl RawKnownPackage {
                     attestation_tags: Vec::new(),
                     last_seen_at: updated_at,
                     created_at,
+                    wit_namespace: wit_ns,
+                    wit_name: wit_n,
                 }))
             }
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -369,23 +404,41 @@ impl RawKnownPackage {
 
     /// Search for a known package by WIT package name.
     ///
-    /// Converts a WIT name like `"wasi:http"` to the search pattern `"wasi/http"`
-    /// and searches the `repository` column. Returns the best matching package.
+    /// First tries an exact lookup using `wit_namespace` + `wit_name` columns.
+    /// Falls back to a fuzzy `LIKE` search on the `repository` column for
+    /// backwards compatibility with databases that haven't been re-synced yet.
     pub(crate) fn search_by_wit_name(
         conn: &Connection,
         wit_name: &str,
     ) -> anyhow::Result<Option<RawKnownPackage>> {
-        // Convert "wasi:http" → "wasi/http" for repository search
-        let search_pattern = wit_name.replace(':', "/");
-        let like_pattern = format!("%{search_pattern}%");
+        // Split "ba:sample-wasi-http-rust" → ("ba", "sample-wasi-http-rust")
+        let Some((namespace, name)) = wit_name.split_once(':') else {
+            return Ok(None);
+        };
 
+        // 1. Exact lookup via wit_namespace + wit_name columns.
+        if let Some(pkg) = Self::search_by_wit_columns(conn, namespace, name)? {
+            return Ok(Some(pkg));
+        }
+
+        // 2. Fallback: fuzzy LIKE on the repository column.
+        Self::search_by_repository_pattern(conn, wit_name)
+    }
+
+    /// Exact lookup using `wit_namespace` + `wit_name` columns.
+    fn search_by_wit_columns(
+        conn: &Connection,
+        namespace: &str,
+        name: &str,
+    ) -> anyhow::Result<Option<RawKnownPackage>> {
         let result = conn.query_row(
-            "SELECT id, registry, repository, updated_at, created_at
+            "SELECT id, registry, repository, updated_at, created_at,
+                    wit_namespace, wit_name
              FROM oci_repository
-             WHERE repository LIKE ?1
+             WHERE wit_namespace = ?1 AND wit_name = ?2
              ORDER BY updated_at DESC
              LIMIT 1",
-            [&like_pattern],
+            [namespace, name],
             |row| {
                 Ok((
                     row.get::<_, i64>(0)?,
@@ -393,12 +446,14 @@ impl RawKnownPackage {
                     row.get::<_, String>(2)?,
                     row.get::<_, String>(3)?,
                     row.get::<_, String>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, Option<String>>(6)?,
                 ))
             },
         );
 
         match result {
-            Ok((id, registry, repository, updated_at, created_at)) => {
+            Ok((id, registry, repository, updated_at, created_at, wit_ns, wit_n)) => {
                 let tags = Self::fetch_tags(conn, id);
                 let description = Self::fetch_description(conn, id);
                 Ok(Some(RawKnownPackage {
@@ -411,6 +466,60 @@ impl RawKnownPackage {
                     attestation_tags: Vec::new(),
                     last_seen_at: updated_at,
                     created_at,
+                    wit_namespace: wit_ns,
+                    wit_name: wit_n,
+                }))
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Fuzzy fallback: convert WIT name to a search pattern on `repository`.
+    fn search_by_repository_pattern(
+        conn: &Connection,
+        wit_name: &str,
+    ) -> anyhow::Result<Option<RawKnownPackage>> {
+        let search_pattern = wit_name.replace(':', "/");
+        let like_pattern = format!("%{search_pattern}%");
+
+        let result = conn.query_row(
+            "SELECT id, registry, repository, updated_at, created_at,
+                    wit_namespace, wit_name
+             FROM oci_repository
+             WHERE repository LIKE ?1
+             ORDER BY updated_at DESC
+             LIMIT 1",
+            [&like_pattern],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                ))
+            },
+        );
+
+        match result {
+            Ok((id, registry, repository, updated_at, created_at, wit_ns, wit_n)) => {
+                let tags = Self::fetch_tags(conn, id);
+                let description = Self::fetch_description(conn, id);
+                Ok(Some(RawKnownPackage {
+                    id,
+                    registry,
+                    repository,
+                    description,
+                    tags,
+                    signature_tags: Vec::new(),
+                    attestation_tags: Vec::new(),
+                    last_seen_at: updated_at,
+                    created_at,
+                    wit_namespace: wit_ns,
+                    wit_name: wit_n,
                 }))
             }
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -685,5 +794,36 @@ mod tests {
         let results = RawKnownPackage::search_by_import(&conn, "wasi:http", 0, 100).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].repository, "example/multi");
+    // r[verify db.known-packages.search-by-wit-name-exact]
+    /// When wit_namespace and wit_name are stored, the exact lookup should
+    /// succeed even when the repository path does not contain the namespace.
+    #[test]
+    fn test_known_package_search_by_wit_name_exact_lookup() {
+        let conn = setup_test_db();
+        // Insert a package whose repository path does NOT contain "ba/"
+        RawKnownPackage::upsert_with_wit(
+            &conn,
+            "ghcr.io",
+            "bytecodealliance/sample-wasi-http-rust/sample-wasi-http-rust",
+            None,
+            None,
+            Some("ba"),
+            Some("sample-wasi-http-rust"),
+        )
+        .unwrap();
+
+        // The fuzzy fallback would fail ("ba/sample-wasi-http-rust" is not a
+        // substring of "bytecodealliance/sample-wasi-http-rust/..."), but the
+        // exact wit_namespace + wit_name lookup should succeed.
+        let result =
+            RawKnownPackage::search_by_wit_name(&conn, "ba:sample-wasi-http-rust").unwrap();
+        assert!(result.is_some());
+        let pkg = result.unwrap();
+        assert_eq!(
+            pkg.repository,
+            "bytecodealliance/sample-wasi-http-rust/sample-wasi-http-rust"
+        );
+        assert_eq!(pkg.wit_namespace.as_deref(), Some("ba"));
+        assert_eq!(pkg.wit_name.as_deref(), Some("sample-wasi-http-rust"));
     }
 }

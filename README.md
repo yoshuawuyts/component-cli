@@ -99,6 +99,8 @@ Options:
 Global Options:
       --color <WHEN>  When to use colored output [default: auto] [possible values: auto, always, never]
       --offline       Run in offline mode
+  -v, --verbose...    Increase logging verbosity
+  -q, --quiet...      Decrease logging verbosity
 ```
 <!-- commands-end -->
 
@@ -114,16 +116,15 @@ types to go. To do that run:
 $ wasm init
 ```
 
-This creates a new `deps/` directory in your project which contains a manifest,
-lockfile, and a place for the downloaded artifacts to go. It's recommended to add
-`deps/vendor/` to your `.gitignore` file:
+This creates a `wasm.toml` manifest, `wasm.lock.toml` lockfile, and a `vendor/`
+directory in your project for the downloaded artifacts to go. It's recommended to add
+`vendor/` to your `.gitignore` file:
 
 ```bash
 .
-└── deps/
-    ├── vendor/         # A directory containing downloaded .wasm and .wit files
-    ├── wasm.lock.toml  # A generated lockfile to guarantee reproducible builds
-    └── wasm.toml       # A readable manifest to declare dependencies
+├── vendor/         # A directory containing downloaded .wasm and .wit files
+├── wasm.lock.toml  # A generated lockfile to guarantee reproducible builds
+└── wasm.toml       # A readable manifest to declare dependencies
 ```
 
 Now that we have our basic project structure setup, let's fetch [a basic HTTP
@@ -141,8 +142,8 @@ $ wasm install ghcr.io/bytecodealliance/sample-wasi-http-rust/sample-wasi-http-r
     Finished installation in 1.3s
 ```
 
-This will have downloaded the `.wasm` component to `deps/vendor/`, and added it
-to our manifest and lockfile. Our `deps/wasm.toml` file should now look like this:
+This will have downloaded the `.wasm` component to `vendor/`, and added it
+to our manifest and lockfile. Our `wasm.toml` file should now look like this:
 
 ```toml
 [components]

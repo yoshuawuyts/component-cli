@@ -27,7 +27,7 @@ pub enum PackageType {
 
 /// The root manifest structure for a WASM package.
 ///
-/// The manifest file (`deps/wasm.toml`) defines dependencies for a WASM package,
+/// The manifest file (`wasm.toml`) defines dependencies for a WASM package,
 /// grouped under `[dependencies.components]` and `[dependencies.interfaces]`.
 ///
 /// # Example

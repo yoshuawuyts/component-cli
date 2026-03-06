@@ -8,17 +8,16 @@ use wac_resolver::FileSystemPackageResolver;
 /// well-known directories.
 ///
 /// Resolution order:
-/// 1. Vendored artifacts listed in `deps/wasm.toml` (components → `deps/vendor/wasm/`,
-///    types → `deps/vendor/wit/`).
+/// 1. Vendored artifacts listed in `wasm.toml` (components → `vendor/wasm/`,
+///    types → `vendor/wit/`).
 /// 2. Local files found in the `types/` directory at the project root.
 ///
 /// The returned resolver is intended for use with
 /// [`wac_parser::Document::resolve`].
 pub(crate) fn build_resolver(base: &Path) -> Result<FileSystemPackageResolver> {
-    let deps = base.join("deps");
-    let manifest_path = deps.join("wasm.toml");
-    let wasm_vendor = deps.join("vendor/wasm");
-    let wit_vendor = deps.join("vendor/wit");
+    let manifest_path = base.join("wasm.toml");
+    let wasm_vendor = base.join("vendor/wasm");
+    let wit_vendor = base.join("vendor/wit");
 
     let mut overrides: HashMap<String, PathBuf> = HashMap::new();
 

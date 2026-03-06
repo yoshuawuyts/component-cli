@@ -21,10 +21,9 @@ pub(crate) enum LinkerMode {
 /// Compose Wasm components from WAC scripts
 #[derive(clap::Args)]
 pub(crate) struct Opts {
-    /// Name of a `.wac` file in `seams/` to compose.
-    ///
-    /// For example, `wasm compose foo` resolves to `seams/foo.wac`.
-    /// If omitted, all `.wac` files in `seams/` are composed.
+    /// Name of a `.wac` file in `seams/` to compose. For example, `wasm compose
+    /// foo` resolves to `seams/foo.wac`. If omitted, all `.wac` files in
+    /// `seams/` are composed.
     #[arg()]
     name: Option<String>,
 

@@ -95,7 +95,11 @@ impl Indexer {
                 }
             };
 
-            match self.manager.index_package(&reference).await {
+            match self
+                .manager
+                .index_package(&reference, Some(&source.namespace), Some(&source.name))
+                .await
+            {
                 Ok(pkg) => {
                     info!(
                         registry = %pkg.registry,

@@ -146,11 +146,13 @@ impl RegistryFile {
     #[must_use]
     pub fn into_package_sources(self) -> Vec<PackageSource> {
         let registry = self.namespace.registry;
+        let namespace = self.namespace.name;
         let mut sources = Vec::new();
         for entry in self.component {
             sources.push(PackageSource {
                 registry: registry.clone(),
                 repository: entry.repository,
+                namespace: namespace.clone(),
                 name: entry.name,
                 kind: PackageKind::Component,
             });
@@ -159,6 +161,7 @@ impl RegistryFile {
             sources.push(PackageSource {
                 registry: registry.clone(),
                 repository: entry.repository,
+                namespace: namespace.clone(),
                 name: entry.name,
                 kind: PackageKind::Interface,
             });

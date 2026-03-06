@@ -12,7 +12,7 @@ and provide hints to run `wasm init` or `wasm registry fetch <component>`.
 
 r[install.wit-deps]
 When installing a component, the CLI MUST extract its WIT dependencies
-and recursively install each resolvable dependency into `deps/vendor/wit/`.
+and recursively install each resolvable dependency into `vendor/wit/`.
 
 r[install.wit-deps.lockfile-only]
 Transitive WIT dependencies MUST be recorded in `wasm.lock.toml`
