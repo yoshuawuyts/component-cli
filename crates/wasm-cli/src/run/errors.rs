@@ -84,7 +84,9 @@ pub(crate) enum RunError {
     /// The HTTP server could not bind to the requested address.
     #[diagnostic(
         code(wasm::run::http_bind_failed),
-        help("{reason}; ensure the address '{addr}' is available and not in use by another process")
+        help(
+            "{reason}; ensure the address '{addr}' is available and not in use by another process"
+        )
     )]
     HttpBindFailed {
         /// The requested bind address.

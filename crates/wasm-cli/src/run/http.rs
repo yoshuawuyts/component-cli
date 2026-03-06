@@ -13,8 +13,8 @@ use miette::Context;
 use wasmtime::component::{Component, Linker, ResourceTable};
 use wasmtime::{Engine, Store};
 use wasmtime_wasi::{WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
-use wasmtime_wasi_http::bindings::http::types::Scheme;
 use wasmtime_wasi_http::bindings::ProxyPre;
+use wasmtime_wasi_http::bindings::http::types::Scheme;
 use wasmtime_wasi_http::body::HyperOutgoingBody;
 use wasmtime_wasi_http::io::TokioIo;
 use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpView};
@@ -66,34 +66,37 @@ pub(super) async fn serve(
     addr: SocketAddr,
 ) -> miette::Result<()> {
     // Wasmtime 42+ enables async support by default.
-    let engine =
-        Engine::default();
+    let engine = Engine::default();
 
     let component = Component::new(&engine, bytes)
         .map_err(crate::util::into_miette)
         .wrap_err("failed to compile Wasm Component")?;
 
     let mut linker: Linker<HttpState> = Linker::new(&engine);
-    wasmtime_wasi::p2::add_to_linker_async(&mut linker)
-        .map_err(crate::util::into_miette)?;
+    wasmtime_wasi::p2::add_to_linker_async(&mut linker).map_err(crate::util::into_miette)?;
     wasmtime_wasi_http::add_only_http_to_linker_async(&mut linker)
         .map_err(crate::util::into_miette)?;
 
-    let pre = ProxyPre::new(linker.instantiate_pre(&component).map_err(crate::util::into_miette)?)
-        .map_err(crate::util::into_miette)
-        .wrap_err("component does not target the wasi:http/proxy world")?;
+    let pre = ProxyPre::new(
+        linker
+            .instantiate_pre(&component)
+            .map_err(crate::util::into_miette)?,
+    )
+    .map_err(crate::util::into_miette)
+    .wrap_err("component does not target the wasi:http/proxy world")?;
 
     let server = Arc::new(Server {
         pre,
         permissions: permissions.clone(),
     });
 
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .map_err(|e| RunError::HttpBindFailed {
-            addr: addr.to_string(),
-            reason: e.to_string(),
-        })?;
+    let listener =
+        tokio::net::TcpListener::bind(addr)
+            .await
+            .map_err(|e| RunError::HttpBindFailed {
+                addr: addr.to_string(),
+                reason: e.to_string(),
+            })?;
 
     let bound = listener
         .local_addr()
@@ -104,9 +107,12 @@ pub(super) async fn serve(
     eprintln!("Serving HTTP on http://{bound}");
 
     loop {
-        let (stream, peer) = listener.accept().await.map_err(|e| RunError::HttpAcceptFailed {
-            reason: e.to_string(),
-        })?;
+        let (stream, peer) = listener
+            .accept()
+            .await
+            .map_err(|e| RunError::HttpAcceptFailed {
+                reason: e.to_string(),
+            })?;
 
         let server = Arc::clone(&server);
         tokio::task::spawn(async move {
@@ -146,9 +152,7 @@ async fn handle_request(
     );
 
     let (sender, receiver) = tokio::sync::oneshot::channel();
-    let req = store
-        .data_mut()
-        .new_incoming_request(Scheme::Http, req)?;
+    let req = store.data_mut().new_incoming_request(Scheme::Http, req)?;
     let out = store.data_mut().new_response_outparam(sender)?;
     let pre = server.pre.clone();
 
