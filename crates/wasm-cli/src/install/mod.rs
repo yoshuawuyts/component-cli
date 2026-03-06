@@ -323,9 +323,12 @@ async fn re_vendor_wit_files(
     }
     for file in &result.vendored_files {
         if let Some(filename) = file.file_name() {
-            let wit_dest = wit_vendor_dir.join(filename);
+            let wit_dest = wit_vendor_dir.join(filename).with_extension("wit");
             tokio::fs::create_dir_all(wit_vendor_dir).await?;
             let _ = tokio::fs::remove_file(&wit_dest).await;
+            // Also remove any stale .wasm file from a previous install.
+            let stale_wasm = wit_vendor_dir.join(filename);
+            let _ = tokio::fs::remove_file(&stale_wasm).await;
             tokio::fs::rename(file, &wit_dest).await?;
         }
     }
