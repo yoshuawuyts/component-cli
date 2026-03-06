@@ -1002,11 +1002,11 @@ fn format_available_tags_hint(tags: &[String], requested_tag: Option<&str>) -> S
     let filtered = filter_tag_suggestions(tags, requested_tag);
 
     // Fallback: if the semver filter removed everything, show raw
-    // human-meaningful tags (skip sha256-digest tags).
+    // human-meaningful tags (skip `latest` and sha256-digest tags).
     let tags_to_show: Vec<&str> = if filtered.is_empty() {
         tags.iter()
             .map(String::as_str)
-            .filter(|t| !t.starts_with("sha256-"))
+            .filter(|t| *t != "latest" && !t.starts_with("sha256-"))
             .collect()
     } else {
         filtered.iter().map(String::as_str).collect()
