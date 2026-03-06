@@ -93,14 +93,14 @@ Commands:
   help      Print this message or the help of the given subcommand(s)
 
 Options:
-  -v, --verbose...  Increase logging verbosity
-  -q, --quiet...    Decrease logging verbosity
-  -h, --help        Print help
-  -V, --version     Print version
+  -h, --help     Print help
+  -V, --version  Print version
 
 Global Options:
       --color <WHEN>  When to use colored output [default: auto] [possible values: auto, always, never]
       --offline       Run in offline mode
+  -v, --verbose...    Increase logging verbosity
+  -q, --quiet...      Decrease logging verbosity
 ```
 <!-- commands-end -->
 

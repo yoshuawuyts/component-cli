@@ -27,12 +27,6 @@ Options:
           
           [default: build]
 
-  -v, --verbose...
-          Increase logging verbosity
-
-  -q, --quiet...
-          Decrease logging verbosity
-
   -h, --help
           Print help (see a summary with '-h')
 
@@ -48,3 +42,9 @@ Global Options:
 
       --offline
           Run in offline mode
+
+  -v, --verbose...
+          Increase logging verbosity
+
+  -q, --quiet...
+          Decrease logging verbosity
