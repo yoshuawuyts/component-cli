@@ -341,7 +341,11 @@ async fn re_vendor_wit_files(
         }
 
         // Remove the original binary now that it has been unpacked.
-        let _ = tokio::fs::remove_file(file).await;
+        match tokio::fs::remove_file(file).await {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into()),
+        }
     }
     Ok(())
 }
@@ -797,12 +801,12 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let wasm_dir = tmp.path().join("vendor/wasm");
         let wit_dir = tmp.path().join("vendor/wit");
-        std::fs::create_dir_all(&wasm_dir).unwrap();
+        std::fs::create_dir_all(&wasm_dir).expect("should create wasm vendor dir");
 
         // Write a binary WIT package into the wasm vendor dir.
         let wasm_bytes = build_test_wit_wasm();
         let wasm_path = wasm_dir.join("test__example.wasm");
-        std::fs::write(&wasm_path, &wasm_bytes).unwrap();
+        std::fs::write(&wasm_path, &wasm_bytes).expect("should write test .wasm file");
 
         let result = InstallResult {
             registry: "ghcr.io".into(),
@@ -842,7 +846,7 @@ mod tests {
 
         // No .wasm files should remain in vendor/wit/.
         let wasm_in_wit: Vec<_> = std::fs::read_dir(&wit_dir)
-            .unwrap()
+            .expect("should read wit vendor dir")
             .filter_map(Result::ok)
             .filter(|e| e.path().extension().is_some_and(|ext| ext == "wasm"))
             .collect();
@@ -855,7 +859,10 @@ mod tests {
         let wit_text = std::fs::read_to_string(wit_file).expect("should read .wit file");
         let mut resolve = wit_parser::Resolve::default();
         resolve
-            .push_str(wit_file.to_str().unwrap(), &wit_text)
+            .push_str(
+                wit_file.to_str().expect("path should be valid UTF-8"),
+                &wit_text,
+            )
             .expect("vendored .wit file must be valid WIT");
     }
 
@@ -864,10 +871,10 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let wasm_dir = tmp.path().join("vendor/wasm");
         let wit_dir = tmp.path().join("vendor/wit");
-        std::fs::create_dir_all(&wasm_dir).unwrap();
+        std::fs::create_dir_all(&wasm_dir).expect("should create wasm vendor dir");
 
         let wasm_path = wasm_dir.join("component.wasm");
-        std::fs::write(&wasm_path, b"irrelevant").unwrap();
+        std::fs::write(&wasm_path, b"irrelevant").expect("should write test .wasm file");
 
         let result = InstallResult {
             registry: "ghcr.io".into(),
