@@ -27,6 +27,7 @@ use crate::KnownPackage;
 ///         created_at: String::new(),
 ///         wit_namespace: None,
 ///         wit_name: None,
+///         dependencies: vec![],
 ///     }],
 ///     etag: Some("\"abc123\"".into()),
 /// };

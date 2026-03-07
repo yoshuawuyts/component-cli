@@ -163,6 +163,7 @@ mod tests {
                 created_at: "2025-01-01 00:00:00".into(),
                 wit_namespace: None,
                 wit_name: None,
+                dependencies: vec![],
             },
             KnownPackage {
                 registry: "ghcr.io".into(),
@@ -175,6 +176,7 @@ mod tests {
                 created_at: "2025-01-01 00:00:00".into(),
                 wit_namespace: None,
                 wit_name: None,
+                dependencies: vec![],
             },
         ];
 
@@ -216,6 +218,7 @@ mod tests {
                 created_at: "2025-01-01 00:00:00".into(),
                 wit_namespace: None,
                 wit_name: None,
+                dependencies: vec![],
             },
             KnownPackage {
                 registry: "ghcr.io".into(),
@@ -228,6 +231,7 @@ mod tests {
                 created_at: "2025-01-01 00:00:00".into(),
                 wit_namespace: None,
                 wit_name: None,
+                dependencies: vec![],
             },
         ];
 

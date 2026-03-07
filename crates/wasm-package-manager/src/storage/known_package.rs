@@ -18,6 +18,7 @@ impl From<RawKnownPackage> for KnownPackage {
             created_at: pkg.created_at,
             wit_namespace: pkg.wit_namespace,
             wit_name: pkg.wit_name,
+            dependencies: vec![],
         }
     }
 }

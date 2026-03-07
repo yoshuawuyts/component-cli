@@ -640,17 +640,26 @@ impl Manager {
 
     /// Get all known packages.
     /// Uses pagination with `offset` and `limit` parameters.
+    ///
+    /// Each returned [`KnownPackage`] has its `dependencies` field populated
+    /// from the local `wit_package_dependency` table.
     pub fn list_known_packages(
         &self,
         offset: u32,
         limit: u32,
     ) -> anyhow::Result<Vec<KnownPackage>> {
-        Ok(self
-            .store
+        self.store
             .list_known_packages(offset, limit)?
             .into_iter()
-            .map(KnownPackage::from)
-            .collect())
+            .map(|raw| {
+                let mut pkg = KnownPackage::from(raw);
+                pkg.dependencies = self
+                    .store
+                    .get_package_dependencies(&pkg.registry, &pkg.repository)
+                    .unwrap_or_default();
+                Ok(pkg)
+            })
+            .collect()
     }
 
     /// Add or update a known package entry.
@@ -723,23 +732,34 @@ impl Manager {
     }
 
     /// Get a known package by registry and repository.
+    ///
+    /// The returned [`KnownPackage`] has its `dependencies` field populated
+    /// from the local `wit_package_dependency` table.
     pub fn get_known_package(
         &self,
         registry: &str,
         repository: &str,
     ) -> anyhow::Result<Option<KnownPackage>> {
-        Ok(self
-            .store
-            .get_known_package(registry, repository)?
-            .map(KnownPackage::from))
+        match self.store.get_known_package(registry, repository)? {
+            None => Ok(None),
+            Some(raw) => {
+                let mut pkg = KnownPackage::from(raw);
+                pkg.dependencies = self
+                    .store
+                    .get_package_dependencies(registry, repository)
+                    .unwrap_or_default();
+                Ok(Some(pkg))
+            }
+        }
     }
 
-    /// Index a package from the registry without downloading layers.
+    /// Index a package from the registry, also extracting WIT dependency
+    /// metadata from the package's wasm layer.
     ///
     /// Fetches the manifest and config to extract metadata (description from
     /// OCI annotations), lists all tags, and upserts into the known packages
-    /// table. This is useful for building a search index without storing
-    /// actual wasm content.
+    /// table. Also pulls the wasm layer for the most recent tag to extract
+    /// WIT dependency information and store it in the local database.
     ///
     /// When `wit_namespace` / `wit_name` are provided, the WIT namespace
     /// mapping is stored alongside the OCI coordinates so that WIT-style
@@ -806,12 +826,30 @@ impl Manager {
             )?;
         }
 
-        // Return the indexed package.
-        Ok(self
+        // Best-effort: pull the wasm layer for the meta_tag so that WIT
+        // dependency metadata is extracted and stored in the database.
+        // r[impl server.index.dependencies]
+        if let Err(e) = self.pull(meta_ref.clone()).await {
+            tracing::debug!(
+                registry = %reference.registry(),
+                repository = %reference.repository(),
+                tag = %meta_tag,
+                error = %e,
+                "Could not pull wasm layer during index; dependency metadata unavailable"
+            );
+        }
+
+        // Return the indexed package with its now-populated dependencies.
+        let raw = self
             .store
             .get_known_package(reference.registry(), reference.repository())?
-            .map(KnownPackage::from)
-            .ok_or(ManagerError::IndexRetrievalFailed)?)
+            .ok_or(ManagerError::IndexRetrievalFailed)?;
+        let mut pkg = KnownPackage::from(raw);
+        pkg.dependencies = self
+            .store
+            .get_package_dependencies(reference.registry(), reference.repository())
+            .unwrap_or_default();
+        Ok(pkg)
     }
 
     /// Get all WIT interfaces with their associated component references.
@@ -822,6 +860,23 @@ impl Manager {
             .into_iter()
             .map(|(wt, s)| (WitPackage::from(wt), s))
             .collect())
+    }
+
+    /// Get declared dependencies for a package identified by its WIT name and
+    /// optional version.
+    ///
+    /// Queries `wit_package_dependency` directly by package name, bypassing
+    /// the OCI registry/repository path. This is the primary entry point for
+    /// the dependency resolver.
+    ///
+    /// Returns an empty list when the package has no recorded dependencies.
+    pub fn get_dependencies_by_name(
+        &self,
+        package_name: &str,
+        version: Option<&str>,
+    ) -> anyhow::Result<Vec<crate::storage::PackageDependencyRef>> {
+        self.store
+            .get_package_dependencies_by_name(package_name, version)
     }
 
     /// Sync the local package index from a meta-registry over HTTP.
@@ -915,6 +970,33 @@ impl Manager {
                     pkg.wit_namespace.as_deref(),
                     pkg.wit_name.as_deref(),
                 )?;
+            }
+
+            // r[impl db.wit-package-dependency.populate-on-sync]
+            // Store dependency information from the sync response so the
+            // local database can answer dependency queries without network
+            // access.
+            if !pkg.dependencies.is_empty() {
+                if let (Some(ns), Some(name)) = (&pkg.wit_namespace, &pkg.wit_name) {
+                    let package_name = format!("{ns}:{name}");
+                    // Use the latest tag as the canonical version; strip
+                    // any leading "v" so it matches the WIT version string.
+                    let version = pkg
+                        .tags
+                        .first()
+                        .map(|t| t.trim_start_matches('v').to_string());
+                    if let Err(e) = self.store.upsert_package_dependencies_from_sync(
+                        &package_name,
+                        version.as_deref(),
+                        &pkg.dependencies,
+                    ) {
+                        tracing::warn!(
+                            package = %package_name,
+                            error = %e,
+                            "Failed to store synced dependencies"
+                        );
+                    }
+                }
             }
         }
         if let Some(etag_val) = etag {

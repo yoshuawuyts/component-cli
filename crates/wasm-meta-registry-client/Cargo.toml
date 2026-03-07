@@ -23,5 +23,8 @@ reqwest = { workspace = true, optional = true }
 serde = { workspace = true }
 tokio = { workspace = true, optional = true }
 
+[dev-dependencies]
+serde_json = { workspace = true }
+
 [lints]
 workspace = true

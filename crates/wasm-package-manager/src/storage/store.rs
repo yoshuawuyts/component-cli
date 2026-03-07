@@ -114,6 +114,25 @@ impl Store {
         Ok(Self { state_info, conn })
     }
 
+    /// Create a Store directly from an in-memory SQLite connection.
+    ///
+    /// The connection MUST already have all migrations applied. The `StateInfo`
+    /// created here has dummy paths and is only suitable for unit tests that do
+    /// not exercise the content-addressable layer cache.
+    #[cfg(test)]
+    pub(crate) fn from_conn(conn: Connection) -> Self {
+        use std::path::PathBuf;
+        let migration_info = super::models::Migrations { current: 0, total: 0 };
+        let state_info = StateInfo::new_at(
+            PathBuf::from("/tmp/test-wasm-store"),
+            PathBuf::from("/tmp/test-wasm-config.toml"),
+            &migration_info,
+            0,
+            0,
+        );
+        Self { state_info, conn }
+    }
+
     pub(crate) async fn insert(
         &self,
         reference: &Reference,
@@ -751,6 +770,174 @@ impl Store {
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             (key, value),
         )?;
+        Ok(())
+    }
+
+    /// Return all declared dependencies for the package at the given OCI
+    /// registry and repository.
+    ///
+    /// The query covers two cases:
+    ///
+    /// 1. **Pulled packages** — dependencies stored via the
+    ///    `oci_manifest` → `oci_repository` chain after a full layer pull.
+    /// 2. **Synced packages** — dependencies stored directly in `wit_package`
+    ///    (without an OCI manifest link) by associating the WIT package name
+    ///    derived from `oci_repository.wit_namespace` / `oci_repository.wit_name`.
+    // r[impl db.wit-package-dependency.get-for-package]
+    pub(crate) fn get_package_dependencies(
+        &self,
+        registry: &str,
+        repository: &str,
+    ) -> anyhow::Result<Vec<wasm_meta_registry_client::PackageDependencyRef>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT DISTINCT wpd.declared_package, wpd.declared_version
+             FROM wit_package_dependency wpd
+             JOIN wit_package wp ON wpd.dependent_id = wp.id
+             WHERE
+               wp.oci_manifest_id IN (
+                 SELECT om.id
+                 FROM oci_manifest om
+                 JOIN oci_repository repo ON om.oci_repository_id = repo.id
+                 WHERE repo.registry = ?1 AND repo.repository = ?2
+               )
+               OR wp.package_name = (
+                 SELECT repo.wit_namespace || ':' || repo.wit_name
+                 FROM oci_repository repo
+                 WHERE repo.registry = ?1 AND repo.repository = ?2
+                   AND repo.wit_namespace IS NOT NULL
+                   AND repo.wit_name IS NOT NULL
+                 LIMIT 1
+               )
+             ORDER BY wpd.declared_package",
+        )?;
+
+        let rows = stmt.query_map(rusqlite::params![registry, repository], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, Option<String>>(1)?,
+            ))
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows {
+            let (package, version) = row?;
+            result.push(wasm_meta_registry_client::PackageDependencyRef {
+                package,
+                version,
+            });
+        }
+        Ok(result)
+    }
+
+    /// Return all declared dependencies for a package looked up by WIT name
+    /// and optional version.
+    ///
+    /// This is a direct query on `wit_package_dependency` keyed by
+    /// `wit_package.package_name` (and optional version), bypassing the OCI
+    /// registry/repository path. Useful for tests and for the dependency
+    /// resolver which works with WIT names, not OCI coordinates.
+    #[allow(dead_code)]
+    pub(crate) fn get_package_dependencies_by_name(
+        &self,
+        package_name: &str,
+        version: Option<&str>,
+    ) -> anyhow::Result<Vec<wasm_meta_registry_client::PackageDependencyRef>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT DISTINCT wpd.declared_package, wpd.declared_version
+             FROM wit_package_dependency wpd
+             JOIN wit_package wp ON wpd.dependent_id = wp.id
+             WHERE wp.package_name = ?1
+               AND COALESCE(wp.version, '') = COALESCE(?2, '')
+             ORDER BY wpd.declared_package",
+        )?;
+
+        let rows = stmt.query_map(rusqlite::params![package_name, version], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, Option<String>>(1)?,
+            ))
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows {
+            let (package, version) = row?;
+            result.push(wasm_meta_registry_client::PackageDependencyRef {
+                package,
+                version,
+            });
+        }
+        Ok(result)
+    }
+
+    /// Find any existing `wit_package` row matching `(package_name, version)`,
+    /// or create a new stub row (without OCI references) if none exists.
+    ///
+    /// Used during sync to anchor dependency edges to a canonical package row
+    /// even before the package has been pulled from the registry.
+    #[cfg(feature = "http-sync")]
+    fn find_or_insert_wit_package(
+        &self,
+        package_name: &str,
+        version: Option<&str>,
+    ) -> anyhow::Result<i64> {
+        let result = self.conn.query_row(
+            "SELECT id FROM wit_package
+             WHERE package_name = ?1
+               AND COALESCE(version, '') = COALESCE(?2, '')
+             LIMIT 1",
+            rusqlite::params![package_name, version],
+            |row| row.get::<_, i64>(0),
+        );
+
+        match result {
+            Ok(id) => Ok(id),
+            Err(rusqlite::Error::QueryReturnedNoRows) => {
+                RawWitPackage::insert(&self.conn, package_name, version, None, None, None, None)
+            }
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Store WIT package dependency information received from a meta-registry
+    /// sync response.
+    ///
+    /// Creates (or reuses) a `wit_package` stub row for `package_name` /
+    /// `version` and records the provided dependency edges in
+    /// `wit_package_dependency`. Duplicate edges are silently ignored.
+    ///
+    /// This allows the dependency graph to be queried for pre-planned
+    /// installation without performing a full layer pull first.
+    // r[impl db.wit-package-dependency.populate-on-sync]
+    #[cfg(feature = "http-sync")]
+    pub(crate) fn upsert_package_dependencies_from_sync(
+        &self,
+        package_name: &str,
+        version: Option<&str>,
+        dependencies: &[wasm_meta_registry_client::PackageDependencyRef],
+    ) -> anyhow::Result<()> {
+        if dependencies.is_empty() {
+            return Ok(());
+        }
+
+        let pkg_id = self.find_or_insert_wit_package(package_name, version)?;
+
+        for dep in dependencies {
+            if let Err(e) = WitPackageDependency::insert(
+                &self.conn,
+                pkg_id,
+                &dep.package,
+                dep.version.as_deref(),
+                None,
+            ) {
+                tracing::warn!(
+                    "Failed to insert synced dependency {} → {}: {}",
+                    package_name,
+                    dep.package,
+                    e
+                );
+            }
+        }
+
         Ok(())
     }
 }
@@ -1429,5 +1616,135 @@ mod tests {
         let conn = setup_test_db();
         let result = RawWitPackage::find_oci_reference(&conn, "wasi:nonexistent", None).unwrap();
         assert!(result.is_none());
+    }
+
+    // r[verify db.wit-package-dependency.get-for-package]
+    #[test]
+    fn get_package_dependencies_returns_empty_without_data() {
+        let conn = setup_test_db();
+        let store = Store::from_conn(conn);
+        let deps = store
+            .get_package_dependencies("ghcr.io", "webassembly/wasi-http")
+            .unwrap();
+        assert!(deps.is_empty());
+    }
+
+    // r[verify db.wit-package-dependency.get-for-package]
+    #[test]
+    fn get_package_dependencies_returns_deps_for_pulled_package() {
+        let conn = setup_test_db();
+
+        // Set up an OCI repository + manifest
+        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "webassembly/wasi-http").unwrap();
+        let annotations = HashMap::new();
+        let (manifest_id, _) = OciManifest::upsert(
+            &conn,
+            repo_id,
+            "sha256:http123",
+            Some("application/vnd.oci.image.manifest.v1+json"),
+            Some("{}"),
+            Some(1024),
+            None,
+            None,
+            None,
+            &annotations,
+        )
+        .unwrap();
+
+        // Insert a WIT package linked to the manifest
+        let pkg_id = RawWitPackage::insert(
+            &conn,
+            "wasi:http",
+            Some("0.2.0"),
+            None,
+            None,
+            Some(manifest_id),
+            None,
+        )
+        .unwrap();
+
+        // Insert dependencies
+        WitPackageDependency::insert(&conn, pkg_id, "wasi:io", Some("0.2.0"), None).unwrap();
+        WitPackageDependency::insert(&conn, pkg_id, "wasi:clocks", Some("0.2.0"), None).unwrap();
+
+        let store = Store::from_conn(conn);
+        let mut deps = store
+            .get_package_dependencies("ghcr.io", "webassembly/wasi-http")
+            .unwrap();
+        deps.sort_by(|a, b| a.package.cmp(&b.package));
+        assert_eq!(deps.len(), 2);
+        assert_eq!(deps[0].package, "wasi:clocks");
+        assert_eq!(deps[0].version.as_deref(), Some("0.2.0"));
+        assert_eq!(deps[1].package, "wasi:io");
+        assert_eq!(deps[1].version.as_deref(), Some("0.2.0"));
+    }
+
+    // r[verify db.wit-package-dependency.get-for-package]
+    #[test]
+    fn get_package_dependencies_returns_deps_for_synced_package() {
+        let conn = setup_test_db();
+
+        // Register the repository with wit_namespace and wit_name (as sync does)
+        OciRepository::upsert_with_wit(
+            &conn,
+            "ghcr.io",
+            "webassembly/wasi-http",
+            Some("wasi"),
+            Some("http"),
+        )
+        .unwrap();
+
+        // Insert a wit_package stub without an oci_manifest_id (sync-only)
+        let pkg_id =
+            RawWitPackage::insert(&conn, "wasi:http", Some("0.2.0"), None, None, None, None)
+                .unwrap();
+        WitPackageDependency::insert(&conn, pkg_id, "wasi:io", Some("0.2.0"), None).unwrap();
+
+        let store = Store::from_conn(conn);
+        let deps = store
+            .get_package_dependencies("ghcr.io", "webassembly/wasi-http")
+            .unwrap();
+        assert_eq!(deps.len(), 1);
+        assert_eq!(deps[0].package, "wasi:io");
+        assert_eq!(deps[0].version.as_deref(), Some("0.2.0"));
+    }
+
+    // r[verify db.wit-package-dependency.upsert-idempotent]
+    #[cfg(feature = "http-sync")]
+    #[test]
+    fn upsert_package_dependencies_from_sync_is_idempotent() {
+        use wasm_meta_registry_client::PackageDependencyRef;
+
+        let conn = setup_test_db();
+        let store = Store::from_conn(conn);
+
+        let deps = vec![
+            PackageDependencyRef {
+                package: "wasi:io".into(),
+                version: Some("0.2.0".into()),
+            },
+            PackageDependencyRef {
+                package: "wasi:clocks".into(),
+                version: None,
+            },
+        ];
+
+        // First upsert
+        store
+            .upsert_package_dependencies_from_sync("wasi:http", Some("0.2.0"), &deps)
+            .unwrap();
+
+        // Second upsert must not fail and must not duplicate
+        store
+            .upsert_package_dependencies_from_sync("wasi:http", Some("0.2.0"), &deps)
+            .unwrap();
+
+        let mut stored = store
+            .get_package_dependencies_by_name("wasi:http", Some("0.2.0"))
+            .unwrap();
+        stored.sort_by(|a, b| a.package.cmp(&b.package));
+        assert_eq!(stored.len(), 2);
+        assert_eq!(stored[0].package, "wasi:clocks");
+        assert_eq!(stored[1].package, "wasi:io");
     }
 }

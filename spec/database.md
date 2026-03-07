@@ -55,3 +55,26 @@ return `None`.
 r[db.wit-package.find-oci-reference-no-version]
 Looking up an OCI reference for a WIT package without a version MUST
 still resolve correctly when the package was stored without a version.
+
+## WIT Package Dependencies
+
+Dependencies between WIT packages are recorded in the `wit_package_dependency`
+table. This allows the resolver to compute a full transitive dependency graph
+before any package is installed.
+
+r[db.wit-package-dependency.populate-on-sync]
+On sync, the local database MUST be populated with dependency versions from
+the meta-registry. For each package in the sync response that carries dependency
+information, a `wit_package` row and corresponding `wit_package_dependency` rows
+MUST be created so that the dependency graph is available for pre-planned
+installation without additional network requests.
+
+r[db.wit-package-dependency.get-for-package]
+Given a registry and repository, the store MUST return all declared dependencies
+of that package by querying both pulled packages (via `oci_manifest` →
+`oci_repository`) and synced packages (via `oci_repository.wit_namespace` /
+`oci_repository.wit_name`).
+
+r[db.wit-package-dependency.upsert-idempotent]
+Upserting the same package dependency MUST be idempotent (inserting duplicate
+edges MUST be silently ignored).
