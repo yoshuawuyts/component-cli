@@ -104,37 +104,38 @@ impl Lockfile {
     }
 
     /// Backfill `registry` and `digest` on every [`PackageDependency`] by
-    /// looking up the matching top-level [`Package`] entry, matched by name.
+    /// looking up the matching top-level [`Package`] entry, matched by
+    /// `(name, version)`.
     ///
-    /// Dependencies whose name does not match any top-level package are
-    /// silently removed. This handles the case where transitive dependencies
-    /// were skipped (e.g. in offline mode or on resolve failure) — rather
-    /// than writing out empty registry/digest fields, those dependency entries
-    /// are simply omitted from the lockfile.
+    /// Dependencies whose `(name, version)` pair does not match any top-level
+    /// package are silently removed. This handles the case where transitive
+    /// dependencies were skipped (e.g. in offline mode or on resolve failure)
+    /// — rather than writing out empty registry/digest fields, those
+    /// dependency entries are simply omitted from the lockfile.
     ///
     /// Call this after all packages have been inserted into the lockfile so
     /// that every remaining dependency reference carries the resolved
     /// registry path and content digest.
     pub fn resolve_dependency_details(&mut self) {
-        // Build a lookup from package name → (registry, digest).
-        // When the same name appears more than once (e.g. component +
-        // interface, or different versions), the first entry wins.
-        let mut lookup: HashMap<String, (String, String)> = HashMap::new();
+        // Build a lookup from (package name, version) → (registry, digest).
+        let mut lookup: HashMap<(String, String), (String, String)> = HashMap::new();
 
         for pkg in self.components.iter().chain(self.interfaces.iter()) {
             lookup
-                .entry(pkg.name.clone())
+                .entry((pkg.name.clone(), pkg.version.clone()))
                 .or_insert_with(|| (pkg.registry.clone(), pkg.digest.clone()));
         }
 
         for pkg in self.components.iter_mut().chain(self.interfaces.iter_mut()) {
             pkg.dependencies.retain_mut(|dep| {
-                if let Some((registry, digest)) = lookup.get(&dep.name) {
-                    dep.registry.clone_from(registry);
-                    dep.digest.clone_from(digest);
-                    true
-                } else {
-                    false
+                let key = (dep.name.clone(), dep.version.clone());
+                match lookup.get(&key) {
+                    Some((registry, digest)) => {
+                        dep.registry.clone_from(registry);
+                        dep.digest.clone_from(digest);
+                        true
+                    }
+                    None => false,
                 }
             });
         }
