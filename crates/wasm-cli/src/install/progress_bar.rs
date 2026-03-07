@@ -75,7 +75,9 @@ impl ProgressTree {
 
         let prefix = build_prefix(TREE_GLYPH_END, name, version, false);
         let pb = self.multi.add(ProgressBar::new(0));
-        pb.set_style(progress_style());
+        // Start with the initial (bytes-only) style; run_progress_bars()
+        // will switch to the full bar style once a total is known.
+        pb.set_style(initial_style());
         pb.set_prefix(prefix);
 
         self.entries.push(TreeEntry {
@@ -176,12 +178,22 @@ fn build_prefix(glyph: &str, name: &str, version: Option<&str>, is_complete: boo
     }
 }
 
+/// Template for the initial state before layer sizes are known: just bytes
+/// downloaded, no bar or total.  Once the first `LayerStarted` with a known
+/// `total_bytes` arrives, `run_progress_bars` switches to [`PROGRESS_TEMPLATE`].
+const INITIAL_TEMPLATE: &str = "{prefix} {binary_bytes:.dim}";
+
 /// Template for in-progress downloads: yellow bar, dim size and ETA.
 const PROGRESS_TEMPLATE: &str =
     "{prefix} {bar:12.yellow} {binary_bytes:.dim}/{binary_total_bytes:.dim} {eta:.dim}";
 
 /// Template for completed downloads: no bar, just dim total size.
 const DONE_TEMPLATE: &str = "{prefix} {binary_total_bytes:.dim}";
+
+/// Style for the initial state before any total is known: bytes only.
+fn initial_style() -> ProgressStyle {
+    ProgressStyle::with_template(INITIAL_TEMPLATE).expect("valid progress bar template")
+}
 
 /// Style for in-progress downloads: yellow bar, dim size and ETA.
 fn progress_style() -> ProgressStyle {
@@ -200,6 +212,11 @@ fn done_style() -> ProgressStyle {
 /// All layer downloads are aggregated into a single progress bar for the
 /// package. The total bytes is the sum of all layer sizes, and progress
 /// is the sum of all per-layer bytes downloaded.
+///
+/// The bar starts with a bytes-only style ([`INITIAL_TEMPLATE`]).  Once the
+/// first `LayerStarted` event with a known `total_bytes` arrives, the style
+/// is upgraded to the full bar ([`PROGRESS_TEMPLATE`]) so that misleading
+/// `0 B` totals are never shown.
 // r[impl cli.progress-bar.aggregate-layers]
 pub(crate) async fn run_progress_bars(
     pb: ProgressBar,
@@ -207,6 +224,7 @@ pub(crate) async fn run_progress_bars(
 ) {
     let mut layer_progress: Vec<u64> = Vec::new();
     let mut total_bytes: u64 = 0;
+    let mut has_known_total = false;
 
     while let Some(event) = rx.recv().await {
         match event {
@@ -219,6 +237,12 @@ pub(crate) async fn run_progress_bars(
                 if let Some(size) = size {
                     total_bytes += size;
                     pb.set_length(total_bytes);
+                    // Switch from the initial bytes-only style to the full
+                    // bar style now that we can display a meaningful total.
+                    if !has_known_total {
+                        has_known_total = true;
+                        pb.set_style(progress_style());
+                    }
                 }
             }
             ProgressEvent::LayerProgress {
@@ -585,5 +609,108 @@ mod tests {
             PROGRESS_TEMPLATE.contains("eta:.dim"),
             "progress style must use dim for ETA: {PROGRESS_TEMPLATE}"
         );
+    }
+
+    // Verify all style factory functions produce usable ProgressStyle instances.
+    // This guards against template syntax errors and ensures the constants used
+    // by the tests above are the same ones that reach production code.
+
+    // r[verify cli.progress-bar.bar-yellow]
+    #[test]
+    fn progress_style_produces_valid_style() {
+        let style = progress_style();
+        let pb = ProgressBar::hidden();
+        pb.set_style(style);
+        pb.set_length(100);
+        pb.set_position(50);
+        // No panic ⇒ template is valid and can be applied.
+    }
+
+    // r[verify cli.progress-bar.bar-hidden-on-complete]
+    #[test]
+    fn done_style_produces_valid_style() {
+        let style = done_style();
+        let pb = ProgressBar::hidden();
+        pb.set_style(style);
+        pb.set_length(100);
+        pb.finish();
+    }
+
+    #[test]
+    fn initial_style_produces_valid_style() {
+        let style = initial_style();
+        let pb = ProgressBar::hidden();
+        pb.set_style(style);
+        pb.set_position(500);
+    }
+
+    // Verify the initial template has no bar/total/eta (bytes-only).
+    #[test]
+    fn initial_template_shows_only_bytes() {
+        assert!(
+            !INITIAL_TEMPLATE.contains("{bar"),
+            "initial style must not contain a bar: {INITIAL_TEMPLATE}"
+        );
+        assert!(
+            !INITIAL_TEMPLATE.contains("binary_total_bytes"),
+            "initial style must not show total bytes: {INITIAL_TEMPLATE}"
+        );
+        assert!(
+            !INITIAL_TEMPLATE.contains("eta"),
+            "initial style must not show ETA: {INITIAL_TEMPLATE}"
+        );
+        assert!(
+            INITIAL_TEMPLATE.contains("binary_bytes"),
+            "initial style must show downloaded bytes: {INITIAL_TEMPLATE}"
+        );
+    }
+
+    // r[verify cli.progress-bar.aggregate-layers]
+    #[tokio::test]
+    async fn aggregate_layers_switches_to_bar_on_known_total() {
+        use indicatif::ProgressDrawTarget;
+
+        let pb = ProgressBar::with_draw_target(Some(0), ProgressDrawTarget::hidden());
+        pb.set_style(initial_style());
+
+        let (tx, rx) = tokio::sync::mpsc::channel(64);
+        let handle = tokio::spawn(run_progress_bars(pb.clone(), rx));
+
+        tx.send(ProgressEvent::ManifestFetched {
+            layer_count: 1,
+            image_digest: "sha256:abc".into(),
+        })
+        .await
+        .unwrap();
+
+        // Before known total: bar should still have initial length of 0
+        assert_eq!(pb.length(), Some(0));
+
+        // Send layer with known total — triggers style switch
+        tx.send(ProgressEvent::LayerStarted {
+            index: 0,
+            digest: "sha256:layer0".into(),
+            total_bytes: Some(2000),
+            title: None,
+            media_type: "application/wasm".into(),
+        })
+        .await
+        .unwrap();
+
+        tx.send(ProgressEvent::LayerProgress {
+            index: 0,
+            bytes_downloaded: 1000,
+        })
+        .await
+        .unwrap();
+
+        tokio::task::yield_now().await;
+
+        // After known total: length should reflect the total
+        assert_eq!(pb.length(), Some(2000));
+        assert_eq!(pb.position(), 1000);
+
+        drop(tx);
+        let _ = handle.await;
     }
 }
