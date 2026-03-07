@@ -325,7 +325,8 @@ impl RawKnownPackage {
         limit: u32,
     ) -> anyhow::Result<Vec<RawKnownPackage>> {
         let mut stmt = conn.prepare(
-            "SELECT DISTINCT r.id, r.registry, r.repository, r.updated_at, r.created_at
+            "SELECT DISTINCT r.id, r.registry, r.repository, r.updated_at, r.created_at,
+                    r.wit_namespace, r.wit_name
              FROM oci_repository r
              JOIN oci_manifest m ON m.oci_repository_id = r.id
              JOIN wit_package wp ON wp.oci_manifest_id = m.id
@@ -350,7 +351,8 @@ impl RawKnownPackage {
         limit: u32,
     ) -> anyhow::Result<Vec<RawKnownPackage>> {
         let mut stmt = conn.prepare(
-            "SELECT DISTINCT r.id, r.registry, r.repository, r.updated_at, r.created_at
+            "SELECT DISTINCT r.id, r.registry, r.repository, r.updated_at, r.created_at,
+                    r.wit_namespace, r.wit_name
              FROM oci_repository r
              JOIN oci_manifest m ON m.oci_repository_id = r.id
              JOIN wit_package wp ON wp.oci_manifest_id = m.id
@@ -365,8 +367,8 @@ impl RawKnownPackage {
     }
 
     /// Execute a prepared statement that returns `(id, registry, repository,
-    /// updated_at, created_at)` rows and inflate each into a full
-    /// `RawKnownPackage` with tags and description.
+    /// updated_at, created_at, wit_namespace, wit_name)` rows and inflate each
+    /// into a full `RawKnownPackage` with tags and description.
     fn collect_repo_rows(
         conn: &Connection,
         stmt: &mut rusqlite::Statement<'_>,
@@ -379,12 +381,14 @@ impl RawKnownPackage {
                 row.get::<_, String>(2)?,
                 row.get::<_, String>(3)?,
                 row.get::<_, String>(4)?,
+                row.get::<_, Option<String>>(5)?,
+                row.get::<_, Option<String>>(6)?,
             ))
         })?;
 
         let mut packages = Vec::new();
         for row in rows {
-            let (id, registry, repository, updated_at, created_at) = row?;
+            let (id, registry, repository, updated_at, created_at, wit_ns, wit_n) = row?;
             let tags = Self::fetch_tags(conn, id);
             let description = Self::fetch_description(conn, id);
             packages.push(RawKnownPackage {
@@ -397,8 +401,8 @@ impl RawKnownPackage {
                 attestation_tags: Vec::new(),
                 last_seen_at: updated_at,
                 created_at,
-                wit_namespace: None,
-                wit_name: None,
+                wit_namespace: wit_ns,
+                wit_name: wit_n,
             });
         }
         Ok(packages)

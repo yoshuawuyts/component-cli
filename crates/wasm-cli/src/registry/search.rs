@@ -73,6 +73,12 @@ impl SearchOpts {
 
         if packages.is_empty() {
             let message = match (&self.exports, &self.imports) {
+                (Some(iface), _) if !query.is_empty() => {
+                    format!("No packages found exporting '{iface}' matching '{query}'")
+                }
+                (_, Some(iface)) if !query.is_empty() => {
+                    format!("No packages found importing '{iface}' matching '{query}'")
+                }
                 (Some(iface), _) => format!("No packages found exporting '{iface}'"),
                 (_, Some(iface)) => format!("No packages found importing '{iface}'"),
                 _ => format!(
@@ -194,5 +200,58 @@ mod tests {
         assert!(output.contains("PACKAGE"));
         // Table has headers but no data rows
         assert!(!output.contains("ghcr.io"));
+    }
+
+    #[test]
+    fn test_filter_by_text_matches_reference() {
+        let packages = vec![
+            KnownPackage {
+                registry: "ghcr.io".into(),
+                repository: "example/http-server".into(),
+                description: Some("A server component".into()),
+                tags: vec![],
+                signature_tags: vec![],
+                attestation_tags: vec![],
+                last_seen_at: "2025-01-01 00:00:00".into(),
+                created_at: "2025-01-01 00:00:00".into(),
+                wit_namespace: None,
+                wit_name: None,
+            },
+            KnownPackage {
+                registry: "ghcr.io".into(),
+                repository: "example/logger".into(),
+                description: Some("A logging component".into()),
+                tags: vec![],
+                signature_tags: vec![],
+                attestation_tags: vec![],
+                last_seen_at: "2025-01-01 00:00:00".into(),
+                created_at: "2025-01-01 00:00:00".into(),
+                wit_namespace: None,
+                wit_name: None,
+            },
+        ];
+
+        // Filter by text matching reference
+        let result = filter_by_text(packages.clone(), "http", 20);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].repository, "example/http-server");
+
+        // Filter by text matching description
+        let result = filter_by_text(packages.clone(), "logging", 20);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].repository, "example/logger");
+
+        // Case-insensitive matching
+        let result = filter_by_text(packages.clone(), "HTTP", 20);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].repository, "example/http-server");
+
+        // No match
+        let result = filter_by_text(packages.clone(), "nonexistent", 20);
+        assert!(result.is_empty());
+
+        // Limit is respected
+        let result = filter_by_text(packages, "example", 1);
+        assert_eq!(result.len(), 1);
     }
 }
