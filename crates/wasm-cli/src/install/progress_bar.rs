@@ -43,11 +43,21 @@ pub(crate) struct ProgressTree {
     multi: MultiProgress,
     /// All bars and their display metadata, in insertion order.
     entries: Vec<TreeEntry>,
+    /// Monotonically increasing counter for unique bar IDs.
+    next_id: usize,
 }
+
+/// Opaque handle returned by [`ProgressTree::add_bar`] to identify a specific
+/// progress bar entry when finishing it.  Using an ID instead of the
+/// package name avoids misidentification when two installs share the same
+/// display name and version.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct BarId(usize);
 
 /// Metadata kept for each bar so we can rebuild its prefix when the glyph
 /// changes (e.g. from `└──` to `├──`).
 struct TreeEntry {
+    id: BarId,
     bar: ProgressBar,
     name: String,
     version: Option<String>,
@@ -60,16 +70,20 @@ impl ProgressTree {
         Self {
             multi,
             entries: Vec::new(),
+            next_id: 0,
         }
     }
 
     /// Add a new in-progress package bar. The bar becomes the new "last"
     /// entry (`└──`), and the previously-last bar (if any) is demoted to
     /// `├──`.
+    ///
+    /// Returns the [`ProgressBar`] handle and a [`BarId`] that must be
+    /// passed to [`finish_bar`](Self::finish_bar) to identify this entry.
     // r[impl cli.progress-bar.bar-yellow]
     // r[impl cli.progress-bar.size-grey]
     // r[impl cli.progress-bar.eta-grey]
-    pub(crate) fn add_bar(&mut self, name: &str, version: Option<&str>) -> ProgressBar {
+    pub(crate) fn add_bar(&mut self, name: &str, version: Option<&str>) -> (ProgressBar, BarId) {
         // Demote the old last entry to ├──
         self.demote_last();
 
@@ -80,33 +94,48 @@ impl ProgressTree {
         pb.set_style(initial_style());
         pb.set_prefix(prefix);
 
+        let id = BarId(self.next_id);
+        self.next_id += 1;
+
         self.entries.push(TreeEntry {
+            id,
             bar: pb.clone(),
             name: name.to_string(),
             version: version.map(String::from),
             is_complete: false,
         });
 
-        pb
+        (pb, id)
     }
 
     /// Mark a progress bar as complete: green name, bar hidden, size only.
     // r[impl cli.progress-bar.bar-hidden-on-complete]
-    pub(crate) fn finish_bar(&mut self, pb: &ProgressBar, name: &str, version: Option<&str>) {
-        // Find this bar's index in the entries list
-        let idx = self
-            .entries
-            .iter()
-            .position(|e| e.name == name && e.version.as_deref() == version && !e.is_complete);
-        let is_last = idx == Some(self.entries.len() - 1);
+    pub(crate) fn finish_bar(&mut self, pb: &ProgressBar, bar_id: BarId) {
+        // Find this bar's index in the entries list by unique ID.
+        let idx = self.entries.iter().position(|e| e.id == bar_id);
 
-        let glyph = tree_glyph(is_last);
-        let prefix = build_prefix(glyph, name, version, true);
+        // Determine glyph and name/version from the stored entry.
+        let (glyph, name, version) = match idx.and_then(|i| self.entries.get(i)) {
+            Some(entry) => {
+                let is_last = idx == Some(self.entries.len() - 1);
+                (
+                    tree_glyph(is_last),
+                    entry.name.clone(),
+                    entry.version.clone(),
+                )
+            }
+            None => {
+                // Fallback: treat as last entry for glyph purposes.
+                (tree_glyph(true), String::new(), None)
+            }
+        };
+
+        let prefix = build_prefix(glyph, &name, version.as_deref(), true);
         pb.set_style(done_style());
         pb.set_prefix(prefix);
         pb.finish();
 
-        // Update the stored entry's completion state
+        // Update the stored entry's completion state.
         if let Some(entry) = idx.and_then(|i| self.entries.get_mut(i)) {
             entry.is_complete = true;
         }
@@ -150,6 +179,26 @@ pub(crate) fn package_display_parts(
         // For OCI references without an explicit name, fall back to tag only
         let version = tag.map(|t| t.strip_prefix('v').unwrap_or(t).to_string());
         (String::new(), version)
+    }
+}
+
+/// Derive a `namespace:name` display string from an OCI repository path.
+///
+/// OCI repository paths typically look like `ghcr.io/webassembly/wasi-logging`.
+/// This function takes the last two `/`-separated segments and joins them with
+/// `:` so that the display matches the `namespace:name` format used elsewhere
+/// in the tree output.  When fewer than two segments are available, the full
+/// repository path is returned as-is.
+// r[impl cli.progress-bar.namespace-name]
+pub(crate) fn oci_repo_display_name(repo: &str) -> String {
+    let mut parts = repo.rsplitn(3, '/');
+    let last = parts.next();
+    let second_last = parts.next();
+    match (second_last, last) {
+        (Some(namespace), Some(package)) if !namespace.is_empty() && !package.is_empty() => {
+            format!("{namespace}:{package}")
+        }
+        _ => repo.to_string(),
     }
 }
 
@@ -321,6 +370,39 @@ mod tests {
         assert_eq!(version.as_deref(), Some("0.12.2"));
     }
 
+    // r[verify cli.progress-bar.namespace-name]
+    #[test]
+    fn oci_repo_three_segments() {
+        assert_eq!(
+            oci_repo_display_name("ghcr.io/webassembly/wasi-logging"),
+            "webassembly:wasi-logging"
+        );
+    }
+
+    // r[verify cli.progress-bar.namespace-name]
+    #[test]
+    fn oci_repo_two_segments() {
+        assert_eq!(
+            oci_repo_display_name("webassembly/wasi-logging"),
+            "webassembly:wasi-logging"
+        );
+    }
+
+    // r[verify cli.progress-bar.namespace-name]
+    #[test]
+    fn oci_repo_single_segment() {
+        assert_eq!(oci_repo_display_name("wasi-logging"), "wasi-logging");
+    }
+
+    // r[verify cli.progress-bar.namespace-name]
+    #[test]
+    fn oci_repo_deep_path() {
+        assert_eq!(
+            oci_repo_display_name("ghcr.io/org/sub/package"),
+            "sub:package"
+        );
+    }
+
     // r[verify cli.progress-bar.no-indent]
     #[test]
     fn prefix_not_indented() {
@@ -385,14 +467,14 @@ mod tests {
         let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
         let mut tree = ProgressTree::new(multi);
 
-        let pb1 = tree.add_bar("wasi:http", Some("0.2.0"));
+        let (pb1, _id1) = tree.add_bar("wasi:http", Some("0.2.0"));
         // First bar should be └── (it's the last)
         assert!(
             console::strip_ansi_codes(&pb1.prefix()).starts_with(TREE_GLYPH_END),
             "first bar should start as └──"
         );
 
-        let pb2 = tree.add_bar("wasi:io", Some("0.2.0"));
+        let (pb2, _id2) = tree.add_bar("wasi:io", Some("0.2.0"));
         // pb1 should now be ├── (demoted)
         assert!(
             console::strip_ansi_codes(&pb1.prefix()).starts_with(TREE_GLYPH_MID),
@@ -413,18 +495,18 @@ mod tests {
         let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
         let mut tree = ProgressTree::new(multi);
 
-        let pb1 = tree.add_bar("wasi:http", Some("0.2.0"));
-        let pb2 = tree.add_bar("wasi:io", Some("0.2.0"));
+        let (pb1, id1) = tree.add_bar("wasi:http", Some("0.2.0"));
+        let (pb2, id2) = tree.add_bar("wasi:io", Some("0.2.0"));
 
         // Finish pb1 — it should remain ├── since pb2 is last
-        tree.finish_bar(&pb1, "wasi:http", Some("0.2.0"));
+        tree.finish_bar(&pb1, id1);
         assert!(
             console::strip_ansi_codes(&pb1.prefix()).starts_with(TREE_GLYPH_MID),
             "finished non-last bar should be ├──"
         );
 
         // Finish pb2 — it's the last, should stay └──
-        tree.finish_bar(&pb2, "wasi:io", Some("0.2.0"));
+        tree.finish_bar(&pb2, id2);
         assert!(
             console::strip_ansi_codes(&pb2.prefix()).starts_with(TREE_GLYPH_END),
             "finished last bar should be └──"
@@ -439,11 +521,11 @@ mod tests {
         let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
         let mut tree = ProgressTree::new(multi);
 
-        let pb1 = tree.add_bar("wasi:http", Some("0.2.0"));
-        tree.finish_bar(&pb1, "wasi:http", Some("0.2.0"));
+        let (pb1, id1) = tree.add_bar("wasi:http", Some("0.2.0"));
+        tree.finish_bar(&pb1, id1);
 
         // pb1 was └── and finished. Now add pb2 — pb1 should be demoted to ├──
-        let pb2 = tree.add_bar("wasi:io", Some("0.2.0"));
+        let (pb2, _id2) = tree.add_bar("wasi:io", Some("0.2.0"));
 
         assert!(
             console::strip_ansi_codes(&pb1.prefix()).starts_with(TREE_GLYPH_MID),

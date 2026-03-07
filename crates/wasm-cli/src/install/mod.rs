@@ -14,7 +14,7 @@ use wasm_package_manager::{ProgressEvent, Reference};
 
 use crate::util::write_lock_file;
 use errors::InstallError;
-use progress_bar::{ProgressTree, package_display_parts, run_progress_bars};
+use progress_bar::{ProgressTree, oci_repo_display_name, package_display_parts, run_progress_bars};
 
 /// Default meta-registry URL.
 const REGISTRY_URL: &str = "http://localhost:8080";
@@ -131,14 +131,14 @@ impl Opts {
                     let (name, version) =
                         package_display_parts(explicit_name.as_deref(), reference.tag());
                     let display_name = if name.is_empty() {
-                        reference.repository().to_string()
+                        oci_repo_display_name(reference.repository())
                     } else {
                         name
                     };
                     let result = install_one(
                         manager_ref,
                         &tree,
-                        false,
+                        offline,
                         &reference,
                         &vendor_dir,
                         &display_name,
@@ -309,7 +309,7 @@ async fn install_one(
 
     let (progress_tx, progress_rx) = tokio::sync::mpsc::channel::<ProgressEvent>(64);
 
-    let pb = tree.lock().await.add_bar(display_name, display_version);
+    let (pb, bar_id) = tree.lock().await.add_bar(display_name, display_version);
 
     // Spawn progress rendering task
     let progress_handle = tokio::task::spawn(run_progress_bars(pb.clone(), progress_rx));
@@ -326,9 +326,7 @@ async fn install_one(
 
     // Only mark the bar as complete (green, hidden) on successful installs.
     if result.is_ok() {
-        tree.lock()
-            .await
-            .finish_bar(&pb, display_name, display_version);
+        tree.lock().await.finish_bar(&pb, bar_id);
     }
 
     result
