@@ -4,6 +4,9 @@ use std::path::Path;
 use tokio_stream::StreamExt;
 
 mod errors;
+/// Install helpers — core logic for resolving inputs, managing lockfiles,
+/// and unpacking WIT files.
+pub mod install;
 mod logic;
 mod models;
 

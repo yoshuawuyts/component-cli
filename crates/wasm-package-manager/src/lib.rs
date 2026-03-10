@@ -38,6 +38,9 @@
 //! ```
 
 pub mod components;
+/// WAC-based component composition (requires the `compose` feature).
+#[cfg(feature = "compose")]
+pub mod compose;
 mod config;
 mod credential_helper;
 /// Core manager functionality for pulling, installing, and listing packages.
