@@ -180,71 +180,9 @@ impl Opts {
         &self,
         reference: Option<&wasm_package_manager::Reference>,
     ) -> wasm_manifest::ResolvedPermissions {
-        // Layer 1: global config defaults
-        let config = wasm_package_manager::Config::load().unwrap_or_default();
-        let base = config.run.map(|r| r.permissions).unwrap_or_default();
-
-        // Layer 2: global components.toml per-component override
-        let global_component = wasm_package_manager::Config::load_components()
-            .ok()
-            .flatten()
-            .and_then(|manifest| find_matching_permissions(&manifest, reference))
-            .unwrap_or_default();
-        let merged = base.merge(global_component);
-
-        // Layer 3: local wasm.toml per-component override
-        let local_manifest = std::fs::read_to_string("wasm.toml")
-            .ok()
-            .and_then(|s| toml::from_str::<wasm_manifest::Manifest>(&s).ok());
-        let local_component = local_manifest
-            .and_then(|m| find_matching_permissions(&m, reference))
-            .unwrap_or_default();
-        let merged = merged.merge(local_component);
-
-        // Layer 4: CLI flags
         let cli = self.cli_permissions();
-        let merged = merged.merge(cli);
-
-        merged.resolve()
+        wasm_package_manager::permissions::resolve_permissions(reference, cli)
     }
-}
-
-/// Look through a manifest for a dependency whose OCI reference matches
-/// the given reference and return its permissions (if any).
-///
-/// Matching is performed by comparing `registry/namespace/package` (without
-/// the tag) against each explicit dependency in the manifest.
-fn find_matching_permissions(
-    manifest: &wasm_manifest::Manifest,
-    reference: Option<&wasm_package_manager::Reference>,
-) -> Option<RunPermissions> {
-    let reference = reference?;
-    let ref_registry = reference.registry();
-    let ref_repository = reference.repository();
-
-    for (_, dep) in manifest
-        .dependencies
-        .components
-        .iter()
-        .chain(manifest.dependencies.interfaces.iter())
-    {
-        match dep {
-            wasm_manifest::Dependency::Explicit {
-                registry,
-                namespace,
-                package,
-                permissions,
-                ..
-            } => {
-                let dep_repository = format!("{namespace}/{package}");
-                if registry == ref_registry && dep_repository == ref_repository {
-                    return permissions.clone();
-                }
-            }
-            wasm_manifest::Dependency::Compact(_) => {}
-        }
-    }
-    None
 }
 
 /// Confirm the bytes are a Wasm Component (not a core module or WIT-only package).

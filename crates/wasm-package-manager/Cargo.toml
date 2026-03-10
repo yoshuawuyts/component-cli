@@ -36,6 +36,7 @@ tracing = { workspace = true }
 rusqlite = { workspace = true }
 semver = { workspace = true }
 toml = { workspace = true }
+wasm-detector = { workspace = true }
 wasm-manifest = { workspace = true }
 wasm-meta-registry-client = { workspace = true }
 wasmparser = { workspace = true }

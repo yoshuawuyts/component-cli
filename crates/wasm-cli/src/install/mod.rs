@@ -17,11 +17,13 @@ use crate::util::write_lock_file;
 use errors::InstallError;
 use progress_bar::{ProgressTree, oci_repo_display_name, package_display_parts, run_progress_bars};
 
+use wasm_package_manager::manager::Manager as Mgr;
+
 /// Default meta-registry URL.
-const REGISTRY_URL: &str = "http://localhost:8080";
+const REGISTRY_URL: &str = Mgr::DEFAULT_REGISTRY_URL;
 
 /// Default sync interval in seconds (1 hour).
-const SYNC_INTERVAL: u64 = 3600;
+const SYNC_INTERVAL: u64 = Mgr::DEFAULT_SYNC_INTERVAL;
 
 /// Options for the `install` command.
 #[derive(clap::Parser)]
