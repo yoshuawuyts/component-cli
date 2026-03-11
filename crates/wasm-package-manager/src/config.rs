@@ -582,9 +582,9 @@ credential-helper.password = "/path/to/get-pass.sh"
         let registry_config = config.registries.get("my-registry.example.com").unwrap();
 
         match &registry_config.credential_helper {
-            Some(helper) => {
-                assert_eq!(helper.username, "/path/to/get-user.sh");
-                assert_eq!(helper.password, "/path/to/get-pass.sh");
+            Some(CredentialHelper::Split { username, password }) => {
+                assert_eq!(username, "/path/to/get-user.sh");
+                assert_eq!(password, "/path/to/get-pass.sh");
             }
             None => panic!("Expected credential helper"),
         }
@@ -629,7 +629,7 @@ credential-helper.password = "/path/to/get-pass.sh"
         registries.insert(
             "test.io".to_string(),
             RegistryConfig {
-                credential_helper: Some(CredentialHelper {
+                credential_helper: Some(CredentialHelper::Split {
                     username: "echo user".to_string(),
                     password: "echo pass".to_string(),
                 }),
@@ -667,7 +667,7 @@ credential-helper.password = "/path/to/get-pass.sh"
         global.registries.insert(
             "ghcr.io".to_string(),
             RegistryConfig {
-                credential_helper: Some(CredentialHelper {
+                credential_helper: Some(CredentialHelper::Split {
                     username: "echo global-user".to_string(),
                     password: "echo global-pass".to_string(),
                 }),
@@ -676,7 +676,7 @@ credential-helper.password = "/path/to/get-pass.sh"
         global.registries.insert(
             "global-only.io".to_string(),
             RegistryConfig {
-                credential_helper: Some(CredentialHelper {
+                credential_helper: Some(CredentialHelper::Split {
                     username: "echo global-only-user".to_string(),
                     password: "echo global-only-pass".to_string(),
                 }),
@@ -687,7 +687,7 @@ credential-helper.password = "/path/to/get-pass.sh"
         local.registries.insert(
             "ghcr.io".to_string(),
             RegistryConfig {
-                credential_helper: Some(CredentialHelper {
+                credential_helper: Some(CredentialHelper::Split {
                     username: "echo local-user".to_string(),
                     password: "echo local-pass".to_string(),
                 }),
@@ -696,7 +696,7 @@ credential-helper.password = "/path/to/get-pass.sh"
         local.registries.insert(
             "local-only.io".to_string(),
             RegistryConfig {
-                credential_helper: Some(CredentialHelper {
+                credential_helper: Some(CredentialHelper::Split {
                     username: "echo local-only-user".to_string(),
                     password: "echo local-only-pass".to_string(),
                 }),
@@ -707,7 +707,9 @@ credential-helper.password = "/path/to/get-pass.sh"
 
         // Local overrides global for "ghcr.io"
         match &merged.registries["ghcr.io"].credential_helper {
-            Some(helper) => assert_eq!(helper.username, "echo local-user"),
+            Some(CredentialHelper::Split { username, .. }) => {
+                assert_eq!(username, "echo local-user")
+            }
             None => panic!("Expected credential helper"),
         }
 

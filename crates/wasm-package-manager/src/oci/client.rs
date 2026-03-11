@@ -166,17 +166,16 @@ impl Client {
 fn resolve_auth(reference: &Reference, config: &Config) -> anyhow::Result<RegistryAuth> {
     let registry = reference.resolve_registry();
 
-    // First, check if a credential helper is configured in the config file
-    match config.get_credentials(registry) {
-        Ok(Some((username, password))) => {
+    // First, check if a credential helper is configured in the config file.
+    // If a helper is configured but fails, propagate the error rather than
+    // silently falling back to Docker credentials.
+    match config.get_credentials(registry)? {
+        Some((username, password)) => {
             tracing::debug!(registry, "using credential helper for authentication");
             return Ok(RegistryAuth::Basic(username, password));
         }
-        Ok(None) => {
+        None => {
             tracing::debug!(registry, "no credential helper configured");
-        }
-        Err(e) => {
-            tracing::warn!(registry, error = %e, "credential helper failed, falling back");
         }
     }
 

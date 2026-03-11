@@ -53,7 +53,7 @@ impl std::error::Error for CredentialError {}
 /// ```rust
 /// use wasm_package_manager::CredentialHelper;
 ///
-/// let helper = CredentialHelper {
+/// let helper = CredentialHelper::Split {
 ///     username: "/path/to/get-user.sh".into(),
 ///     password: "/path/to/get-pass.sh".into(),
 /// };
@@ -62,11 +62,15 @@ impl std::error::Error for CredentialError {}
 // r[impl credential.no-leak-display]
 // r[impl credential.split]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CredentialHelper {
-    /// Command to get the username (output is trimmed).
-    pub username: String,
-    /// Command to get the password (output is trimmed).
-    pub password: String,
+#[serde(untagged)]
+pub enum CredentialHelper {
+    /// Separate commands for username and password.
+    Split {
+        /// Command to get the username (output is trimmed).
+        username: String,
+        /// Command to get the password (output is trimmed).
+        password: String,
+    },
 }
 
 impl CredentialHelper {
@@ -84,7 +88,7 @@ impl CredentialHelper {
     /// ```rust,no_run
     /// use wasm_package_manager::CredentialHelper;
     ///
-    /// let helper = CredentialHelper {
+    /// let helper = CredentialHelper::Split {
     ///     username: "echo my-user".into(),
     ///     password: "echo my-pass".into(),
     /// };
@@ -93,7 +97,11 @@ impl CredentialHelper {
     /// # Ok::<(), anyhow::Error>(())
     /// ```
     pub fn execute(&self) -> Result<(String, String)> {
-        execute_split_helper(&self.username, &self.password)
+        match self {
+            CredentialHelper::Split { username, password } => {
+                execute_split_helper(username, password)
+            }
+        }
     }
 }
 
@@ -151,7 +159,7 @@ mod tests {
 
     #[test]
     fn test_credential_helper_execute() {
-        let helper = CredentialHelper {
+        let helper = CredentialHelper::Split {
             username: "echo splituser".to_string(),
             password: "echo splitpass".to_string(),
         };
@@ -165,7 +173,7 @@ mod tests {
     fn test_credential_helper_debug_never_prints_credentials() {
         // Verify that Debug output only shows command configuration,
         // never the actual credentials returned by the helper.
-        let helper = CredentialHelper {
+        let helper = CredentialHelper::Split {
             username: "/path/to/get-user.sh".to_string(),
             password: "/path/to/get-pass.sh".to_string(),
         };
@@ -183,7 +191,7 @@ mod tests {
         // Debug output still only shows the command configuration,
         // not the returned credentials. The CredentialHelper stores
         // only command strings, not execution results.
-        let helper = CredentialHelper {
+        let helper = CredentialHelper::Split {
             username: "get-user-cmd".to_string(),
             password: "get-pass-cmd".to_string(),
         };
@@ -196,7 +204,7 @@ mod tests {
             debug_output.contains("get-pass-cmd"),
             "Debug output should show the password command"
         );
-        // The credential helper struct stores commands, not credentials,
+        // The credential helper enum stores commands, not credentials,
         // so Debug can never leak actual credential values
     }
 
