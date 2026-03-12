@@ -145,9 +145,8 @@ impl Opts {
                         return Err(InstallError::DependencyConflict(msg).into());
                     }
                     Ok(deps) => {
-                        for (name, ver) in deps {
-                            resolved_transitive.insert(name, ver);
-                        }
+                        merge_resolved_deps(&mut resolved_transitive, deps)
+                            .map_err(miette::Report::new)?;
                     }
                     Err(ResolveError::Db(_)) => {} // dep data not yet available; skip
                 }
@@ -194,8 +193,6 @@ impl Opts {
         // plus transitive dependencies discovered by the resolver.  Transitive
         // entries that are already in the lockfile are skipped to avoid
         // redundant downloads.
-        let planned_transitive: HashSet<String> = resolved_transitive.keys().cloned().collect();
-
         let transitive_installs: Vec<PlannedInstall> = resolved_transitive
             .into_iter()
             .filter(|(name, _)| !lockfile.interfaces.iter().any(|p| p.name == *name))
@@ -208,6 +205,18 @@ impl Opts {
                     reference: r,
                     package_name: name,
                 })
+            })
+            .collect();
+
+        // Derive the set of actually-enqueued transitive package names.
+        // This must be computed *after* filtering so the fallback path
+        // correctly identifies deps that were planned but dropped (e.g.
+        // already in lockfile, or unresolvable) and re-installs them.
+        let planned_transitive: HashSet<String> = transitive_installs
+            .iter()
+            .filter_map(|entry| match entry {
+                PlannedInstall::Transitive { package_name, .. } => Some(package_name.clone()),
+                PlannedInstall::TopLevel { .. } => None,
             })
             .collect();
 
@@ -578,6 +587,31 @@ fn process_top_level_result(
     result.dependencies
 }
 
+/// Merge a set of resolved dependencies into the cumulative transitive
+/// dependency map.  Returns an error if a package is already present with
+/// a different version (i.e. two resolver roots disagree on the version
+/// for the same transitive dependency).
+fn merge_resolved_deps(
+    target: &mut HashMap<String, wasm_package_manager::resolver::WitVersion>,
+    deps: HashMap<String, wasm_package_manager::resolver::WitVersion>,
+) -> Result<(), InstallError> {
+    for (name, ver) in deps {
+        match target.get(&name) {
+            Some(existing) if existing != &ver => {
+                let msg = format!(
+                    "conflicting transitive dependency resolutions \
+                     for `{name}`: {existing} and {ver}"
+                );
+                return Err(InstallError::DependencyConflict(msg));
+            }
+            _ => {
+                target.insert(name, ver);
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Recursively install transitive WIT dependencies of a component.
 ///
 /// Uses a work queue and visited set to avoid cycles and duplicates.
@@ -835,5 +869,98 @@ mod tests {
         );
         // Original .wasm should still be present (not moved).
         assert!(wasm_path.exists(), "component .wasm should be untouched");
+    }
+
+    #[test]
+    fn merge_resolved_deps_accepts_identical_versions() {
+        use super::merge_resolved_deps;
+        use std::collections::HashMap;
+        use wasm_package_manager::resolver::WitVersion;
+
+        let mut target = HashMap::new();
+        target.insert("wasi:io".to_string(), WitVersion::new(0, 2, 0));
+
+        let mut incoming = HashMap::new();
+        incoming.insert("wasi:io".to_string(), WitVersion::new(0, 2, 0)); // same version
+        incoming.insert("wasi:cli".to_string(), WitVersion::new(0, 3, 0));
+
+        merge_resolved_deps(&mut target, incoming).expect("identical versions should merge");
+        assert_eq!(target.len(), 2);
+        assert_eq!(target["wasi:io"], WitVersion::new(0, 2, 0));
+        assert_eq!(target["wasi:cli"], WitVersion::new(0, 3, 0));
+    }
+
+    #[test]
+    fn merge_resolved_deps_detects_conflicts() {
+        use super::merge_resolved_deps;
+        use std::collections::HashMap;
+        use wasm_package_manager::resolver::WitVersion;
+
+        let mut target = HashMap::new();
+        target.insert("wasi:io".to_string(), WitVersion::new(0, 2, 0));
+
+        let mut incoming = HashMap::new();
+        incoming.insert("wasi:io".to_string(), WitVersion::new(0, 3, 0)); // different version
+
+        let err = merge_resolved_deps(&mut target, incoming).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("wasi:io"),
+            "error should name the conflicting package, got: {msg}"
+        );
+        assert!(
+            msg.contains("0.2.0") && msg.contains("0.3.0"),
+            "error should include both versions, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn merge_resolved_deps_inserts_new_entries() {
+        use super::merge_resolved_deps;
+        use std::collections::HashMap;
+        use wasm_package_manager::resolver::WitVersion;
+
+        let mut target = HashMap::new();
+
+        let mut incoming = HashMap::new();
+        incoming.insert("wasi:http".to_string(), WitVersion::new(0, 2, 10));
+        incoming.insert("wasi:io".to_string(), WitVersion::new(0, 2, 0));
+
+        merge_resolved_deps(&mut target, incoming).expect("fresh inserts should succeed");
+        assert_eq!(target.len(), 2);
+        assert_eq!(target["wasi:http"], WitVersion::new(0, 2, 10));
+        assert_eq!(target["wasi:io"], WitVersion::new(0, 2, 0));
+    }
+
+    #[test]
+    fn planned_transitive_excludes_filtered_entries() {
+        use super::PlannedInstall;
+        use std::collections::HashSet;
+
+        // Simulate: two transitive installs were enqueued, one was filtered
+        // out (already in lockfile or unresolvable).
+        let transitive_installs = vec![PlannedInstall::Transitive {
+            reference: "ghcr.io/test/wasi-io:0.2.0"
+                .parse()
+                .expect("valid reference"),
+            package_name: "wasi:io".to_string(),
+        }];
+
+        let planned: HashSet<String> = transitive_installs
+            .iter()
+            .filter_map(|entry| match entry {
+                PlannedInstall::Transitive { package_name, .. } => Some(package_name.clone()),
+                PlannedInstall::TopLevel { .. } => None,
+            })
+            .collect();
+
+        // "wasi:io" was actually enqueued → should be in planned set.
+        assert!(planned.contains("wasi:io"));
+        // "wasi:cli" was resolved but filtered out → must NOT be in planned
+        // set, so the fallback picks it up.
+        assert!(
+            !planned.contains("wasi:cli"),
+            "filtered-out deps should not appear in planned set"
+        );
     }
 }
