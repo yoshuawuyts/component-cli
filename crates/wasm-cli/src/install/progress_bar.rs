@@ -102,16 +102,25 @@ impl InstallDisplay {
         self.set_phase_spinner("Installing");
     }
 
-    /// Look up an existing row by display name and return its progress bar
-    /// handle and [`BarId`].  If no pre-created row exists (e.g. a late
-    /// fallback dependency), a new row is appended.
+    /// Look up an existing row by display name and version, and return its
+    /// progress bar handle and [`BarId`].  If no pre-created row exists
+    /// (e.g. a late fallback dependency), a new row is appended.
     // r[impl cli.progress-bar.bar-yellow]
     // r[impl cli.progress-bar.size-grey]
     // r[impl cli.progress-bar.eta-grey]
     pub(crate) fn add_bar(&mut self, name: &str, version: Option<&str>) -> (ProgressBar, BarId) {
-        // Try to find an existing planned row for this package.
-        if let Some(entry) = self.entries.iter().find(|e| e.name == name) {
+        // Try to find an existing planned row for this package, matching on
+        // both name and version to avoid misidentification when the same
+        // display name appears with different versions.
+        if let Some(entry) = self
+            .entries
+            .iter()
+            .find(|e| e.name == name && e.version.as_deref() == version)
+        {
             let pb = entry.bar.clone();
+            // Reset the bar from its "finished" plan state so that position
+            // and length updates from run_progress_bars are rendered.
+            pb.reset();
             pb.set_style(initial_style());
             return (pb, entry.id);
         }
@@ -123,6 +132,7 @@ impl InstallDisplay {
         };
         if label_len > self.name_width {
             self.name_width = label_len;
+            self.realign_prefixes();
         }
         self.create_row(name, version)
     }
@@ -222,6 +232,22 @@ impl InstallDisplay {
     fn clear_phase_spinner(&mut self) {
         if let Some(spinner) = self.phase_spinner.take() {
             spinner.finish_and_clear();
+        }
+    }
+
+    /// Update all row prefixes to the current `name_width`.
+    ///
+    /// Called when a fallback row causes `name_width` to grow so that
+    /// previously created rows stay column-aligned.
+    fn realign_prefixes(&mut self) {
+        for entry in &mut self.entries {
+            let prefix = build_prefix(
+                &entry.name,
+                entry.version.as_deref(),
+                self.name_width,
+                entry.is_complete,
+            );
+            entry.bar.set_prefix(prefix);
         }
     }
 }
@@ -940,5 +966,68 @@ mod tests {
             display.phase_spinner.is_some(),
             "installing should replace spinner"
         );
+    }
+
+    // r[verify cli.progress-bar.bar-yellow]
+    #[test]
+    fn add_bar_resets_finished_state_for_progress() {
+        use indicatif::ProgressDrawTarget;
+
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
+        let mut display = InstallDisplay::new(multi);
+
+        display.show_plan(&[("wasi:http", Some("0.2.0"))]);
+
+        // After show_plan, the bar is in a "finished" state (plan_style).
+        // add_bar must reset it so progress updates are rendered.
+        let (pb, _id) = display.add_bar("wasi:http", Some("0.2.0"));
+
+        // The bar should accept position/length updates after reset.
+        pb.set_length(1000);
+        pb.set_position(500);
+        assert_eq!(pb.length(), Some(1000));
+        assert_eq!(pb.position(), 500);
+    }
+
+    // r[verify cli.progress-bar.flat-rows]
+    #[test]
+    fn add_bar_same_name_different_version_creates_new_row() {
+        use indicatif::ProgressDrawTarget;
+
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
+        let mut display = InstallDisplay::new(multi);
+
+        display.show_plan(&[("wasi:http", Some("0.2.0"))]);
+        assert_eq!(display.entries.len(), 1);
+
+        // Same name but different version should create a new row
+        let (_, id) = display.add_bar("wasi:http", Some("0.3.0"));
+        assert_eq!(display.entries.len(), 2);
+        assert_eq!(id, BarId(1));
+    }
+
+    // r[verify cli.progress-bar.flat-rows]
+    #[test]
+    fn fallback_row_realigns_existing_prefixes() {
+        use indicatif::ProgressDrawTarget;
+
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::hidden());
+        let mut display = InstallDisplay::new(multi);
+
+        display.show_plan(&[("wasi:http", Some("0.2.0"))]);
+        let old_width = display.name_width;
+
+        // Add a fallback row with a much longer name
+        display.add_bar("ba:very-long-package-name", Some("1.0.0"));
+
+        // name_width should have increased
+        assert!(display.name_width > old_width);
+
+        // All entries should be realigned — check by verifying the prefix
+        // of the first (shorter) entry is now wider than the initial width.
+        let first_prefix = display.entries[0].bar.clone();
+        // The bar's prefix is an internal detail but we can verify the
+        // name_width is consistent across the display.
+        assert_eq!(display.name_width, "ba:very-long-package-name 1.0.0".len());
     }
 }

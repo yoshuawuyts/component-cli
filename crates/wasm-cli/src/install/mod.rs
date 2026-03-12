@@ -398,11 +398,14 @@ impl Opts {
             .await
             .into_diagnostic()?;
 
-        // Display the final completion summary.
-        let elapsed = start_time.elapsed();
-        let mut d = display.lock().await;
-        let package_count = d.package_count();
-        d.finish_all(package_count, elapsed);
+        // Display the final completion summary only in online mode.
+        // In offline mode the phased display was never started.
+        if !offline {
+            let elapsed = start_time.elapsed();
+            let mut d = display.lock().await;
+            let package_count = d.package_count();
+            d.finish_all(package_count, elapsed);
+        }
 
         Ok(())
     }
