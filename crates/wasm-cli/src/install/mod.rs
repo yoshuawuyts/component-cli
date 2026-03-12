@@ -21,7 +21,9 @@ use wasm_package_manager::{ProgressEvent, Reference};
 
 use crate::util::write_lock_file;
 use errors::InstallError;
-use progress_bar::{ProgressTree, oci_repo_display_name, package_display_parts, run_progress_bars};
+use progress_bar::{
+    InstallDisplay, oci_repo_display_name, package_display_parts, run_progress_bars,
+};
 
 /// Default meta-registry URL.
 const REGISTRY_URL: &str = Manager::DEFAULT_REGISTRY_URL;
@@ -83,13 +85,18 @@ impl Opts {
             Manager::open().await.map_err(crate::util::into_miette)?
         };
 
+        // Shared progress display for all concurrent installs.
+        let multi = MultiProgress::new();
+        let display = std::sync::Arc::new(tokio::sync::Mutex::new(InstallDisplay::new(multi)));
+
         // Sync the local package index from the meta-registry so WIT-style
         // names and search-based lookups can be resolved.
         if !offline {
-            match manager
+            display.lock().await.start_sync();
+            let sync_result = manager
                 .sync_from_meta_registry(REGISTRY_URL, SYNC_INTERVAL, SyncPolicy::IfStale)
-                .await
-            {
+                .await;
+            match sync_result {
                 Ok(SyncResult::Degraded { error }) => {
                     tracing::warn!("registry sync failed: {error}");
                 }
@@ -104,6 +111,11 @@ impl Opts {
         }
 
         let start_time = std::time::Instant::now();
+
+        // Start the planning phase spinner.
+        if !offline {
+            display.lock().await.start_planning();
+        }
 
         // Pre-install conflict detection + transitive dependency planning.
         //
@@ -196,10 +208,6 @@ impl Opts {
             resolve_install_inputs(&self.inputs, &manifest, &manager)?
         };
 
-        // Shared progress display for all concurrent installs.
-        let multi = MultiProgress::new();
-        let tree = std::sync::Arc::new(tokio::sync::Mutex::new(ProgressTree::new(multi)));
-
         // `&Manager` is Copy, so each async-move block captures its own copy of
         // the reference without requiring Arc or any synchronisation primitive.
         let manager_ref: &Manager = &manager;
@@ -256,6 +264,22 @@ impl Opts {
             .chain(transitive_installs)
             .collect();
 
+        // Display the resolved plan and transition to the installing phase.
+        if !offline {
+            let plan_entries: Vec<(String, Option<String>)> = all_installs
+                .iter()
+                .map(PlannedInstall::display_info)
+                .collect();
+            let plan_refs: Vec<(&str, Option<&str>)> = plan_entries
+                .iter()
+                .map(|(n, v)| (n.as_str(), v.as_deref()))
+                .collect();
+
+            let mut d = display.lock().await;
+            d.show_plan(&plan_refs);
+            d.start_installing();
+        }
+
         // Run all installs (top-level + transitive) concurrently.
         // Top-level failures are fatal; transitive failures are logged and
         // skipped to preserve the soft-failure semantics of the old
@@ -263,14 +287,14 @@ impl Opts {
         let results: anyhow::Result<Vec<Option<(InstallResult, PlannedInstall)>>> = all_installs
             .into_co_stream()
             .map(|entry| {
-                let tree = SharedTree::clone(&tree);
+                let display = SharedDisplay::clone(&display);
                 let vendor_dir = wasm_vendor_dir.clone();
                 let wit_vendor_dir = wit_vendor_dir.clone();
                 async move {
                     let (display_name, version) = entry.display_info();
                     let install_result = install_one(
                         manager_ref,
-                        &tree,
+                        &display,
                         offline,
                         entry.reference(),
                         &vendor_dir,
@@ -341,7 +365,7 @@ impl Opts {
                             install_transitive_deps(
                                 unplanned,
                                 manager_ref,
-                                &tree,
+                                &display,
                                 &wasm_vendor_dir,
                                 &wit_vendor_dir,
                                 &mut lockfile,
@@ -374,20 +398,18 @@ impl Opts {
             .await
             .into_diagnostic()?;
 
-        // Print completion message with elapsed time
+        // Display the final completion summary.
         let elapsed = start_time.elapsed();
-        println!(
-            "\n{:>12} installation in {:.1}s",
-            console::style("Finished").green().bold(),
-            elapsed.as_secs_f64()
-        );
+        let mut d = display.lock().await;
+        let package_count = d.package_count();
+        d.finish_all(package_count, elapsed);
 
         Ok(())
     }
 }
 
-/// Shared handle to a [`ProgressTree`] for use across concurrent tasks.
-type SharedTree = std::sync::Arc<tokio::sync::Mutex<ProgressTree>>;
+/// Shared handle to an [`InstallDisplay`] for use across concurrent tasks.
+type SharedDisplay = std::sync::Arc<tokio::sync::Mutex<InstallDisplay>>;
 
 /// A package planned for installation, tagged as either a top-level
 /// manifest dependency or a transitive dependency discovered by the
@@ -460,7 +482,7 @@ impl PlannedInstall {
 /// progress across all layers.
 async fn install_one(
     manager: &Manager,
-    tree: &SharedTree,
+    display: &SharedDisplay,
     offline: bool,
     reference: &Reference,
     vendor_dir: &std::path::Path,
@@ -469,19 +491,14 @@ async fn install_one(
 ) -> anyhow::Result<InstallResult> {
     if offline {
         // No progress bars in offline mode — print a simple status line.
-        // Use ├── since we cannot rewrite previous lines to fix up └──.
-        let version_str = display_version.map(|v| format!("@{v}")).unwrap_or_default();
-        println!(
-            "├── {}{}",
-            console::style(display_name).yellow(),
-            console::style(version_str).white(),
-        );
+        let version_str = display_version.map(|v| format!(" {v}")).unwrap_or_default();
+        println!("{display_name}{version_str}");
         return manager.install(reference.clone(), vendor_dir).await;
     }
 
     let (progress_tx, progress_rx) = tokio::sync::mpsc::channel::<ProgressEvent>(64);
 
-    let (pb, bar_id) = tree.lock().await.add_bar(display_name, display_version);
+    let (pb, bar_id) = display.lock().await.add_bar(display_name, display_version);
 
     // Spawn progress rendering task
     let progress_handle = tokio::task::spawn(run_progress_bars(pb.clone(), progress_rx));
@@ -496,9 +513,9 @@ async fn install_one(
     // Wait for progress bars to finish rendering
     let _ = progress_handle.await;
 
-    // Only mark the bar as complete (green, hidden) on successful installs.
+    // Only mark the bar as complete (green checkmark) on successful installs.
     if result.is_ok() {
-        tree.lock().await.finish_bar(bar_id);
+        display.lock().await.finish_bar(bar_id);
     }
 
     result
@@ -623,7 +640,7 @@ fn process_top_level_result(
 async fn install_transitive_deps(
     initial_deps: Vec<DependencyItem>,
     manager: &Manager,
-    tree: &SharedTree,
+    display: &SharedDisplay,
     wasm_vendor_dir: &std::path::Path,
     wit_vendor_dir: &std::path::Path,
     lockfile: &mut wasm_manifest::Lockfile,
@@ -668,13 +685,13 @@ async fn install_transitive_deps(
         let results: Vec<Option<InstallResult>> = wave_entries
             .into_co_stream()
             .map(|(dep, dep_ref, display_name, version)| {
-                let tree = SharedTree::clone(tree);
+                let display = SharedDisplay::clone(display);
                 let vendor_dir = wasm_vendor_dir.to_path_buf();
                 let wit_dir = wit_vendor_dir.to_path_buf();
                 async move {
                     let dep_result = match install_one(
                         manager,
-                        &tree,
+                        &display,
                         false,
                         &dep_ref,
                         &vendor_dir,
