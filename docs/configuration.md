@@ -6,11 +6,13 @@
 
 `wasm(1)` follows the [XDG Base Directory specification](https://specifications.freedesktop.org/basedir-spec/latest/) for storing data:
 
-| XDG Variable       | Purpose                                                | Default          |
-| ------------------ | ------------------------------------------------------ | ---------------- |
-| `$XDG_CONFIG_HOME` | User-specific configuration files                      | `~/.config`      |
-| `$XDG_DATA_HOME`   | User-specific data files                               | `~/.local/share` |
-| `$XDG_STATE_HOME`  | User-specific state data (logs, history, recent files) | `~/.local/state` |
+| XDG Variable       | Purpose                                                | Unix / macOS default | Windows default |
+| ------------------ | ------------------------------------------------------ | -------------------- | --------------- |
+| `$XDG_CONFIG_HOME` | User-specific configuration files                      | `~/.config`          | `%APPDATA%`     |
+| `$XDG_DATA_HOME`   | User-specific data files                               | `~/.local/share`     | `%LOCALAPPDATA%`|
+| `$XDG_STATE_HOME`  | User-specific state data (logs, history, recent files) | `~/.local/state`     | `%LOCALAPPDATA%`|
+
+Setting the XDG environment variable always takes precedence on every platform.
 
 ## Configuration Files
 
