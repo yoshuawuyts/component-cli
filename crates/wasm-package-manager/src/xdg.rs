@@ -12,66 +12,145 @@
 //!
 //! [XDG Base Directory Specification]: https://specifications.freedesktop.org/basedir-spec/latest/
 
-use std::env;
+use std::ffi::OsString;
 use std::path::PathBuf;
 
 /// Return the XDG config home directory.
 ///
-/// Uses `$XDG_CONFIG_HOME` if set on any platform. Otherwise falls back to
-/// `$HOME/.config` on Unix/macOS or `%APPDATA%` on Windows.
-pub(crate) fn xdg_config_home() -> PathBuf {
-    if let Some(val) = env::var_os("XDG_CONFIG_HOME") {
-        return PathBuf::from(val);
+/// Uses `$XDG_CONFIG_HOME` if set (and non-empty) on any platform. Otherwise
+/// falls back to `$HOME/.config` on Unix/macOS or `%APPDATA%` on Windows.
+///
+/// Returns `None` when no suitable directory can be determined (e.g. neither
+/// `$XDG_CONFIG_HOME`, `$HOME`, nor the platform-specific fallback is
+/// available).
+pub(crate) fn xdg_config_home() -> Option<PathBuf> {
+    resolve_config_home(
+        std::env::var_os("XDG_CONFIG_HOME"),
+        dirs::home_dir(),
+        platform_env(),
+    )
+}
+
+/// Pure implementation that resolves the config home from explicit inputs.
+///
+/// This is separated from [`xdg_config_home`] so it can be tested
+/// deterministically without depending on the process environment.
+fn resolve_config_home(
+    xdg_config_home: Option<OsString>,
+    home_dir: Option<PathBuf>,
+    platform_dir: Option<PathBuf>,
+) -> Option<PathBuf> {
+    // Honour $XDG_CONFIG_HOME when set to a non-empty, absolute path.
+    if let Some(val) = xdg_config_home {
+        let path = PathBuf::from(val);
+        if !path.as_os_str().is_empty() && path.is_absolute() {
+            return Some(path);
+        }
     }
-    platform_config_home()
+
+    // Platform-specific fallback (e.g. %APPDATA% on Windows).
+    if let Some(dir) = platform_dir {
+        return Some(dir);
+    }
+
+    // Final fallback: $HOME/.config
+    home_dir.map(|h| h.join(".config"))
 }
 
-/// Fallback when no XDG or platform-specific env var is set: `$HOME/.config`.
-fn home_dot_config() -> PathBuf {
-    dirs::home_dir().map_or_else(|| PathBuf::from(".config"), |h| h.join(".config"))
-}
-
-/// Platform-specific default when `$XDG_CONFIG_HOME` is not set.
+/// Return the platform-specific config env var, if any.
 #[cfg(windows)]
-fn platform_config_home() -> PathBuf {
-    // %APPDATA% is the conventional roaming config directory on Windows.
-    env::var_os("APPDATA").map_or_else(home_dot_config, PathBuf::from)
+fn platform_env() -> Option<PathBuf> {
+    std::env::var_os("APPDATA").map(PathBuf::from)
 }
 
-/// Platform-specific default when `$XDG_CONFIG_HOME` is not set.
+/// Return the platform-specific config env var, if any.
 #[cfg(not(windows))]
-fn platform_config_home() -> PathBuf {
-    home_dot_config()
+fn platform_env() -> Option<PathBuf> {
+    None
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    // ------------------------------------------------------------------
+    // Tests for the pure `resolve_config_home` helper
+    // ------------------------------------------------------------------
+
     #[test]
-    fn xdg_config_home_returns_non_empty_path() {
-        let path = xdg_config_home();
-        assert!(!path.as_os_str().is_empty());
+    fn respects_absolute_xdg_config_home() {
+        let result = resolve_config_home(
+            Some(OsString::from("/custom/config")),
+            Some(PathBuf::from("/home/user")),
+            None,
+        );
+        assert_eq!(result, Some(PathBuf::from("/custom/config")));
     }
 
     #[test]
-    fn xdg_config_home_defaults_correctly_when_env_unset() {
-        let path = xdg_config_home();
-        // When $XDG_CONFIG_HOME is not set, verify the platform default.
-        if env::var_os("XDG_CONFIG_HOME").is_none() {
-            if cfg!(windows) {
-                // On Windows the fallback is %APPDATA%, which is always
-                // expected to be set. If it is missing something is very
-                // wrong with the environment, so we let the test fail.
-                let appdata = env::var_os("APPDATA").expect("%APPDATA% should be set on Windows");
-                assert_eq!(path, PathBuf::from(appdata));
-            } else {
-                assert!(
-                    path.ends_with(".config"),
-                    "expected path to end with .config, got: {}",
-                    path.display()
-                );
-            }
+    fn ignores_empty_xdg_config_home() {
+        let result = resolve_config_home(
+            Some(OsString::from("")),
+            Some(PathBuf::from("/home/user")),
+            None,
+        );
+        assert_eq!(result, Some(PathBuf::from("/home/user/.config")));
+    }
+
+    #[test]
+    fn ignores_relative_xdg_config_home() {
+        let result = resolve_config_home(
+            Some(OsString::from("relative/path")),
+            Some(PathBuf::from("/home/user")),
+            None,
+        );
+        assert_eq!(result, Some(PathBuf::from("/home/user/.config")));
+    }
+
+    #[test]
+    fn falls_back_to_platform_dir() {
+        let result = resolve_config_home(
+            None,
+            Some(PathBuf::from("/home/user")),
+            Some(PathBuf::from("/appdata/roaming")),
+        );
+        assert_eq!(result, Some(PathBuf::from("/appdata/roaming")));
+    }
+
+    #[test]
+    fn falls_back_to_home_dot_config() {
+        let result = resolve_config_home(None, Some(PathBuf::from("/home/user")), None);
+        assert_eq!(result, Some(PathBuf::from("/home/user/.config")));
+    }
+
+    #[test]
+    fn returns_none_when_nothing_available() {
+        let result = resolve_config_home(None, None, None);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn xdg_overrides_platform_dir() {
+        let result = resolve_config_home(
+            Some(OsString::from("/xdg/override")),
+            Some(PathBuf::from("/home/user")),
+            Some(PathBuf::from("/appdata/roaming")),
+        );
+        assert_eq!(result, Some(PathBuf::from("/xdg/override")));
+    }
+
+    // ------------------------------------------------------------------
+    // Integration smoke test using the real environment
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn xdg_config_home_returns_absolute_or_none() {
+        if let Some(path) = xdg_config_home() {
+            assert!(
+                path.is_absolute(),
+                "xdg_config_home() should return an absolute path, got: {}",
+                path.display()
+            );
         }
     }
 }
