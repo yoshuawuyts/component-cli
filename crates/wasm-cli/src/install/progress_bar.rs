@@ -1076,10 +1076,8 @@ mod tests {
     fn prefix_green_on_completion() {
         // Force colors on so the test is deterministic regardless of TTY.
         console::set_colors_enabled(true);
-        let prefix = build_prefix("wasi:http", Some("0.2.3"), 20);
-        // The prefix uses white name + dim version styling (ANSI codes present).
-        console::set_colors_enabled(true);
         let styled = build_prefix("wasi:http", Some("0.2.3"), 20);
+        // The prefix uses white name + dim version styling (ANSI codes present).
         assert_ne!(
             styled,
             console::strip_ansi_codes(&styled),

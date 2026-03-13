@@ -161,8 +161,6 @@ impl Opts {
         // mode).  We skip silently and let the fallback installer handle it.
         let mut resolved_transitive: HashMap<String, wasm_package_manager::resolver::WitVersion> =
             HashMap::new();
-        // Track which package names were actually fed into the resolver as
-        // roots.  Used later to build the `planned_packages` set.
         let mut resolver_root_names: HashSet<String> = HashSet::new();
         if !offline {
             let mut roots = Vec::new();
@@ -231,25 +229,6 @@ impl Opts {
                 })
             })
             .collect();
-
-        // Derive the set of all WIT package names being installed in the
-        // concurrent batch — both top-level resolver roots and transitive.
-        // This ensures the fallback path does not sequentially re-install a
-        // dep that is already enqueued in the concurrent batch (e.g. a
-        // package that is both a top-level dep and a transitive dep of
-        // another top-level).
-        //
-        // Only the actual resolver roots are included (not all manifest
-        // keys), so component entries and entries that didn't qualify for
-        // the resolver are correctly left out and can fall through to the
-        // sequential fallback.
-        let planned_packages: HashSet<String> = {
-            let transitive_names = transitive_installs.iter().filter_map(|entry| match entry {
-                PlannedInstall::Transitive { package_name, .. } => Some(package_name.clone()),
-                PlannedInstall::TopLevel { .. } => None,
-            });
-            transitive_names.chain(resolver_root_names).collect()
-        };
 
         let all_installs: Vec<PlannedInstall> = to_install
             .into_iter()
@@ -345,35 +324,13 @@ impl Opts {
                     explicit_name,
                     ..
                 } => {
-                    let dependencies = process_top_level_result(
+                    process_top_level_result(
                         result,
                         update_manifest,
                         explicit_name,
                         &mut manifest,
                         &mut lockfile,
                     );
-
-                    // Fallback: install any transitive deps that were not
-                    // part of the upfront plan (e.g. deps of bare OCI URL
-                    // refs that bypass the resolver).
-                    if !offline {
-                        let unplanned: Vec<DependencyItem> = dependencies
-                            .into_iter()
-                            .filter(|d| !planned_packages.contains(&d.package))
-                            .collect();
-                        if !unplanned.is_empty() {
-                            install_transitive_deps(
-                                unplanned,
-                                manager_ref,
-                                &display,
-                                &wasm_vendor_dir,
-                                &wit_vendor_dir,
-                                &mut lockfile,
-                            )
-                            .await
-                            .map_err(crate::util::into_miette)?;
-                        }
-                    }
                 }
                 PlannedInstall::Transitive { .. } => {
                     upsert_lockfile_type(&mut lockfile, &result);
@@ -638,114 +595,6 @@ fn process_top_level_result(
     result.dependencies
 }
 
-/// Recursively install transitive WIT dependencies of a component.
-///
-/// Installs each wave of dependencies concurrently and then collects
-/// their transitive deps for the next wave. This is a breadth-first
-/// traversal where each level is installed as a concurrent batch.
-///
-/// A visited set prevents cycles and duplicates, and lockfile-present
-/// entries are skipped.  Failures are logged and skipped — the manifest
-/// is **not** modified.
-async fn install_transitive_deps(
-    initial_deps: Vec<DependencyItem>,
-    manager: &Manager,
-    display: &SharedDisplay,
-    wasm_vendor_dir: &std::path::Path,
-    wit_vendor_dir: &std::path::Path,
-    lockfile: &mut wasm_manifest::Lockfile,
-) -> anyhow::Result<()> {
-    let mut current_wave = initial_deps;
-    let mut visited: HashSet<(String, Option<String>)> = HashSet::new();
-
-    while !current_wave.is_empty() {
-        // Build a set of lockfile interface names for O(1) lookups.
-        let lockfile_names: HashSet<&str> = lockfile
-            .interfaces
-            .iter()
-            .map(|p| p.name.as_str())
-            .collect();
-
-        // Deduplicate and filter the current wave, collecting
-        // installable entries.
-        let wave_entries: Vec<(DependencyItem, Reference, String, Option<String>)> = current_wave
-            .into_iter()
-            .filter(|dep| {
-                let dep_key = (dep.package.clone(), dep.version.clone());
-                visited.insert(dep_key)
-            })
-            .filter(|dep| !lockfile_names.contains(dep.package.as_str()))
-            .filter_map(|dep| {
-                let dep_ref = resolve_dep_reference(manager, &dep)?;
-                let (name, version) = package_display_parts(Some(&dep.package), dep_ref.tag());
-                let display_name = if name.is_empty() {
-                    dep.package.clone()
-                } else {
-                    name
-                };
-                Some((dep, dep_ref, display_name, version))
-            })
-            .collect();
-
-        if wave_entries.is_empty() {
-            break;
-        }
-
-        // Install all entries in this wave concurrently.
-        let results: Vec<Option<InstallResult>> = wave_entries
-            .into_co_stream()
-            .map(|(dep, dep_ref, display_name, version)| {
-                let display = SharedDisplay::clone(display);
-                let vendor_dir = wasm_vendor_dir.to_path_buf();
-                let wit_dir = wit_vendor_dir.to_path_buf();
-                async move {
-                    let dep_result = match install_one(
-                        manager,
-                        &display,
-                        false,
-                        &dep_ref,
-                        &vendor_dir,
-                        &display_name,
-                        version.as_deref(),
-                    )
-                    .await
-                    {
-                        Ok(r) => r,
-                        Err(e) => {
-                            tracing::debug!(
-                                "Failed to install WIT dependency '{}': {e} — skipping",
-                                dep.package,
-                            );
-                            return None;
-                        }
-                    };
-
-                    if let Err(e) = re_vendor_wit_files(&dep_result, &wit_dir).await {
-                        tracing::debug!(
-                            "Failed to vendor WIT files for '{}': {e} — skipping",
-                            dep.package,
-                        );
-                    }
-
-                    Some(dep_result)
-                }
-            })
-            .collect()
-            .await;
-
-        // Process results: update lockfile and collect next-wave deps.
-        let mut next_wave = Vec::new();
-        for result in results.into_iter().flatten() {
-            upsert_lockfile_type(lockfile, &result);
-            next_wave.extend(result.dependencies);
-        }
-
-        current_wave = next_wave;
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use wasm_package_manager::manager::InstallResult;
@@ -925,58 +774,5 @@ mod tests {
         );
         // Original .wasm should still be present (not moved).
         assert!(wasm_path.exists(), "component .wasm should be untouched");
-    }
-
-    #[test]
-    fn planned_packages_includes_resolver_roots_and_enqueued_transitive() {
-        use super::PlannedInstall;
-        use std::collections::HashSet;
-
-        // Simulate: the resolver returned two transitive deps (wasi:io and
-        // wasi:cli), but only wasi:io survived filtering (e.g. wasi:cli was
-        // already in the lockfile or unresolvable via OCI).  Only actual
-        // resolver roots (interface keys that went through the resolver) are
-        // included in the planned set — component keys and entries that
-        // didn't qualify are excluded so they correctly fall through to the
-        // sequential fallback.
-        let transitive_installs = vec![PlannedInstall::Transitive {
-            reference: "ghcr.io/test/wasi-io:0.2.0"
-                .parse()
-                .expect("valid reference"),
-            package_name: "wasi:io".to_string(),
-        }];
-
-        // This mirrors the derivation in Opts::run: transitive names from
-        // the actual install vec, plus only the resolver root names (not
-        // all manifest keys).
-        let resolver_root_names: HashSet<String> = HashSet::from(["wasi:http".to_string()]);
-        let planned: HashSet<String> = {
-            let transitive_names = transitive_installs.iter().filter_map(|entry| match entry {
-                PlannedInstall::Transitive { package_name, .. } => Some(package_name.clone()),
-                PlannedInstall::TopLevel { .. } => None,
-            });
-            transitive_names.chain(resolver_root_names).collect()
-        };
-
-        // "wasi:io" was actually enqueued as transitive → in planned set.
-        assert!(planned.contains("wasi:io"));
-        // "wasi:http" is a resolver root → in planned set.
-        assert!(
-            planned.contains("wasi:http"),
-            "resolver root names should appear in planned set"
-        );
-        // "wasi:cli" was resolved but not enqueued → absent from planned,
-        // so the fallback installer handles it.
-        assert!(
-            !planned.contains("wasi:cli"),
-            "only enqueued deps should appear in planned set"
-        );
-        // Component keys (e.g. "root:component") that didn't go through the
-        // resolver are absent from planned so their transitive deps are
-        // handled by the sequential fallback.
-        assert!(
-            !planned.contains("root:component"),
-            "component keys should not appear in planned set"
-        );
     }
 }
