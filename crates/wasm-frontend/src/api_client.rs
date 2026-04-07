@@ -77,14 +77,25 @@ impl ApiClient {
     /// Fetch and deserialize a list of packages from the given URL.
     async fn fetch_packages_from(&self, url: &str) -> Vec<KnownPackage> {
         let Ok(req) = Request::get(url).body(Body::empty()) else {
+            eprintln!("wasm-frontend: failed to build request for {url}");
             return Vec::new();
         };
 
-        let Ok(response) = self.client.send(req).await else {
-            return Vec::new();
+        let response = match self.client.send(req).await {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("wasm-frontend: HTTP request to {url} failed: {e}");
+                return Vec::new();
+            }
         };
 
         let mut body = response.into_body();
-        body.json::<Vec<KnownPackage>>().await.unwrap_or_default()
+        match body.json::<Vec<KnownPackage>>().await {
+            Ok(packages) => packages,
+            Err(e) => {
+                eprintln!("wasm-frontend: failed to parse response from {url}: {e}");
+                Vec::new()
+            }
+        }
     }
 }
