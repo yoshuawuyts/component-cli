@@ -2,6 +2,7 @@
 
 // r[impl frontend.pages.search]
 
+use html::inline_text::Span;
 use html::text_content::Division;
 use wasm_meta_registry_client::KnownPackage;
 
@@ -127,51 +128,71 @@ fn render_search_form(query: &str) -> Division {
 
 /// Render a single package row.
 fn render_row(pkg: &KnownPackage) -> Division {
-    let display_name = match (&pkg.wit_namespace, &pkg.wit_name) {
-        (Some(ns), Some(name)) => format!("{ns}:{name}"),
-        _ => pkg.repository.clone(),
-    };
-
+    let (display_name, href) = package_identity(pkg);
     let description = pkg.description.as_deref().unwrap_or("");
     let version = pkg.tags.first().map_or("—", String::as_str);
+    let [name_span, version_span, description_span] = row_spans(
+        &display_name,
+        version,
+        description,
+        if href.is_some() {
+            "text-accent"
+        } else {
+            "text-fg"
+        },
+    );
 
-    match (&pkg.wit_namespace, &pkg.wit_name) {
-        (Some(ns), Some(name)) => Division::builder()
-            .anchor(|a| {
-                a.href(format!("/{ns}/{name}"))
-                    .class(
-                        "flex items-baseline gap-3 py-3 hover:bg-surface -mx-2 px-2 rounded transition-colors",
-                    )
-                    .span(|s| {
-                        s.class("w-48 shrink-0 font-semibold text-accent truncate")
-                            .text(display_name)
-                    })
-                    .span(|s| {
-                        s.class("w-20 shrink-0 text-sm text-fg-faint")
-                            .text(version.to_owned())
-                    })
-                    .span(|s| {
-                        s.class("text-sm text-fg-muted truncate")
-                            .text(description.to_owned())
-                    })
-            })
-            .build(),
-        _ => Division::builder()
-            .class("flex items-baseline gap-3 py-3 -mx-2 px-2 rounded")
-            .span(|s| {
-                s.class("w-48 shrink-0 font-semibold text-fg truncate")
-                    .text(display_name)
-            })
-            .span(|s| {
-                s.class("w-20 shrink-0 text-sm text-fg-faint")
-                    .text(version.to_owned())
-            })
-            .span(|s| {
-                s.class("text-sm text-fg-muted truncate")
-                    .text(description.to_owned())
-            })
-            .build(),
+    if let Some(href) = href {
+        let mut row = Division::builder();
+        row.anchor(|a| {
+            a.href(href)
+                .class(
+                    "flex items-baseline gap-3 py-3 hover:bg-surface -mx-2 px-2 rounded transition-colors",
+                )
+                .push(name_span)
+                .push(version_span)
+                .push(description_span)
+        });
+        row.build()
+    } else {
+        let mut row = Division::builder();
+        row.class("flex items-baseline gap-3 py-3 -mx-2 px-2 rounded")
+            .push(name_span)
+            .push(version_span)
+            .push(description_span);
+        row.build()
     }
+}
+
+fn package_identity(pkg: &KnownPackage) -> (String, Option<String>) {
+    match (&pkg.wit_namespace, &pkg.wit_name) {
+        (Some(ns), Some(name)) => (format!("{ns}:{name}"), Some(format!("/{ns}/{name}"))),
+        _ => (pkg.repository.clone(), None),
+    }
+}
+
+fn row_spans(
+    display_name: &str,
+    version: &str,
+    description: &str,
+    name_color_class: &str,
+) -> [Span; 3] {
+    [
+        Span::builder()
+            .class(format!(
+                "w-48 shrink-0 font-semibold {name_color_class} truncate"
+            ))
+            .text(display_name.to_owned())
+            .build(),
+        Span::builder()
+            .class("w-20 shrink-0 text-sm text-fg-faint")
+            .text(version.to_owned())
+            .build(),
+        Span::builder()
+            .class("text-sm text-fg-muted truncate")
+            .text(description.to_owned())
+            .build(),
+    ]
 }
 
 #[cfg(test)]
