@@ -66,4 +66,4 @@ pub mod server;
 pub use config::Config;
 pub use indexer::Indexer;
 pub use registry_file::RegistryFile;
-pub use server::router;
+pub use server::{ApiDoc, router};

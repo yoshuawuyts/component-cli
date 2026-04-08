@@ -31,6 +31,9 @@ toml = { workspace = true }
 tower-http = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+utoipa = { workspace = true }
+utoipa-axum = { workspace = true }
+wasm-meta-registry-client = { workspace = true, default-features = false, features = ["openapi"] }
 wasm-package-manager = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]

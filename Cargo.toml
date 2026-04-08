@@ -159,6 +159,8 @@ reqwest = { version = "0.13", default-features = false, features = [
     "gzip",
 ] }
 tower-http = { version = "0.6.8", features = ["cors", "trace"] }
+utoipa = "5.4.0"
+utoipa-axum = "0.2.0"
 
 # composition dependencies
 wac-parser = "0.9.0"
