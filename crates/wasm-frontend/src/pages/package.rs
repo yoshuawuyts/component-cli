@@ -135,7 +135,7 @@ fn render_install_command(display_name: &str, version: &str) -> Division {
         var checkIcon=\"{check_icon}\";\
         btn.innerHTML=copyIcon;\
         btn.addEventListener('click',function(){{\
-        navigator.clipboard.writeText({command_js}).then(function(){{\
+        navigator.clipboard.writeText('{command}').then(function(){{\
         btn.innerHTML=checkIcon;\
         setTimeout(function(){{btn.innerHTML=copyIcon}},2000)\
         }})}})}})()",
@@ -149,7 +149,7 @@ fn render_install_command(display_name: &str, version: &str) -> Division {
                  rounded-md px-3 py-2 font-mono text-xs text-fg",
             )
             .code(|code| {
-                code.class("flex-1 select-all overflow-hidden whitespace-nowrap text-ellipsis")
+                code.class("flex-1 select-all overflow-x-auto whitespace-nowrap")
                     .text(command)
             })
             .button(|btn| {
