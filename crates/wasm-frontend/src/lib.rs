@@ -19,7 +19,7 @@ mod pages;
 mod reserved;
 
 use axum::extract::Path;
-use axum::http::{HeaderValue, StatusCode, header};
+use axum::http::{HeaderValue, StatusCode, Uri, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Json, Router, routing::get};
 
@@ -82,22 +82,22 @@ async fn package_redirect(
     Path((namespace, name)): Path<(String, String)>,
 ) -> Result<Redirect, Response> {
     if is_reserved(&namespace) {
-        return Err(not_found().await);
+        return Err(not_found_response());
     }
 
     let client = ApiClient::from_env();
-    match client.fetch_package_by_wit(&namespace, &name).await {
-        Some(pkg) => {
-            let version = pkg
-                .tags
-                .first()
-                .cloned()
-                .unwrap_or_else(|| "latest".to_string());
-            Ok(Redirect::temporary(&format!(
-                "/{namespace}/{name}/{version}"
-            )))
-        }
-        None => Err(not_found().await),
+    if let Some(pkg) = client.fetch_package_by_wit(&namespace, &name).await {
+        let version = pkg
+            .tags
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "latest".to_string());
+        Ok(Redirect::temporary(&format!(
+            "/{namespace}/{name}/{version}"
+        )))
+    } else {
+        eprintln!("wasm-frontend: package not found: {namespace}/{name}");
+        Err(not_found_response())
     }
 }
 
@@ -108,22 +108,28 @@ async fn package_detail(
     Path((namespace, name, version)): Path<(String, String, String)>,
 ) -> Response {
     if is_reserved(&namespace) {
-        return not_found().await;
+        return not_found_response();
     }
 
     let client = ApiClient::from_env();
-    match client.fetch_package_by_wit(&namespace, &name).await {
-        Some(pkg) => {
-            let html = pages::package::render(&pkg, &version);
-            with_cache_control(html, "public, max-age=300")
-        }
-        None => not_found().await,
+    if let Some(pkg) = client.fetch_package_by_wit(&namespace, &name).await {
+        let html = pages::package::render(&pkg, &version);
+        with_cache_control(html, "public, max-age=300")
+    } else {
+        eprintln!("wasm-frontend: package not found: {namespace}/{name}@{version}");
+        not_found_response()
     }
 }
 
 // r[impl frontend.pages.not-found]
-/// Fallback 404 handler.
-async fn not_found() -> Response {
+/// Fallback 404 handler — logs a warning and renders the not-found page.
+async fn not_found(uri: Uri) -> Response {
+    eprintln!("wasm-frontend: 404 {uri}");
+    not_found_response()
+}
+
+/// Render the 404 page response.
+fn not_found_response() -> Response {
     let html = pages::not_found::render();
     let mut response = axum::response::Html(html).into_response();
     *response.status_mut() = StatusCode::NOT_FOUND;

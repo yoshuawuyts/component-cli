@@ -59,15 +59,13 @@ impl ApiClient {
 
     /// Look up a package by its WIT namespace and name.
     ///
-    /// Uses the search endpoint and filters client-side, since the
-    /// meta-registry does not yet have a dedicated by-WIT-name endpoint.
+    /// Searches by WIT name and filters client-side for an exact match.
     pub(crate) async fn fetch_package_by_wit(
         &self,
         namespace: &str,
         name: &str,
     ) -> Option<KnownPackage> {
-        let query = format!("{namespace}:{name}");
-        let packages = self.search_packages(&query).await;
+        let packages = self.search_packages(name).await;
         packages.into_iter().find(|pkg| {
             pkg.wit_namespace.as_deref() == Some(namespace) && pkg.wit_name.as_deref() == Some(name)
         })

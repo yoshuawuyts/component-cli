@@ -167,7 +167,7 @@ impl RawKnownPackage {
     }
 
     /// Search for known packages by a query string.
-    /// Searches in both registry and repository fields.
+    /// Searches in registry, repository, and WIT metadata fields.
     pub(crate) fn search(
         conn: &Connection,
         query: &str,
@@ -179,7 +179,10 @@ impl RawKnownPackage {
             "SELECT id, registry, repository, updated_at, created_at,
                     wit_namespace, wit_name
              FROM oci_repository
-             WHERE registry LIKE ?1 OR repository LIKE ?1
+             WHERE registry LIKE ?1
+                OR repository LIKE ?1
+                OR wit_namespace LIKE ?1
+                OR wit_name LIKE ?1
              ORDER BY repository ASC, registry ASC
              LIMIT ?2 OFFSET ?3",
         )?;
