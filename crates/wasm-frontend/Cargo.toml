@@ -20,10 +20,14 @@ html = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 semver = { workspace = true }
-wasm-meta-registry-client = { workspace = true }
 wstd = { workspace = true }
 wstd-axum = { workspace = true }
 
+[target.'cfg(all(target_os = "wasi", target_env = "p2"))'.dependencies]
+wasm-meta-registry-client = { workspace = true }
+
+[target.'cfg(not(all(target_os = "wasi", target_env = "p2")))'.dependencies]
+wasm-meta-registry-client = { workspace = true, features = ["client"] }
 [dev-dependencies]
 tokio = { workspace = true }
 
