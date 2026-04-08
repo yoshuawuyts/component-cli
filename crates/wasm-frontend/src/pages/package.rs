@@ -133,6 +133,7 @@ fn render_dependencies(pkg: &KnownPackage) -> Option<Section> {
             .build();
         li.push(dep_span);
         if let Some(v) = &dep.version {
+            li.push(Span::builder().class("text-fg-faint").text(" @ ").build());
             let version_span = Span::builder()
                 .class("text-fg-faint")
                 .text(v.clone())
@@ -171,4 +172,37 @@ fn sidebar_row(label: &str, value: &str) -> Division {
         })
         .division(|dd| dd.class("text-fg mt-0.5 break-all").text(value.to_owned()))
         .build()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wasm_meta_registry_client::PackageDependencyRef;
+
+    #[test]
+    fn dependency_versions_include_separator() {
+        let pkg = KnownPackage {
+            registry: "ghcr.io".to_string(),
+            repository: "example/pkg".to_string(),
+            description: None,
+            tags: vec!["1.0.0".to_string()],
+            signature_tags: vec![],
+            attestation_tags: vec![],
+            last_seen_at: "2026-01-01T00:00:00Z".to_string(),
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            wit_namespace: Some("wasi".to_string()),
+            wit_name: Some("demo".to_string()),
+            dependencies: vec![PackageDependencyRef {
+                package: "wasi:io".to_string(),
+                version: Some("0.2.0".to_string()),
+            }],
+        };
+
+        let html = render_dependencies(&pkg)
+            .expect("dependencies section should render")
+            .to_string();
+        assert!(html.contains("wasi:io"));
+        assert!(html.contains(" @ "));
+        assert!(html.contains("0.2.0"));
+    }
 }

@@ -13,7 +13,7 @@ keywords = { workspace = true }
 
 [features]
 default = ["client"]
-# Enable ETag-based sync (fetch_packages). Disable to use only query methods and shared types.
+# Enable native HTTP client + ETag-based sync. Without this on non-WASI targets, only shared data types are available.
 client = ["dep:reqwest", "dep:exponential-backoff", "dep:tokio"]
 
 [dependencies]

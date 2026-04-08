@@ -60,8 +60,8 @@ The API base URL MUST be configurable via a compile-time environment variable
 ## Rendering
 
 r[frontend.rendering.html-crate]
-All HTML MUST be generated server-side using the `html` crate's
-type-safe builder API.
+All dynamic HTML content MUST be generated server-side using the `html`
+crate's type-safe builder API.
 
 r[frontend.rendering.static]
 Pages SHOULD be almost entirely static — no client-side JavaScript is

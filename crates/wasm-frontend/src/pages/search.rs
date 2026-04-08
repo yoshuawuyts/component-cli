@@ -2,7 +2,6 @@
 
 // r[impl frontend.pages.search]
 
-use html::inline_text::Anchor;
 use html::text_content::Division;
 use wasm_meta_registry_client::KnownPackage;
 
@@ -127,36 +126,78 @@ fn render_search_form(query: &str) -> Division {
 }
 
 /// Render a single package row.
-fn render_row(pkg: &KnownPackage) -> Anchor {
+fn render_row(pkg: &KnownPackage) -> Division {
     let display_name = match (&pkg.wit_namespace, &pkg.wit_name) {
         (Some(ns), Some(name)) => format!("{ns}:{name}"),
         _ => pkg.repository.clone(),
     };
 
-    let href = match (&pkg.wit_namespace, &pkg.wit_name) {
-        (Some(ns), Some(name)) => format!("/{ns}/{name}"),
-        _ => "#".to_string(),
-    };
-
     let description = pkg.description.as_deref().unwrap_or("");
     let version = pkg.tags.first().map_or("—", String::as_str);
 
-    Anchor::builder()
-        .href(href)
-        .class(
-            "flex items-baseline gap-3 py-3 hover:bg-surface -mx-2 px-2 rounded transition-colors",
-        )
-        .span(|s| {
-            s.class("w-48 shrink-0 font-semibold text-accent truncate")
-                .text(display_name)
-        })
-        .span(|s| {
-            s.class("w-20 shrink-0 text-sm text-fg-faint")
-                .text(version.to_owned())
-        })
-        .span(|s| {
-            s.class("text-sm text-fg-muted truncate")
-                .text(description.to_owned())
-        })
-        .build()
+    match (&pkg.wit_namespace, &pkg.wit_name) {
+        (Some(ns), Some(name)) => Division::builder()
+            .anchor(|a| {
+                a.href(format!("/{ns}/{name}"))
+                    .class(
+                        "flex items-baseline gap-3 py-3 hover:bg-surface -mx-2 px-2 rounded transition-colors",
+                    )
+                    .span(|s| {
+                        s.class("w-48 shrink-0 font-semibold text-accent truncate")
+                            .text(display_name)
+                    })
+                    .span(|s| {
+                        s.class("w-20 shrink-0 text-sm text-fg-faint")
+                            .text(version.to_owned())
+                    })
+                    .span(|s| {
+                        s.class("text-sm text-fg-muted truncate")
+                            .text(description.to_owned())
+                    })
+            })
+            .build(),
+        _ => Division::builder()
+            .class("flex items-baseline gap-3 py-3 -mx-2 px-2 rounded")
+            .span(|s| {
+                s.class("w-48 shrink-0 font-semibold text-fg truncate")
+                    .text(display_name)
+            })
+            .span(|s| {
+                s.class("w-20 shrink-0 text-sm text-fg-faint")
+                    .text(version.to_owned())
+            })
+            .span(|s| {
+                s.class("text-sm text-fg-muted truncate")
+                    .text(description.to_owned())
+            })
+            .build(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn package_without_wit() -> KnownPackage {
+        KnownPackage {
+            registry: "ghcr.io".to_string(),
+            repository: "example/no-wit".to_string(),
+            description: Some("demo".to_string()),
+            tags: vec!["1.0.0".to_string()],
+            signature_tags: vec![],
+            attestation_tags: vec![],
+            last_seen_at: "2026-01-01T00:00:00Z".to_string(),
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            wit_namespace: None,
+            wit_name: None,
+            dependencies: vec![],
+        }
+    }
+
+    #[test]
+    fn non_wit_rows_render_as_non_links() {
+        let html = render_row(&package_without_wit()).to_string();
+        assert!(!html.contains("href=\"#\""));
+        assert!(!html.contains("<a "));
+    }
 }
