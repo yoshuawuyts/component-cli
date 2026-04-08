@@ -561,7 +561,7 @@ mod tests {
     }
 
     #[cfg(not(all(target_os = "wasi", target_env = "p2")))]
-    fn serve_once(status_line: &str, body: &str, content_type: &str) -> String {
+    fn spawn_single_response_server(status_line: &str, body: &str, content_type: &str) -> String {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind test listener");
         let addr = listener.local_addr().expect("get listener addr");
         let status = status_line.to_string();
@@ -588,7 +588,7 @@ mod tests {
     #[cfg(not(all(target_os = "wasi", target_env = "p2")))]
     #[tokio::test]
     async fn fetch_optional_returns_none_on_404() {
-        let base = serve_once(
+        let base = spawn_single_response_server(
             "404 Not Found",
             "{\"error\":\"not found\"}",
             "application/json",
@@ -605,7 +605,7 @@ mod tests {
     #[cfg(not(all(target_os = "wasi", target_env = "p2")))]
     #[tokio::test]
     async fn fetch_optional_errors_on_non_404_non_success_status() {
-        let base = serve_once("500 Internal Server Error", "boom", "text/plain");
+        let base = spawn_single_response_server("500 Internal Server Error", "boom", "text/plain");
         let client = RegistryClient::new(base);
 
         let err = client

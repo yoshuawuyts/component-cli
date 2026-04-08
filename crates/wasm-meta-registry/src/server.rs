@@ -265,10 +265,7 @@ async fn get_package_versions_nested(
         .lock()
         .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
     match manager.get_package_detail(&registry, repository)? {
-        Some(_) => {
-            let versions = manager.get_package_versions(&registry, repository)?;
-            Ok(Json(versions).into_response())
-        }
+        Some(detail) => Ok(Json(detail.versions).into_response()),
         None => Ok(StatusCode::NOT_FOUND.into_response()),
     }
 }
