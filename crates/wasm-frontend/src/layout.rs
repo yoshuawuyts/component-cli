@@ -90,7 +90,6 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
     @media (prefers-color-scheme: dark) {{
       :root {{
         --color-bg: #13111d;
-        --color-accent: #7c5df5;
         --color-accent-hover: #9678ff;
         --color-surface: #1e1b2e;
         --color-surface-muted: #252238;

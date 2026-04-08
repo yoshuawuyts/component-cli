@@ -70,7 +70,8 @@ required for core functionality.
 ## Styling
 
 r[frontend.styling.accent-color]
-The accent color MUST be `#512FEB` (R81 G47 B235).
+The accent color MUST be `#512FEB` (R81 G47 B235) in both light and dark
+themes.
 
 r[frontend.styling.tailwind]
 Tailwind CSS MUST be used as the CSS framework.
