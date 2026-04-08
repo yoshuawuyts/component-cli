@@ -168,7 +168,9 @@ pub fn router(state: AppState) -> Router {
     )
 )]
 async fn health() -> impl IntoResponse {
-    Json(serde_json::json!({ "status": "ok" }))
+    Json(HealthResponse {
+        status: "ok".to_string(),
+    })
 }
 
 /// Search packages by query string.
@@ -219,7 +221,7 @@ async fn list_packages(
     path = "/v1/packages/{registry}/{repository}",
     params(
         ("registry" = String, Path, description = "OCI registry hostname (e.g. ghcr.io)"),
-        ("repository" = String, Path, description = "Repository path (e.g. user/repo)")
+        ("repository" = String, Path, description = "Repository path, may contain slashes (e.g. user/repo)")
     ),
     responses(
         (status = 200, description = "Package found", body = KnownPackage),
