@@ -7,13 +7,13 @@ use html::text_content::Division;
 use wasm_meta_registry_client::KnownPackage;
 
 use crate::layout;
-use wasm_meta_registry_client::{ApiClient, ApiError};
+use wasm_meta_registry_client::{ApiError, RegistryClient};
 
 /// Maximum number of packages to show per section on the home page.
 const HOME_SECTION_LIMIT: usize = 6;
 
 /// Fetch recent packages and render the home page.
-pub(crate) async fn render(client: &ApiClient) -> String {
+pub(crate) async fn render(client: &RegistryClient) -> String {
     match client.fetch_recent_packages(50).await {
         Ok(packages) => render_packages(&packages),
         Err(err) => render_error(&err),

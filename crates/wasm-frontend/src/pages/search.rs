@@ -7,10 +7,10 @@ use html::text_content::Division;
 use wasm_meta_registry_client::KnownPackage;
 
 use crate::layout;
-use wasm_meta_registry_client::{ApiClient, ApiError};
+use wasm_meta_registry_client::{ApiError, RegistryClient};
 
 /// Fetch matching packages and render the search results page.
-pub(crate) async fn render(client: &ApiClient, query: &str) -> String {
+pub(crate) async fn render(client: &RegistryClient, query: &str) -> String {
     match client.search_packages(query).await {
         Ok(packages) => render_results(query, &packages),
         Err(err) => render_error(query, &err),

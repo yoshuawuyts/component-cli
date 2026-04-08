@@ -23,7 +23,7 @@ use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Json, Router, routing::get};
 use serde::Deserialize;
 
-use wasm_meta_registry_client::ApiClient;
+use wasm_meta_registry_client::RegistryClient;
 
 use crate::reserved::is_reserved;
 
@@ -58,7 +58,7 @@ async fn health() -> impl IntoResponse {
 // r[impl frontend.pages.home]
 /// Front page showing recently updated components and interfaces.
 async fn home() -> Response {
-    let client = ApiClient::from_env();
+    let client = RegistryClient::from_env();
     let html = pages::home::render(&client).await;
     with_cache_control(html, "public, max-age=60")
 }
@@ -89,7 +89,7 @@ fn default_all_packages_limit() -> u32 {
 // r[impl frontend.pages.search]
 /// Search results page.
 async fn search(Query(params): Query<SearchParams>) -> Response {
-    let client = ApiClient::from_env();
+    let client = RegistryClient::from_env();
     let html = pages::search::render(&client, &params.q).await;
     with_cache_control(html, "public, max-age=60")
 }
@@ -97,7 +97,7 @@ async fn search(Query(params): Query<SearchParams>) -> Response {
 // r[impl frontend.pages.all]
 /// Paginated listing of all known packages.
 async fn all_packages(Query(params): Query<AllPackagesParams>) -> Response {
-    let client = ApiClient::from_env();
+    let client = RegistryClient::from_env();
     let limit = params.limit.clamp(1, 200);
     let html = pages::all::render(&client, params.offset, limit).await;
     with_cache_control(html, "public, max-age=60")
@@ -119,7 +119,7 @@ async fn package_redirect(
         return Err(not_found_response());
     }
 
-    let client = ApiClient::from_env();
+    let client = RegistryClient::from_env();
     match client.fetch_package_by_wit(&namespace, &name).await {
         Ok(Some(pkg)) => {
             if let Some(version) = pick_redirect_version(&pkg.tags) {
@@ -152,7 +152,7 @@ async fn package_detail(
         return not_found_response();
     }
 
-    let client = ApiClient::from_env();
+    let client = RegistryClient::from_env();
     match client.fetch_package_by_wit(&namespace, &name).await {
         Ok(Some(pkg)) => {
             if !pkg.tags.iter().any(|tag| tag == &version) {

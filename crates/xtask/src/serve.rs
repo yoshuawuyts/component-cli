@@ -71,7 +71,7 @@ pub(crate) fn run_serve() -> Result<()> {
     let mut wasmtime_child = Command::new("wasmtime")
         .args([
             "serve",
-            "--listen",
+            "--addr",
             "127.0.0.1:8080",
             "-Scli",
             "-Sinherit-network",

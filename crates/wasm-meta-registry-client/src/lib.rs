@@ -5,42 +5,35 @@
 //!
 //! - [`KnownPackage`] — the shared wire type returned by the meta-registry
 //!   `/v1/packages` endpoint.
-//! - [`RegistryClient`] and [`FetchResult`] — an HTTP client that speaks the
-//!   meta-registry protocol, with ETag-based conditional fetches and
-//!   exponential-backoff retries (requires the **`client`** feature, enabled
-//!   by default).
+//! - [`RegistryClient`] and [`ApiError`] — an HTTP client that speaks the
+//!   meta-registry protocol, supporting search, pagination, and package
+//!   lookups. On native targets with the **`client`** feature, also provides
+//!   [`FetchResult`] for ETag-based conditional fetches with
+//!   exponential-backoff retries.
 //!
 //! # Example
 //!
 //! ```no_run
-//! use wasm_meta_registry_client::{KnownPackage, RegistryClient, FetchResult};
+//! use wasm_meta_registry_client::RegistryClient;
 //!
-//! #[tokio::main]
-//! async fn main() -> anyhow::Result<()> {
-//!     let client = RegistryClient::new("http://localhost:8081");
-//!     match client.fetch_packages(None, 100).await? {
-//!         FetchResult::NotModified => println!("up to date"),
-//!         FetchResult::Updated { packages, .. } => {
-//!             for pkg in &packages {
-//!                 println!("{}", pkg.reference());
-//!             }
-//!         }
-//!     }
-//!     Ok(())
+//! # async fn example() -> Result<(), wasm_meta_registry_client::ApiError> {
+//! let client = RegistryClient::new("http://localhost:8081");
+//! let packages = client.fetch_recent_packages(10).await?;
+//! for pkg in &packages {
+//!     println!("{}", pkg.reference());
 //! }
+//! # Ok(())
+//! # }
 //! ```
 
-#[cfg(feature = "client")]
+#[cfg(any(all(target_os = "wasi", target_env = "p2"), feature = "client"))]
 mod client;
 
+#[cfg(any(all(target_os = "wasi", target_env = "p2"), feature = "client"))]
+pub use client::{ApiError, RegistryClient};
+
 #[cfg(feature = "client")]
-pub use client::{FetchResult, RegistryClient};
-
-#[cfg(any(all(target_os = "wasi", target_env = "p2"), feature = "client"))]
-mod api_client;
-
-#[cfg(any(all(target_os = "wasi", target_env = "p2"), feature = "client"))]
-pub use api_client::{ApiClient, ApiError};
+pub use client::FetchResult;
 
 /// A declared dependency on another WIT package, as returned in the
 /// `/v1/packages` response.
