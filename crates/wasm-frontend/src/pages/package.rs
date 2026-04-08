@@ -462,43 +462,33 @@ fn render_dependencies_panel(pkg: &KnownPackage) -> Division {
     });
 
     if pkg.dependencies.is_empty() {
-        div.paragraph(|p| {
-            p.class("text-fg-muted text-sm italic")
-                .text("No dependencies")
-        });
-        return div.build();
+        return None;
     }
 
+    let mut section = Section::builder();
+    section.heading_2(|h2| h2.class("text-lg font-semibold mb-3").text("Dependencies"));
+
     let mut ul = UnorderedList::builder();
-    ul.class("space-y-2");
+    ul.class("space-y-1");
     for dep in &pkg.dependencies {
         let mut li = ListItem::builder();
-        li.class("text-sm font-mono");
-        li.push(
-            Span::builder()
-                .class("text-accent")
-                .push(
-                    html::inline_text::Anchor::builder()
-                        .href(format!("/{}", dep.package.replace(':', "/")))
-                        .class("text-accent hover:underline font-medium")
-                        .text(dep.package.clone())
-                        .build(),
-                )
-                .build(),
-        );
+        li.class("text-sm");
+        let dep_span = Span::builder()
+            .class("text-accent")
+            .text(dep.package.clone())
+            .build();
+        li.push(dep_span);
         if let Some(v) = &dep.version {
-            li.push(
-                Span::builder()
-                    .class("text-fg-faint ml-1")
-                    .text(format!("@ {v}"))
-                    .build(),
-            );
+            li.push(Span::builder().class("text-fg-faint").text(" @ ").build());
+            let version_span = Span::builder()
+                .class("text-fg-faint")
+                .text(v.clone())
+                .build();
+            li.push(version_span);
         }
         ul.push(li.build());
     }
-    div.push(ul.build());
-    div.build()
-}
+    section.push(ul.build());
 
 /// Render the dependents panel with All / Importers / Exporters filter.
 fn render_dependents_panel(importers: &[KnownPackage], exporters: &[KnownPackage]) -> Division {
