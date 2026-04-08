@@ -67,7 +67,7 @@ fn render_error(err: &ApiError, offset: u32, limit: u32) -> String {
     let mut body = Division::builder();
 
     body.division(|div| {
-        div.class("pb-6 border-b border-border mb-6")
+        div.class("pt-8 pb-6 border-b border-border mb-6")
             .heading_1(|h1| {
                 h1.class("text-3xl font-bold tracking-tight")
                     .text("All Packages")

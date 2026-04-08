@@ -125,7 +125,7 @@ fn split_by_kind(packages: &[KnownPackage]) -> (Vec<&KnownPackage>, Vec<&KnownPa
     (components, interfaces)
 }
 
-/// Render a section with a heading, a grid of package rows, and a "view all" link.
+/// Render a section with a heading, a grid of package cards, and a "view all" link.
 fn render_section(heading: &str, packages: &[&KnownPackage]) -> Section {
     let has_more = packages.len() > HOME_SECTION_LIMIT;
     let visible = packages.get(..HOME_SECTION_LIMIT).unwrap_or(packages);
