@@ -996,6 +996,43 @@ impl Manager {
         crate::resolver::resolve_all_from_db(&self.store, roots)
     }
 
+    // ================================================================
+    // Rich query methods for the meta-registry API
+    // ================================================================
+
+    /// Return all versions of a package with full per-version metadata.
+    ///
+    /// Each version includes OCI annotations, WIT worlds (with imports and
+    /// exports), Wasm components (with targets), dependencies, referrers,
+    /// and WIT source text.
+    pub fn get_package_versions(
+        &self,
+        registry: &str,
+        repository: &str,
+    ) -> anyhow::Result<Vec<wasm_meta_registry_types::PackageVersion>> {
+        self.store.get_package_versions(registry, repository)
+    }
+
+    /// Return a single version of a package by its tag.
+    pub fn get_package_version(
+        &self,
+        registry: &str,
+        repository: &str,
+        version_tag: &str,
+    ) -> anyhow::Result<Option<wasm_meta_registry_types::PackageVersion>> {
+        self.store
+            .get_package_version(registry, repository, version_tag)
+    }
+
+    /// Return full package detail including all versions and metadata.
+    pub fn get_package_detail(
+        &self,
+        registry: &str,
+        repository: &str,
+    ) -> anyhow::Result<Option<wasm_meta_registry_types::PackageDetail>> {
+        self.store.get_package_detail(registry, repository)
+    }
+
     /// Sync the local package index from a meta-registry over HTTP.
     ///
     /// Checks the `_sync_meta` table for `last_synced_at` and skips the sync

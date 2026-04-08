@@ -9,6 +9,7 @@
 use std::fmt;
 
 use crate::KnownPackage;
+use wasm_meta_registry_types::{PackageDetail, PackageVersion};
 
 /// Default API base URL when no environment variable is set.
 const DEFAULT_API_BASE_URL: &str = "http://localhost:8081";
@@ -187,10 +188,109 @@ impl RegistryClient {
         }))
     }
 
+    // ================================================================
+    // Rich API methods
+    // ================================================================
+
+    /// Fetch full detail for a package, including all versions and metadata.
+    pub async fn fetch_package_detail(
+        &self,
+        registry: &str,
+        repository: &str,
+    ) -> Result<Option<PackageDetail>, ApiError> {
+        let encoded_reg = percent_encode_query_component(registry);
+        let encoded_repo = percent_encode_query_component(repository);
+        let url = format!(
+            "{}/v1/packages/detail/{encoded_reg}/{encoded_repo}",
+            self.base_url
+        );
+        self.fetch_optional(&url).await
+    }
+
+    /// Fetch all versions of a package.
+    pub async fn fetch_package_versions(
+        &self,
+        registry: &str,
+        repository: &str,
+    ) -> Result<Vec<PackageVersion>, ApiError> {
+        let encoded_reg = percent_encode_query_component(registry);
+        let encoded_repo = percent_encode_query_component(repository);
+        let url = format!(
+            "{}/v1/packages/versions/{encoded_reg}/{encoded_repo}",
+            self.base_url
+        );
+        self.fetch_list(&url).await
+    }
+
+    /// Fetch a specific version of a package by tag.
+    pub async fn fetch_package_version(
+        &self,
+        registry: &str,
+        repository: &str,
+        version: &str,
+    ) -> Result<Option<PackageVersion>, ApiError> {
+        let encoded_reg = percent_encode_query_component(registry);
+        let encoded_repo = percent_encode_query_component(repository);
+        let encoded_ver = percent_encode_query_component(version);
+        let url = format!(
+            "{}/v1/packages/version/{encoded_reg}/{encoded_ver}/{encoded_repo}",
+            self.base_url
+        );
+        self.fetch_optional(&url).await
+    }
+
+    /// Search packages by imported interface.
+    pub async fn search_packages_by_import(
+        &self,
+        interface: &str,
+    ) -> Result<Vec<KnownPackage>, ApiError> {
+        let encoded = percent_encode_query_component(interface);
+        let url = format!("{}/v1/search/by-import?interface={encoded}", self.base_url);
+        self.fetch_packages_from(&url).await
+    }
+
+    /// Search packages by exported interface.
+    pub async fn search_packages_by_export(
+        &self,
+        interface: &str,
+    ) -> Result<Vec<KnownPackage>, ApiError> {
+        let encoded = percent_encode_query_component(interface);
+        let url = format!("{}/v1/search/by-export?interface={encoded}", self.base_url);
+        self.fetch_packages_from(&url).await
+    }
+
     /// Fetch and deserialize a list of packages from the given URL.
     async fn fetch_packages_from(&self, url: &str) -> Result<Vec<KnownPackage>, ApiError> {
         let bytes = self.get(url).await?;
         serde_json::from_slice(&bytes).map_err(|e| {
+            ApiError::new(format!(
+                "received an unexpected response from the registry: {e}"
+            ))
+        })
+    }
+
+    /// Fetch and deserialize a list of items from the given URL.
+    async fn fetch_list<T: serde::de::DeserializeOwned>(
+        &self,
+        url: &str,
+    ) -> Result<Vec<T>, ApiError> {
+        let bytes = self.get(url).await?;
+        serde_json::from_slice(&bytes).map_err(|e| {
+            ApiError::new(format!(
+                "received an unexpected response from the registry: {e}"
+            ))
+        })
+    }
+
+    /// Fetch and deserialize a single item, returning `None` on 404.
+    async fn fetch_optional<T: serde::de::DeserializeOwned>(
+        &self,
+        url: &str,
+    ) -> Result<Option<T>, ApiError> {
+        let Some(bytes) = self.get_with_status(url).await? else {
+            return Ok(None);
+        };
+        serde_json::from_slice(&bytes).map(Some).map_err(|e| {
             ApiError::new(format!(
                 "received an unexpected response from the registry: {e}"
             ))
@@ -230,6 +330,50 @@ impl RegistryClient {
         resp.bytes()
             .await
             .map(|b| b.to_vec())
+            .map_err(|e| ApiError::new(format!("failed to read response body: {e}")))
+    }
+
+    /// Perform an HTTP GET request, returning `None` for 404 responses.
+    #[cfg(all(target_os = "wasi", target_env = "p2"))]
+    async fn get_with_status(&self, url: &str) -> Result<Option<Vec<u8>>, ApiError> {
+        use wstd::http::{Body, Request};
+
+        let req = Request::get(url)
+            .body(Body::empty())
+            .map_err(|e| ApiError::new(format!("failed to build request for {url}: {e}")))?;
+
+        let response =
+            self.client.send(req).await.map_err(|e| {
+                ApiError::new(format!("could not connect to the registry API: {e}"))
+            })?;
+
+        if response.status() == wstd::http::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+
+        let mut body = response.into_body();
+        let bytes = body
+            .contents()
+            .await
+            .map_err(|e| ApiError::new(format!("failed to read response body: {e}")))?;
+        Ok(Some(bytes.to_vec()))
+    }
+
+    /// Perform an HTTP GET request, returning `None` for 404 responses.
+    #[cfg(not(all(target_os = "wasi", target_env = "p2")))]
+    async fn get_with_status(&self, url: &str) -> Result<Option<Vec<u8>>, ApiError> {
+        let resp =
+            self.client.get(url).send().await.map_err(|e| {
+                ApiError::new(format!("could not connect to the registry API: {e}"))
+            })?;
+
+        if resp.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+
+        resp.bytes()
+            .await
+            .map(|b| Some(b.to_vec()))
             .map_err(|e| ApiError::new(format!("failed to read response body: {e}")))
     }
 }

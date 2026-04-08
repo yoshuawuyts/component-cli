@@ -1,9 +1,9 @@
 use super::models::RawKnownPackage;
 
-// Re-export the canonical `KnownPackage` from the client crate so that
+// Re-export the canonical `KnownPackage` from the types crate so that
 // existing consumers (`wasm_package_manager::storage::KnownPackage`) keep
 // working without any source changes.
-pub use wasm_meta_registry_client::KnownPackage;
+pub use wasm_meta_registry_types::KnownPackage;
 
 impl From<RawKnownPackage> for KnownPackage {
     fn from(pkg: RawKnownPackage) -> Self {
