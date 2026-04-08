@@ -15,19 +15,37 @@ pub(crate) async fn render(client: &ApiClient) -> String {
 
     let mut body = Division::builder();
 
-    body.heading_1(|h1| {
-        h1.class("text-3xl font-bold tracking-tight mb-8")
-            .text("All Packages")
+    // Page header with count
+    body.division(|div| {
+        div.class("flex items-baseline justify-between pb-6 border-b border-gray-200 mb-6")
+            .heading_1(|h1| {
+                h1.class("text-3xl font-bold tracking-tight")
+                    .text("All Packages")
+            })
+            .span(|s| {
+                s.class("text-sm text-gray-400")
+                    .text(format!("{} packages", packages.len()))
+            })
     });
 
     if packages.is_empty() {
-        body.paragraph(|p| {
-            p.class("text-gray-500")
-                .text("No packages found. The registry may still be syncing.")
+        body.division(|div| {
+            div.class("py-16 text-center").paragraph(|p| {
+                p.class("text-gray-500")
+                    .text("No packages found. The registry may still be syncing.")
+            })
         });
     } else {
+        // Table-style header
+        body.division(|div| {
+            div.class("hidden sm:flex items-baseline gap-3 px-2 pb-2 text-xs text-gray-400 uppercase tracking-wide")
+                .span(|s| s.class("w-48 shrink-0").text("Package"))
+                .span(|s| s.class("w-20 shrink-0").text("Version"))
+                .span(|s| s.text("Description"))
+        });
+
         let mut list = Division::builder();
-        list.class("space-y-2");
+        list.class("divide-y divide-gray-100");
         for pkg in &packages {
             list.push(render_row(pkg));
         }
@@ -55,16 +73,20 @@ fn render_row(pkg: &KnownPackage) -> Anchor {
 
     Anchor::builder()
         .href(href)
-        .class("flex items-center justify-between border border-gray-200 rounded-lg px-4 py-3 hover:border-accent hover:shadow-sm transition-colors")
-        .span(|outer| {
-            outer
-                .class("block")
-                .span(|s| s.class("font-semibold text-accent").text(display_name))
-                .span(|s| s.class("text-sm text-gray-500 ml-2").text(version.to_owned()))
-                .span(|s| {
-                    s.class("block text-sm text-gray-600 mt-0.5 line-clamp-1")
-                        .text(description.to_owned())
-                })
+        .class(
+            "flex items-baseline gap-3 py-3 hover:bg-gray-50 -mx-2 px-2 rounded transition-colors",
+        )
+        .span(|s| {
+            s.class("w-48 shrink-0 font-semibold text-accent truncate")
+                .text(display_name)
+        })
+        .span(|s| {
+            s.class("w-20 shrink-0 text-sm text-gray-400")
+                .text(version.to_owned())
+        })
+        .span(|s| {
+            s.class("text-sm text-gray-500 truncate")
+                .text(description.to_owned())
         })
         .build()
 }

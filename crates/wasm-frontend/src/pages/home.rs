@@ -10,6 +10,9 @@ use wasm_meta_registry_client::KnownPackage;
 use crate::api_client::ApiClient;
 use crate::layout;
 
+/// Maximum number of packages to show per section on the home page.
+const HOME_SECTION_LIMIT: usize = 6;
+
 /// Fetch recent packages and render the home page.
 pub(crate) async fn render(client: &ApiClient) -> String {
     let packages = client.fetch_recent_packages(50).await;
@@ -18,26 +21,48 @@ pub(crate) async fn render(client: &ApiClient) -> String {
 
     let mut body = Division::builder();
 
-    body.heading_1(|h1| {
-        h1.class("text-3xl font-bold tracking-tight mb-8")
-            .text("WebAssembly Package Registry")
-    });
+    // Hero area
+    body.push(render_hero(packages.len()));
 
-    if let Some(section) = render_section("Recently Updated Interfaces", &interfaces) {
+    // Package sections with generous separation
+    if let Some(section) = render_section("Interfaces", &interfaces) {
         body.push(section);
     }
-    if let Some(section) = render_section("Recently Updated Components", &components) {
+    if let Some(section) = render_section("Components", &components) {
         body.push(section);
     }
 
     if packages.is_empty() {
-        body.paragraph(|p| {
-            p.class("text-gray-500 mt-8")
-                .text("No packages found. The registry may still be syncing.")
+        body.division(|div| {
+            div.class("py-16 text-center").paragraph(|p| {
+                p.class("text-gray-500")
+                    .text("No packages found. The registry may still be syncing.")
+            })
         });
     }
 
     layout::document("Home", &body.build().to_string())
+}
+
+/// Render the hero area with title, subtitle, and package count.
+fn render_hero(total: usize) -> Division {
+    let mut hero = Division::builder();
+    hero.class("pb-12 border-b border-gray-200 mb-12");
+    hero.heading_1(|h1| {
+        h1.class("text-3xl font-bold tracking-tight")
+            .text("WebAssembly Package Registry")
+    });
+    hero.paragraph(|p| {
+        p.class("text-gray-500 mt-3 max-w-[50ch]")
+            .text("Browse WebAssembly components and WIT interfaces published to OCI registries.")
+    });
+    if total > 0 {
+        hero.paragraph(|p| {
+            p.class("text-sm text-gray-400 mt-4")
+                .text(format!("{total} packages indexed"))
+        });
+    }
+    hero.build()
 }
 
 /// Split packages into (components, interfaces) based on WIT metadata.
@@ -61,31 +86,52 @@ fn split_by_kind(packages: &[KnownPackage]) -> (Vec<&KnownPackage>, Vec<&KnownPa
     (components, interfaces)
 }
 
-/// Render a section with a heading and a grid of package cards.
+/// Render a section with a heading, a grid of package rows, and a "view all" link.
 fn render_section(heading: &str, packages: &[&KnownPackage]) -> Option<Section> {
     if packages.is_empty() {
         return None;
     }
 
+    let has_more = packages.len() > HOME_SECTION_LIMIT;
+    let visible = packages.get(..HOME_SECTION_LIMIT).unwrap_or(packages);
+
     let mut section = Section::builder();
-    section.class("mb-10");
-    section.heading_2(|h2| {
-        h2.class("text-xl font-semibold mb-4")
-            .text(heading.to_owned())
+    section.class("mb-16");
+
+    // Section header with count
+    section.division(|div| {
+        div.class("flex items-baseline justify-between mb-4")
+            .heading_2(|h2| h2.class("text-lg font-semibold").text(heading.to_owned()))
+            .span(|s| {
+                s.class("text-sm text-gray-400")
+                    .text(format!("{}", packages.len()))
+            })
     });
 
-    let mut grid = Division::builder();
-    grid.class("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4");
-    for pkg in packages {
-        grid.push(render_card(pkg));
+    // Package list — compact rows instead of card grid
+    let mut list = Division::builder();
+    list.class("divide-y divide-gray-100");
+    for pkg in visible {
+        list.push(render_row(pkg));
     }
-    section.push(grid.build());
+    section.push(list.build());
+
+    // "View all" link
+    if has_more {
+        section.paragraph(|p| {
+            p.class("mt-4").anchor(|a| {
+                a.href("/all")
+                    .class("text-sm text-accent hover:underline")
+                    .text(format!("View all {heading} →"))
+            })
+        });
+    }
 
     Some(section.build())
 }
 
-/// Render a single package card.
-fn render_card(pkg: &KnownPackage) -> Anchor {
+/// Render a single package as a compact row.
+fn render_row(pkg: &KnownPackage) -> Anchor {
     let display_name = match (&pkg.wit_namespace, &pkg.wit_name) {
         (Some(ns), Some(name)) => format!("{ns}:{name}"),
         _ => pkg.repository.clone(),
@@ -105,11 +151,19 @@ fn render_card(pkg: &KnownPackage) -> Anchor {
 
     Anchor::builder()
         .href(href)
-        .class("block border border-gray-200 rounded-lg p-4 hover:border-accent hover:shadow-sm transition-colors")
-        .span(|s| s.class("block font-semibold text-accent").text(display_name))
-        .span(|s| s.class("block text-sm text-gray-500 mt-1").text(version.to_owned()))
+        .class(
+            "flex items-baseline gap-3 py-3 hover:bg-gray-50 -mx-2 px-2 rounded transition-colors",
+        )
         .span(|s| {
-            s.class("block text-sm text-gray-600 mt-2 line-clamp-2")
+            s.class("font-semibold text-accent shrink-0")
+                .text(display_name)
+        })
+        .span(|s| {
+            s.class("text-sm text-gray-400 shrink-0")
+                .text(version.to_owned())
+        })
+        .span(|s| {
+            s.class("text-sm text-gray-500 truncate")
                 .text(description.to_owned())
         })
         .build()

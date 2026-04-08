@@ -42,11 +42,11 @@ pub(crate) fn render(pkg: &KnownPackage, version: &str) -> String {
 
     // Grid layout: main content + sidebar
     let mut grid = Division::builder();
-    grid.class("grid grid-cols-1 md:grid-cols-3 gap-8");
+    grid.class("grid grid-cols-1 md:grid-cols-3 gap-12");
 
     // Main content column
     let mut main_col = Division::builder();
-    main_col.class("md:col-span-2 space-y-6");
+    main_col.class("md:col-span-2 space-y-8");
     if let Some(tags) = render_tags(pkg, version) {
         main_col.push(tags);
     }
@@ -148,7 +148,7 @@ fn render_sidebar(pkg: &KnownPackage) -> Aside {
     aside.class("space-y-4");
 
     let mut card = Division::builder();
-    card.class("border border-gray-200 rounded-lg p-4 space-y-3 text-sm");
+    card.class("border border-gray-200 rounded-lg p-5 space-y-4 text-sm");
     card.push(sidebar_row("Registry", &pkg.registry));
     card.push(sidebar_row("Repository", &pkg.repository));
     card.push(sidebar_row("Created", &pkg.created_at));

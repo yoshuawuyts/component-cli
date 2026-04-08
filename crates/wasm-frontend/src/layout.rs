@@ -53,7 +53,7 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
 </head>
 <body class="bg-white text-gray-900 min-h-screen flex flex-col font-mono leading-relaxed">
   {nav}
-  <main class="flex-1 w-full max-w-5xl mx-auto px-4 py-8">
+  <main class="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-10">
     {body_content}
   </main>
   {footer}
