@@ -179,6 +179,9 @@ fn render_wit_content_with_doc(
         if !doc.interfaces.is_empty() {
             section.push(render_interface_overview(doc));
         }
+        if !doc.interfaces.is_empty() {
+            section.push(render_interface_overview(&doc));
+        }
     } else {
         // Fallback: show pre-extracted world summaries + raw WIT text.
         if !detail.worlds.is_empty() {
@@ -413,7 +416,7 @@ fn render_world_row(world: &wasm_wit_doc::WorldDoc) -> ListItem {
                         .text(world.name.clone())
                     })
                     .span(|s| {
-                        s.class("text-xs text-fg-muted")
+                        s.class("text-xs text-fg-secondary bg-surface-muted px-1.5 py-0.5 rounded")
                             .text(world_counts_label(import_count, export_count))
                     })
             });
