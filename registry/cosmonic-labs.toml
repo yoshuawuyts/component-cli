@@ -1,0 +1,73 @@
+[namespace]
+name = "cosmonic-labs"
+registry = "ghcr.io/cosmonic-labs"
+
+# cosmonic-labs/components
+[[component]]
+name = "http-server"
+repository = "components/http-server"
+
+[[component]]
+name = "welcome-tour"
+repository = "components/welcome-tour"
+
+[[component]]
+name = "http-blobstore"
+repository = "components/http-blobstore"
+
+[[component]]
+name = "petstore-mcp"
+repository = "components/petstore-mcp"
+
+# cosmonic-labs/petstore-mcp-server
+[[component]]
+name = "petstore-mcp-server"
+repository = "petstore-mcp-server"
+
+# cosmonic-labs/openapi2mcp
+[[component]]
+name = "openapi2mcp"
+repository = "openapi2mcp"
+
+# cosmonic-labs/demo
+[[component]]
+name = "demo-image-processor"
+repository = "demo/image-processor"
+
+[[component]]
+name = "demo-image-analyzer"
+repository = "demo/image-analyzer"
+
+[[component]]
+name = "demo-task-manager"
+repository = "demo/task-manager"
+
+# cosmonic-labs/control-demos
+[[component]]
+name = "hello-world"
+repository = "control-demos/hello-world"
+
+[[component]]
+name = "hono-swagger-ui"
+repository = "control-demos/hono-swagger-ui"
+
+# cosmonic-labs/wasmpay
+[[component]]
+name = "wasmpay-api-gateway"
+repository = "wasmpay/api-gateway"
+
+[[component]]
+name = "wasmpay-icamer-validator"
+repository = "wasmpay/icamer-validator"
+
+[[component]]
+name = "wasmpay-nordhaven-validator"
+repository = "wasmpay/nordhaven-validator"
+
+[[component]]
+name = "wasmpay-validator"
+repository = "wasmpay/wasmpay-validator"
+
+[[component]]
+name = "wasmpay-transaction-manager"
+repository = "wasmpay/transaction-manager"
