@@ -64,20 +64,39 @@ pub(crate) fn render(pkg: &KnownPackage, version: &str, tab: &ActiveTab<'_>) -> 
     };
     body.push(render_tab_bar(&url_base, tab));
 
+    // Grid layout: main content + sidebar (shared across all tabs)
+    let mut grid = Division::builder();
+    grid.class("grid grid-cols-1 md:grid-cols-3 gap-12");
+
+    // Main content column (varies by tab)
+    let mut main_col = Division::builder();
+    main_col.class("md:col-span-2 space-y-8");
     match tab {
         ActiveTab::Docs { version_detail } => {
-            body.push(render_docs_panel(pkg, version, &display_name, *version_detail));
+            if let Some(detail) = version_detail {
+                main_col.push(render_wit_content(detail));
+            }
         }
         ActiveTab::Dependencies => {
-            body.push(render_dependencies_panel(pkg));
+            main_col.push(render_dependencies_panel(pkg));
         }
         ActiveTab::Dependents {
             importers,
             exporters,
         } => {
-            body.push(render_dependents_panel(importers, exporters));
+            main_col.push(render_dependents_panel(importers, exporters));
         }
     }
+    grid.push(main_col.build());
+
+    // Sidebar
+    let version_detail = match tab {
+        ActiveTab::Docs { version_detail } => *version_detail,
+        _ => None,
+    };
+    grid.push(render_sidebar(pkg, version, &display_name, version_detail));
+
+    body.push(grid.build());
 
     layout::document(&display_name, &body.build().to_string())
 }
@@ -258,7 +277,11 @@ fn render_tab_bar(url_base: &str, active: &ActiveTab<'_>) -> Division {
             let mut nav = Division::builder();
             nav.class("flex");
             for &(label, href, is_active) in tabs {
-                let style = if is_active { active_class } else { inactive_class };
+                let style = if is_active {
+                    active_class
+                } else {
+                    inactive_class
+                };
                 nav.anchor(|a| {
                     a.href(href.to_owned())
                         .class(format!("{tab_base} {style}"))
@@ -268,34 +291,6 @@ fn render_tab_bar(url_base: &str, active: &ActiveTab<'_>) -> Division {
             nav.build()
         })
         .build()
-}
-
-/// Render the docs panel containing WIT content and sidebar.
-fn render_docs_panel(
-    pkg: &KnownPackage,
-    version: &str,
-    display_name: &str,
-    version_detail: Option<&PackageVersion>,
-) -> Division {
-    let mut panel = Division::builder();
-    panel.id("panel-docs");
-
-    let mut grid = Division::builder();
-    grid.class("grid grid-cols-1 md:grid-cols-3 gap-12");
-
-    // Main content column
-    let mut main_col = Division::builder();
-    main_col.class("md:col-span-2 space-y-8");
-    if let Some(detail) = version_detail {
-        main_col.push(render_wit_content(detail));
-    }
-    grid.push(main_col.build());
-
-    // Sidebar
-    grid.push(render_sidebar(pkg, version, display_name, version_detail));
-
-    panel.push(grid.build());
-    panel.build()
 }
 
 /// Render the dependencies panel showing forward dependencies.
@@ -410,11 +405,7 @@ fn render_dependents_panel(importers: &[KnownPackage], exporters: &[KnownPackage
 }
 
 /// Render a filterable package list panel.
-fn render_filterable_package_list(
-    id: &str,
-    packages: &[&KnownPackage],
-    visible: bool,
-) -> Division {
+fn render_filterable_package_list(id: &str, packages: &[&KnownPackage], visible: bool) -> Division {
     let mut div = Division::builder();
     div.id(id.to_owned());
     if !visible {
@@ -528,7 +519,11 @@ fn render_version_select(pkg: &KnownPackage, current_version: &str, url_name: &s
     let version_count = pkg.tags.len();
     let version_label = format!(
         "{version_count} {}",
-        if version_count == 1 { "version" } else { "versions" }
+        if version_count == 1 {
+            "version"
+        } else {
+            "versions"
+        }
     );
 
     Division::builder()
