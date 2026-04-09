@@ -680,11 +680,7 @@ fn render_dependents_panel(importers: &[KnownPackage], exporters: &[KnownPackage
 }
 
 /// Render a filterable package list panel.
-fn render_filterable_package_list(
-    id: &str,
-    packages: &[&KnownPackage],
-    visible: bool,
-) -> Division {
+fn render_filterable_package_list(id: &str, packages: &[&KnownPackage], visible: bool) -> Division {
     let mut div = Division::builder();
     div.id(id.to_owned());
     if !visible {
@@ -874,7 +870,11 @@ fn render_version_inline(pkg: &KnownPackage, current_version: &str, url_name: &s
     let version_count = pkg.tags.len();
     let version_label = format!(
         "{version_count} {}",
-        if version_count == 1 { "version" } else { "versions" }
+        if version_count == 1 {
+            "version"
+        } else {
+            "versions"
+        }
     );
 
     Division::builder()
