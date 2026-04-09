@@ -7,6 +7,7 @@
 //!
 //! On Ctrl-C both child processes are killed so no ports are left open.
 
+use std::io::BufRead;
 use std::process::{Child, Command};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -18,26 +19,6 @@ use crate::workspace_root;
 /// Run the full frontend development stack.
 pub(crate) fn run_serve() -> Result<()> {
     let root = workspace_root()?;
-
-    // 1. Build the frontend component.
-    eprintln!(":: Building wasm-frontend for wasm32-wasip2…");
-    let build_status = Command::new("cargo")
-        .env("API_BASE_URL", "http://127.0.0.1:8081")
-        .args([
-            "build",
-            "--package",
-            "wasm-frontend",
-            "--target",
-            "wasm32-wasip2",
-        ])
-        .status()
-        .context("failed to build wasm-frontend")?;
-    if !build_status.success() {
-        anyhow::bail!(
-            "cargo build failed with exit code: {:?}",
-            build_status.code()
-        );
-    }
 
     let wasm_path = root
         .join("target/wasm32-wasip2/debug/wasm_frontend.wasm")
@@ -51,35 +32,12 @@ pub(crate) fn run_serve() -> Result<()> {
         .expect("workspace root path is valid UTF-8")
         .to_owned();
 
-    // 2. Start the meta-registry.
-    eprintln!(":: Starting meta-registry on 127.0.0.1:8081…");
-    let mut registry_child = Command::new("cargo")
-        .args([
-            "run",
-            "--package",
-            "wasm-meta-registry",
-            "--",
-            &registry_dir,
-            "--bind",
-            "127.0.0.1:8081",
-        ])
-        .spawn()
-        .context("failed to start wasm-meta-registry")?;
+    // Initial build.
+    build_frontend(&root)?;
 
-    // 3. Start wasmtime serve.
-    eprintln!(":: Starting wasmtime serve on 127.0.0.1:8080…");
-    let mut wasmtime_child = Command::new("wasmtime")
-        .args([
-            "serve",
-            "--addr",
-            "127.0.0.1:8080",
-            "-Scli",
-            "-Sinherit-network",
-            "-Sallow-ip-name-lookup",
-            &wasm_path,
-        ])
-        .spawn()
-        .context("failed to start wasmtime serve")?;
+    // Start servers.
+    let mut registry_child = start_registry(&registry_dir)?;
+    let mut wasmtime_child = start_wasmtime(&wasm_path)?;
 
     // Install a Ctrl-C handler that flags shutdown.
     let shutdown = Arc::new(AtomicBool::new(false));
@@ -89,11 +47,38 @@ pub(crate) fn run_serve() -> Result<()> {
     })
     .context("failed to install Ctrl-C handler")?;
 
-    // Wait for either process to exit or Ctrl-C.
+    // Spawn a thread to read stdin for Enter presses.
+    let reload = Arc::new(AtomicBool::new(false));
+    let reload_flag = Arc::clone(&reload);
+    std::thread::spawn(move || {
+        let stdin = std::io::stdin();
+        for _ in stdin.lock().lines() {
+            reload_flag.store(true, Ordering::SeqCst);
+        }
+    });
+
+    eprintln!(":: Press Enter to rebuild and reload, Ctrl-C to quit.");
+
+    // Wait for either process to exit, Ctrl-C, or Enter.
     loop {
         if shutdown.load(Ordering::SeqCst) {
             eprintln!("\n:: Shutting down…");
             break;
+        }
+
+        // Reload on Enter.
+        if reload.swap(false, Ordering::SeqCst) {
+            eprintln!("\n:: Rebuilding…");
+            if build_frontend(&root).is_ok() {
+                kill_child(&mut wasmtime_child, "wasmtime serve");
+                kill_child(&mut registry_child, "meta-registry");
+                registry_child = start_registry(&registry_dir)?;
+                wasmtime_child = start_wasmtime(&wasm_path)?;
+                eprintln!(":: Press Enter to rebuild and reload, Ctrl-C to quit.");
+            } else {
+                eprintln!(":: Build failed, keeping current servers running.");
+            }
+            continue;
         }
 
         // Check if wasmtime exited on its own.
@@ -121,6 +106,61 @@ pub(crate) fn run_serve() -> Result<()> {
     kill_child(&mut registry_child, "meta-registry");
 
     Ok(())
+}
+
+/// Build the frontend component for wasm32-wasip2.
+fn build_frontend(root: &std::path::Path) -> Result<()> {
+    eprintln!(":: Building wasm-frontend for wasm32-wasip2…");
+    let status = Command::new("cargo")
+        .env("API_BASE_URL", "http://127.0.0.1:8081")
+        .current_dir(root)
+        .args([
+            "build",
+            "--package",
+            "wasm-frontend",
+            "--target",
+            "wasm32-wasip2",
+        ])
+        .status()
+        .context("failed to build wasm-frontend")?;
+    if !status.success() {
+        anyhow::bail!("cargo build failed with exit code: {:?}", status.code());
+    }
+    Ok(())
+}
+
+/// Start the meta-registry server.
+fn start_registry(registry_dir: &str) -> Result<Child> {
+    eprintln!(":: Starting meta-registry on 127.0.0.1:8081…");
+    Command::new("cargo")
+        .args([
+            "run",
+            "--package",
+            "wasm-meta-registry",
+            "--",
+            registry_dir,
+            "--bind",
+            "127.0.0.1:8081",
+        ])
+        .spawn()
+        .context("failed to start wasm-meta-registry")
+}
+
+/// Start wasmtime serve for the frontend.
+fn start_wasmtime(wasm_path: &str) -> Result<Child> {
+    eprintln!(":: Starting wasmtime serve on 127.0.0.1:8080…");
+    Command::new("wasmtime")
+        .args([
+            "serve",
+            "--addr",
+            "127.0.0.1:8080",
+            "-Scli",
+            "-Sinherit-network",
+            "-Sallow-ip-name-lookup",
+            wasm_path,
+        ])
+        .spawn()
+        .context("failed to start wasmtime serve")
 }
 
 /// Kill a child process, ignoring errors if it already exited.
