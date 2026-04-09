@@ -31,11 +31,7 @@ pub(crate) enum SidebarActive<'a> {
 
 /// Render the sidebar for a detail page.
 pub(crate) fn render_sidebar(ctx: &SidebarContext<'_>) -> Aside {
-    let pkg_url = format!(
-        "/{}/{}",
-        ctx.display_name.replace(':', "/"),
-        ctx.version
-    );
+    let pkg_url = format!("/{}/{}", ctx.display_name.replace(':', "/"), ctx.version);
 
     let mut aside = Aside::builder();
     aside.class("space-y-4");
@@ -53,12 +49,11 @@ fn render_nav_card(ctx: &SidebarContext<'_>, pkg_url: &str) -> Division {
 
     // Package link at top
     card.division(|d| {
-        d.class("mb-3 pb-3 border-b border-border")
-            .anchor(|a| {
-                a.href(pkg_url.to_owned())
-                    .class("text-accent hover:underline font-semibold text-sm")
-                    .text(ctx.display_name.to_owned())
-            })
+        d.class("mb-3 pb-3 border-b border-border").anchor(|a| {
+            a.href(pkg_url.to_owned())
+                .class("text-accent hover:underline font-semibold text-sm")
+                .text(ctx.display_name.to_owned())
+        })
     });
 
     // Worlds section

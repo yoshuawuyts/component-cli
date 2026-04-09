@@ -119,6 +119,7 @@ pub(crate) fn render(pkg: &KnownPackage, version: &str, tab: &ActiveTab<'_>) -> 
 /// Render the install command section with a copy button.
 fn render_install_command(display_name: &str, version: &str) -> Division {
     let command = format!("wasm install {display_name}@{version}");
+    let command_js = serde_json::to_string(&command).expect("serialize install command");
 
     let copy_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>";
     let check_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>";
@@ -130,7 +131,7 @@ fn render_install_command(display_name: &str, version: &str) -> Division {
         var checkIcon=\"{check_icon}\";\
         btn.innerHTML=copyIcon;\
         btn.addEventListener('click',function(){{\
-        navigator.clipboard.writeText('{command}').then(function(){{\
+        navigator.clipboard.writeText({command_js}).then(function(){{\
         btn.innerHTML=checkIcon;\
         setTimeout(function(){{btn.innerHTML=copyIcon}},2000)\
         }})}})}})()",
@@ -185,10 +186,10 @@ fn render_wit_content_with_doc(
         // Only show the raw WIT text if it's genuine WIT (not lossy
         // debug output that contains patterns like `type foo: "type"`
         // or `interface-Id { idx: 0 }`).
-        if let Some(wit_text) = &detail.wit_text {
-            if !is_lossy_wit(wit_text) {
-                section.push(render_raw_wit(wit_text));
-            }
+        if let Some(wit_text) = &detail.wit_text
+            && !is_lossy_wit(wit_text)
+        {
+            section.push(render_raw_wit(wit_text));
         }
     }
 
@@ -593,28 +594,33 @@ fn render_filterable_package_list(id: &str, packages: &[&KnownPackage], visible:
             (Some(ns), Some(n)) => format!("{ns}:{n}"),
             _ => pkg.repository.clone(),
         };
-        let href = match (&pkg.wit_namespace, &pkg.wit_name) {
-            (Some(ns), Some(n)) => format!("/{ns}/{n}"),
-            _ => "#".to_string(),
-        };
         let desc = pkg
             .description
             .as_deref()
             .unwrap_or("No description available");
 
         ul.list_item(|li| {
-            li.class("text-sm")
-                .anchor(|a| {
-                    a.href(href)
+            let li = li.class("text-sm");
+            let li = match (&pkg.wit_namespace, &pkg.wit_name) {
+                (Some(ns), Some(n)) => li.anchor(|a| {
+                    a.href(format!("/{ns}/{n}"))
                         .class("text-accent hover:underline font-medium")
-                        .text(name)
-                })
-                .push(
+                        .text(name.clone())
+                }),
+                _ => li.push(
                     Span::builder()
-                        .class("text-fg-secondary ml-2")
-                        .text(format!("— {desc}"))
+                        .class("text-accent font-medium")
+                        .text(name.clone())
                         .build(),
-                )
+                ),
+            };
+
+            li.push(
+                Span::builder()
+                    .class("text-fg-secondary ml-2")
+                    .text(format!("— {desc}"))
+                    .build(),
+            )
         });
     }
     div.push(ul.build());

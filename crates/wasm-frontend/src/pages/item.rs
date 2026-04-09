@@ -3,9 +3,7 @@
 use html::content::Navigation;
 use html::tables::{Table, TableRow};
 use html::text_content::Division;
-use wasm_wit_doc::{
-    FunctionDoc, HandleKind, TypeDoc, TypeKind, TypeRef, WitDocument,
-};
+use wasm_wit_doc::{FunctionDoc, HandleKind, TypeDoc, TypeKind, TypeRef, WitDocument};
 
 use super::sidebar::{SidebarActive, SidebarContext, render_sidebar};
 use crate::layout;
@@ -36,18 +34,14 @@ pub(crate) fn render_type(
 
     // Header
     body.division(|div| {
-        div.class("mb-6")
-            .heading_1(|h1| {
-                h1.class("text-3xl font-bold tracking-tight font-mono")
-                    .span(|s| s.class("text-fg-muted").text(kind_label(&ty.kind)))
-                    .text(" ")
-                    .span(|s| s.class("text-accent").text(ty.name.clone()))
-            });
+        div.class("mb-6").heading_1(|h1| {
+            h1.class("text-3xl font-bold tracking-tight font-mono")
+                .span(|s| s.class("text-fg-muted").text(kind_label(&ty.kind)))
+                .text(" ")
+                .span(|s| s.class("text-accent").text(ty.name.clone()))
+        });
         if let Some(docs) = &ty.docs {
-            div.paragraph(|p| {
-                p.class("text-lg text-fg-secondary mt-2")
-                    .text(docs.clone())
-            });
+            div.paragraph(|p| p.class("text-lg text-fg-secondary mt-2").text(docs.clone()));
         }
         div
     });
@@ -102,17 +96,13 @@ pub(crate) fn render_function(
     ));
 
     body.division(|div| {
-        div.class("mb-6")
-            .heading_1(|h1| {
-                h1.class("text-3xl font-bold tracking-tight font-mono")
-                    .span(|s| s.class("text-fg-muted").text("function "))
-                    .span(|s| s.class("text-accent").text(func.name.clone()))
-            });
+        div.class("mb-6").heading_1(|h1| {
+            h1.class("text-3xl font-bold tracking-tight font-mono")
+                .span(|s| s.class("text-fg-muted").text("function "))
+                .span(|s| s.class("text-accent").text(func.name.clone()))
+        });
         if let Some(docs) = &func.docs {
-            div.paragraph(|p| {
-                p.class("text-lg text-fg-secondary mt-2")
-                    .text(docs.clone())
-            });
+            div.paragraph(|p| p.class("text-lg text-fg-secondary mt-2").text(docs.clone()));
         }
         div
     });
@@ -208,7 +198,9 @@ fn render_type_definition(ty: &TypeDoc) -> Division {
                     for case in cases {
                         c.text(format!("    {}", case.name));
                         if let Some(t) = &case.ty {
-                            c.text("(".to_owned()).push(render_type_ref(t)).text(")".to_owned());
+                            c.text("(".to_owned())
+                                .push(render_type_ref(t))
+                                .text(")".to_owned());
                         }
                         c.text(",\n".to_owned());
                     }
@@ -244,28 +236,24 @@ fn render_type_definition(ty: &TypeDoc) -> Division {
                 });
                 pre.build()
             }
-            TypeKind::Resource { .. } => {
-                html::text_content::PreformattedText::builder()
-                    .class(pre_class)
-                    .code(|c| {
-                        c.span(|s| s.class("text-fg-muted").text("resource "))
-                            .span(|s| s.class("font-semibold").text(ty.name.clone()))
-                            .text(";".to_owned())
-                    })
-                    .build()
-            }
-            TypeKind::Alias(type_ref) => {
-                html::text_content::PreformattedText::builder()
-                    .class(pre_class)
-                    .code(|c| {
-                        c.span(|s| s.class("text-fg-muted").text("type "))
-                            .span(|s| s.class("font-semibold").text(ty.name.clone()))
-                            .text(" = ".to_owned())
-                            .push(render_type_ref(type_ref))
-                            .text(";".to_owned())
-                    })
-                    .build()
-            }
+            TypeKind::Resource { .. } => html::text_content::PreformattedText::builder()
+                .class(pre_class)
+                .code(|c| {
+                    c.span(|s| s.class("text-fg-muted").text("resource "))
+                        .span(|s| s.class("font-semibold").text(ty.name.clone()))
+                        .text(";".to_owned())
+                })
+                .build(),
+            TypeKind::Alias(type_ref) => html::text_content::PreformattedText::builder()
+                .class(pre_class)
+                .code(|c| {
+                    c.span(|s| s.class("text-fg-muted").text("type "))
+                        .span(|s| s.class("font-semibold").text(ty.name.clone()))
+                        .text(" = ".to_owned())
+                        .push(render_type_ref(type_ref))
+                        .text(";".to_owned())
+                })
+                .build(),
         })
         .build()
 }
@@ -284,17 +272,13 @@ fn render_function_definition(func: &FunctionDoc) -> Division {
                         .text(": ".to_owned())
                         .span(|s| s.class("text-fg-muted").text("func"))
                         .text("(".to_owned());
-                    let visible_params: Vec<_> = func
-                        .params
-                        .iter()
-                        .filter(|p| p.name != "self")
-                        .collect();
+                    let visible_params: Vec<_> =
+                        func.params.iter().filter(|p| p.name != "self").collect();
                     for (i, p) in visible_params.iter().enumerate() {
                         if i > 0 {
                             c.text(", ".to_owned());
                         }
-                        c.text(format!("{}: ", p.name))
-                            .push(render_type_ref(&p.ty));
+                        c.text(format!("{}: ", p.name)).push(render_type_ref(&p.ty));
                     }
                     c.text(")".to_owned());
                     if let Some(ret) = &func.result {
@@ -340,7 +324,11 @@ fn render_field_table(heading: &str, fields: &[wasm_wit_doc::FieldDoc]) -> Divis
             .table_header(|th| th.class("py-2 font-medium").text("Description"))
     });
     for field in fields {
-        table.push(render_field_row(&field.name, &field.ty, field.docs.as_deref()));
+        table.push(render_field_row(
+            &field.name,
+            &field.ty,
+            field.docs.as_deref(),
+        ));
     }
     div.push(table.build());
     div.build()
@@ -369,7 +357,8 @@ fn render_field_row(name: &str, ty: &TypeRef, docs: Option<&str>) -> TableRow {
 fn render_variant_table(cases: &[wasm_wit_doc::CaseDoc]) -> Division {
     let mut div = Division::builder();
     div.heading_2(|h2| {
-        h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3").text("Cases")
+        h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3")
+            .text("Cases")
     });
 
     let mut table = Table::builder();
@@ -406,7 +395,8 @@ fn render_variant_table(cases: &[wasm_wit_doc::CaseDoc]) -> Division {
 fn render_enum_list(cases: &[wasm_wit_doc::EnumCaseDoc]) -> Division {
     let mut div = Division::builder();
     div.heading_2(|h2| {
-        h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3").text("Cases")
+        h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3")
+            .text("Cases")
     });
     let mut table = Table::builder();
     table.class("w-full text-sm");
@@ -436,7 +426,8 @@ fn render_enum_list(cases: &[wasm_wit_doc::EnumCaseDoc]) -> Division {
 fn render_flags_list(flags: &[wasm_wit_doc::FlagDoc]) -> Division {
     let mut div = Division::builder();
     div.heading_2(|h2| {
-        h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3").text("Flags")
+        h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3")
+            .text("Flags")
     });
     let mut table = Table::builder();
     table.class("w-full text-sm");
@@ -483,7 +474,8 @@ fn render_resource_body(
     if !methods.is_empty() {
         div.division(|d| {
             d.heading_2(|h2| {
-                h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3").text("Methods")
+                h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3")
+                    .text("Methods")
             });
             for func in methods {
                 d.push(render_function_detail(func));
@@ -511,12 +503,10 @@ fn render_resource_body(
 fn render_alias(type_ref: &TypeRef) -> Division {
     Division::builder()
         .heading_2(|h2| {
-            h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3").text("Definition")
+            h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3")
+                .text("Definition")
         })
-        .paragraph(|p| {
-            p.class("font-mono text-fg")
-                .push(render_type_ref(type_ref))
-        })
+        .paragraph(|p| p.class("font-mono text-fg").push(render_type_ref(type_ref)))
         .build()
 }
 
@@ -526,11 +516,7 @@ fn render_function_detail(func: &FunctionDoc) -> Division {
     div.class("mb-6");
 
     // Param table (skip `self`)
-    let visible_params: Vec<_> = func
-        .params
-        .iter()
-        .filter(|p| p.name != "self")
-        .collect();
+    let visible_params: Vec<_> = func.params.iter().filter(|p| p.name != "self").collect();
     if !visible_params.is_empty() {
         let mut table = Table::builder();
         table.class("w-full text-sm mt-3");
@@ -560,10 +546,7 @@ fn render_function_detail(func: &FunctionDoc) -> Division {
         div.division(|d| {
             d.class("mt-3 text-sm")
                 .span(|s| s.class("text-fg-muted").text("Returns: "))
-                .span(|s| {
-                    s.class("font-mono text-fg")
-                        .push(render_type_ref(ret))
-                })
+                .span(|s| s.class("font-mono text-fg").push(render_type_ref(ret)))
         });
     }
 
@@ -695,8 +678,7 @@ fn kind_label(kind: &TypeKind) -> String {
 /// Format a `TypeRef` as a short inline string (no links).
 fn format_type_ref_short(ty: &TypeRef) -> String {
     match ty {
-        TypeRef::Primitive { name }
-        | TypeRef::Named { name, .. } => name.clone(),
+        TypeRef::Primitive { name } | TypeRef::Named { name, .. } => name.clone(),
         TypeRef::List { ty } => format!("list<{}>", format_type_ref_short(ty)),
         TypeRef::Option { ty } => format!("option<{}>", format_type_ref_short(ty)),
         TypeRef::Result { ok, err } => {

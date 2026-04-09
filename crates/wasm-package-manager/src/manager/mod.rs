@@ -625,13 +625,6 @@ impl Manager {
         self.store.delete(&reference).await
     }
 
-    fn with_dependencies(&self, mut pkg: KnownPackage) -> anyhow::Result<KnownPackage> {
-        pkg.dependencies = self
-            .store
-            .get_package_dependencies(&pkg.registry, &pkg.repository)?;
-        Ok(pkg)
-    }
-
     /// Search for known packages by query string.
     /// Searches in both registry and repository fields.
     /// Uses pagination with `offset` and `limit` parameters.

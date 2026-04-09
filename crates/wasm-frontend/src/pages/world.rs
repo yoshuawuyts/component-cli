@@ -25,18 +25,14 @@ pub(crate) fn render(
 
     // Header
     body.division(|div| {
-        div.class("mb-6")
-            .heading_1(|h1| {
-                h1.class("text-3xl font-bold tracking-tight font-mono")
-                    .span(|s| s.class("text-fg-muted").text(format!("{display_name} / ")))
-                    .span(|s| s.class("text-fg-muted").text("world "))
-                    .span(|s| s.class("text-accent").text(world.name.clone()))
-            });
+        div.class("mb-6").heading_1(|h1| {
+            h1.class("text-3xl font-bold tracking-tight font-mono")
+                .span(|s| s.class("text-fg-muted").text(format!("{display_name} / ")))
+                .span(|s| s.class("text-fg-muted").text("world "))
+                .span(|s| s.class("text-accent").text(world.name.clone()))
+        });
         if let Some(docs) = &world.docs {
-            div.paragraph(|p| {
-                p.class("text-lg text-fg-secondary mt-2")
-                    .text(docs.clone())
-            });
+            div.paragraph(|p| p.class("text-lg text-fg-secondary mt-2").text(docs.clone()));
         }
         div
     });
@@ -190,10 +186,7 @@ fn render_world_item_row(item: &WorldItemDoc) -> ListItem {
         }
         WorldItemDoc::Function(func) => {
             let sig = format_function_signature(func);
-            li.code(|c| {
-                c.class("block font-mono text-sm text-accent")
-                    .text(sig)
-            });
+            li.code(|c| c.class("block font-mono text-sm text-accent").text(sig));
             if let Some(docs) = &func.docs {
                 li.paragraph(|p| {
                     p.class("text-sm text-fg-secondary mt-1")
@@ -238,8 +231,9 @@ fn format_function_signature(func: &wasm_wit_doc::FunctionDoc) -> String {
 /// Format a `TypeRef` as a short inline string.
 fn format_type_ref_short(ty: &wasm_wit_doc::TypeRef) -> String {
     match ty {
-        wasm_wit_doc::TypeRef::Primitive { name }
-        | wasm_wit_doc::TypeRef::Named { name, .. } => name.clone(),
+        wasm_wit_doc::TypeRef::Primitive { name } | wasm_wit_doc::TypeRef::Named { name, .. } => {
+            name.clone()
+        }
         wasm_wit_doc::TypeRef::List { ty } => {
             format!("list<{}>", format_type_ref_short(ty))
         }

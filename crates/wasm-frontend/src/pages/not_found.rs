@@ -16,12 +16,11 @@ pub(crate) fn render() -> String {
                 .text("Page not found")
         })
         .paragraph(|p| {
-            p.class("text-fg-secondary mt-3")
-                .text(
-                    "The package, interface, or item you're looking for \
+            p.class("text-fg-secondary mt-3").text(
+                "The package, interface, or item you're looking for \
                      doesn't exist — or it may have been published under \
                      a different version.",
-                )
+            )
         })
         .division(|actions| {
             actions

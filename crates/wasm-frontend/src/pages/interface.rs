@@ -26,17 +26,13 @@ pub(crate) fn render(
 
     // Header
     body.division(|div| {
-        div.class("mb-6")
-            .heading_1(|h1| {
-                h1.class("text-3xl font-bold tracking-tight font-mono")
-                    .span(|s| s.class("text-fg-muted").text(format!("{display_name} / ")))
-                    .span(|s| s.class("text-accent").text(iface.name.clone()))
-            });
+        div.class("mb-6").heading_1(|h1| {
+            h1.class("text-3xl font-bold tracking-tight font-mono")
+                .span(|s| s.class("text-fg-muted").text(format!("{display_name} / ")))
+                .span(|s| s.class("text-accent").text(iface.name.clone()))
+        });
         if let Some(docs) = &iface.docs {
-            div.paragraph(|p| {
-                p.class("text-lg text-fg-secondary mt-2")
-                    .text(docs.clone())
-            });
+            div.paragraph(|p| p.class("text-lg text-fg-secondary mt-2").text(docs.clone()));
         }
         div
     });
@@ -143,7 +139,8 @@ fn render_type_section(heading: &str, types: &[&TypeDoc]) -> Division {
     let mut div = Division::builder();
     div.class("pt-6 border-t border-border/50 first:pt-0 first:border-0");
     div.heading_2(|h2| {
-        h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3").text(heading.to_owned())
+        h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3")
+            .text(heading.to_owned())
     });
 
     let mut ul = UnorderedList::builder();
@@ -164,14 +161,13 @@ fn render_type_row(ty: &TypeDoc) -> ListItem {
 
     // Left: kind-colored name
     li.division(|left| {
-        left.class("shrink-0 w-52")
-            .anchor(|a| {
-                a.href(ty.url.clone())
-                    .class(format!(
-                        "font-mono text-sm font-semibold hover:underline {color_class}"
-                    ))
-                    .text(ty.name.clone())
-            })
+        left.class("shrink-0 w-52").anchor(|a| {
+            a.href(ty.url.clone())
+                .class(format!(
+                    "font-mono text-sm font-semibold hover:underline {color_class}"
+                ))
+                .text(ty.name.clone())
+        })
     });
 
     // Right: doc excerpt
@@ -191,7 +187,8 @@ fn render_function_section(functions: &[FunctionDoc]) -> Division {
     let mut div = Division::builder();
     div.class("pt-6 border-t border-border/50 first:pt-0 first:border-0");
     div.heading_2(|h2| {
-        h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3").text("Functions")
+        h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3")
+            .text("Functions")
     });
 
     let mut ul = UnorderedList::builder();
@@ -213,14 +210,13 @@ fn render_function_row(func: &FunctionDoc) -> ListItem {
 
     // Left: function name
     li.division(|left| {
-        left.class("shrink-0 w-52")
-            .anchor(|a| {
-                a.href(func.url.clone())
-                    .class(format!(
-                        "font-mono text-sm font-semibold hover:underline {color_class}"
-                    ))
-                    .text(func.name.clone())
-            })
+        left.class("shrink-0 w-52").anchor(|a| {
+            a.href(func.url.clone())
+                .class(format!(
+                    "font-mono text-sm font-semibold hover:underline {color_class}"
+                ))
+                .text(func.name.clone())
+        })
     });
 
     // Right: doc excerpt
