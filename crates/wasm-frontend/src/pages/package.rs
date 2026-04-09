@@ -62,7 +62,7 @@ pub(crate) fn render(
     grid.push(main_col.build());
 
     // Sidebar
-    grid.push(render_sidebar(pkg, version, &display_name));
+    grid.push(render_sidebar(pkg, version, &display_name, version_detail));
 
     body.push(grid.build());
 
@@ -254,7 +254,12 @@ fn render_dependencies(pkg: &KnownPackage) -> Option<Section> {
 }
 
 /// Render the sidebar with metadata and version selector.
-fn render_sidebar(pkg: &KnownPackage, current_version: &str, display_name: &str) -> Aside {
+fn render_sidebar(
+    pkg: &KnownPackage,
+    current_version: &str,
+    display_name: &str,
+    version_detail: Option<&PackageVersion>,
+) -> Aside {
     let url_name = match (&pkg.wit_namespace, &pkg.wit_name) {
         (Some(ns), Some(name)) => format!("{ns}/{name}"),
         _ => pkg.repository.clone(),
@@ -281,6 +286,9 @@ fn render_sidebar(pkg: &KnownPackage, current_version: &str, display_name: &str)
 
     if let Some(kind) = &pkg.kind {
         card.push(sidebar_row("Kind", &kind.to_string()));
+    }
+    if let Some(size) = version_detail.and_then(|d| d.size_bytes) {
+        card.push(sidebar_row("Size", &format_size(size)));
     }
     card.push(sidebar_row("Created", &pkg.created_at));
     card.push(sidebar_row("Last updated", &pkg.last_seen_at));
@@ -349,6 +357,24 @@ fn sidebar_link_row(label: &str, text: &str, href: &str) -> Division {
             })
         })
         .build()
+}
+
+/// Format a byte count as a human-readable size string.
+fn format_size(bytes: i64) -> String {
+    const KIB: f64 = 1024.0;
+    const MIB: f64 = KIB * 1024.0;
+    const GIB: f64 = MIB * 1024.0;
+
+    let bytes = bytes as f64;
+    if bytes < KIB {
+        format!("{bytes} B")
+    } else if bytes < MIB {
+        format!("{:.1} KiB", bytes / KIB)
+    } else if bytes < GIB {
+        format!("{:.1} MiB", bytes / MIB)
+    } else {
+        format!("{:.1} GiB", bytes / GIB)
+    }
 }
 
 #[cfg(test)]
