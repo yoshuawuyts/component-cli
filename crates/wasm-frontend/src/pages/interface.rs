@@ -28,8 +28,9 @@ pub(crate) fn render(
     body.division(|div| {
         div.class("mb-6")
             .heading_1(|h1| {
-                h1.class("text-3xl font-bold tracking-tight text-accent font-mono")
-                    .text(iface.name.clone())
+                h1.class("text-3xl font-bold tracking-tight font-mono")
+                    .span(|s| s.class("text-fg-muted").text(format!("{display_name} / ")))
+                    .span(|s| s.class("text-accent").text(iface.name.clone()))
             });
         if let Some(docs) = &iface.docs {
             div.paragraph(|p| {
