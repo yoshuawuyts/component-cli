@@ -7,4 +7,35 @@ registry = "ghcr.io/fermyon"
 name = "azure-client"
 repository = "wasm-pkg/fermyon-experimental/azure-client"
 
+# fermyon/experimental - wasm-pkg components
+[[component]]
+name = "aws-client"
+repository = "wasm-pkg/fermyon-experimental/aws-client"
+
+[[component]]
+name = "image-manipulation-lib"
+repository = "wasm-pkg/fermyon-experimental/image-manipulation-lib"
+
+[[component]]
+name = "image-classification-lib"
+repository = "wasm-pkg/fermyon-experimental/image-classification-lib"
+
+[[component]]
+name = "zstd-compression"
+repository = "wasm-pkg/fermyon-experimental/zstd-compression"
+
+# fermyon/wasm-pkg
+[[component]]
+name = "wasi-http-dump"
+repository = "wasm-pkg/fermyon/wasi-http-dump"
+
+[[component]]
+name = "hello-world"
+repository = "wasm-pkg/fermyon/hello-world"
+
+# fermyon/wasmio
+[[component]]
+name = "wasmio-demo"
+repository = "wasm-pkg/wasmio/demo"
+
 
