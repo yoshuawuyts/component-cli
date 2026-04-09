@@ -481,25 +481,8 @@ fn render_alias(type_ref: &TypeRef) -> Division {
 
 /// Render function detail: signature + param table.
 fn render_function_detail(func: &FunctionDoc) -> Division {
-    let sig = format_function_signature(func);
-
     let mut div = Division::builder();
     div.class("mb-6");
-
-    // Signature
-    div.push(
-        html::text_content::PreformattedText::builder()
-            .class("bg-surface-muted border border-border rounded-lg px-4 py-3 text-sm font-mono text-fg overflow-x-auto")
-            .code(|c| c.text(sig))
-            .build(),
-    );
-
-    if let Some(docs) = &func.docs {
-        div.paragraph(|p| {
-            p.class("text-fg-secondary text-sm mt-2")
-                .text(docs.clone())
-        });
-    }
 
     // Param table (skip `self`)
     let visible_params: Vec<_> = func
@@ -666,22 +649,6 @@ fn kind_label(kind: &TypeKind) -> String {
         TypeKind::Alias(_) => "type",
     }
     .to_owned()
-}
-
-/// Format a function signature like `name(a: string, b: u32) -> result`.
-fn format_function_signature(func: &FunctionDoc) -> String {
-    let params: Vec<String> = func
-        .params
-        .iter()
-        .filter(|p| p.name != "self")
-        .map(|p| format!("{}: {}", p.name, format_type_ref_short(&p.ty)))
-        .collect();
-    let ret = func
-        .result
-        .as_ref()
-        .map(|r| format!(" -> {}", format_type_ref_short(r)))
-        .unwrap_or_default();
-    format!("{}({}){ret}", func.name, params.join(", "))
 }
 
 /// Format a `TypeRef` as a short inline string (no links).
