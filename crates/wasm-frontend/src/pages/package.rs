@@ -16,9 +16,9 @@ pub(crate) enum ActiveTab<'a> {
         version_detail: Option<&'a PackageVersion>,
     },
     /// Packages that export/implement this interface.
-    Providers { exporters: &'a [KnownPackage] },
+    Exporters { exporters: &'a [KnownPackage] },
     /// Packages that import/consume this interface.
-    Dependents { importers: &'a [KnownPackage] },
+    Importers { importers: &'a [KnownPackage] },
 }
 
 /// Render the package detail page for a given package and version.
@@ -65,10 +65,10 @@ pub(crate) fn render(pkg: &KnownPackage, version: &str, tab: &ActiveTab<'_>) -> 
         ActiveTab::Docs { version_detail } => {
             body.push(render_docs_panel(pkg, version, &display_name, *version_detail));
         }
-        ActiveTab::Providers { exporters } => {
+        ActiveTab::Exporters { exporters } => {
             body.push(render_package_list(exporters));
         }
-        ActiveTab::Dependents { importers } => {
+        ActiveTab::Importers { importers } => {
             body.push(render_package_list(importers));
         }
     }
@@ -269,14 +269,14 @@ fn render_tab_bar(url_base: &str, active: &ActiveTab<'_>) -> Division {
     let tabs: &[(&str, &str, bool)] = &[
         ("Docs", url_base, matches!(active, ActiveTab::Docs { .. })),
         (
-            "Providers",
-            &format!("{url_base}/providers"),
-            matches!(active, ActiveTab::Providers { .. }),
+            "Exporters",
+            &format!("{url_base}/exporters"),
+            matches!(active, ActiveTab::Exporters { .. }),
         ),
         (
-            "Dependents",
-            &format!("{url_base}/dependents"),
-            matches!(active, ActiveTab::Dependents { .. }),
+            "Importers",
+            &format!("{url_base}/importers"),
+            matches!(active, ActiveTab::Importers { .. }),
         ),
     ];
 

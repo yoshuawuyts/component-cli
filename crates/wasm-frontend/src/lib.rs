@@ -40,12 +40,12 @@ fn app() -> Router {
         .route("/{namespace}/{name}", get(package_redirect))
         .route("/{namespace}/{name}/{version}", get(package_detail))
         .route(
-            "/{namespace}/{name}/{version}/providers",
-            get(package_providers),
+            "/{namespace}/{name}/{version}/exporters",
+            get(package_exporters),
         )
         .route(
-            "/{namespace}/{name}/{version}/dependents",
-            get(package_dependents),
+            "/{namespace}/{name}/{version}/importers",
+            get(package_importers),
         )
         .fallback(not_found)
 }
@@ -180,8 +180,8 @@ async fn package_detail(
     with_cache_control(html, "public, max-age=300")
 }
 
-/// Providers tab at `/<namespace>/<name>/<version>/providers`.
-async fn package_providers(
+/// Exporters tab at `/<namespace>/<name>/<version>/exporters`.
+async fn package_exporters(
     Path((namespace, name, version)): Path<(String, String, String)>,
 ) -> Response {
     let client = RegistryClient::from_env();
@@ -193,15 +193,15 @@ async fn package_providers(
         .search_packages_by_export(&display_name)
         .await
         .unwrap_or_default();
-    let tab = ActiveTab::Providers {
+    let tab = ActiveTab::Exporters {
         exporters: &exporters,
     };
     let html = pages::package::render(&pkg, &version, &tab);
     with_cache_control(html, "public, max-age=300")
 }
 
-/// Dependents tab at `/<namespace>/<name>/<version>/dependents`.
-async fn package_dependents(
+/// Importers tab at `/<namespace>/<name>/<version>/importers`.
+async fn package_importers(
     Path((namespace, name, version)): Path<(String, String, String)>,
 ) -> Response {
     let client = RegistryClient::from_env();
@@ -213,7 +213,7 @@ async fn package_dependents(
         .search_packages_by_import(&display_name)
         .await
         .unwrap_or_default();
-    let tab = ActiveTab::Dependents {
+    let tab = ActiveTab::Importers {
         importers: &importers,
     };
     let html = pages::package::render(&pkg, &version, &tab);
