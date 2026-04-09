@@ -12,26 +12,19 @@ use crate::layout;
 
 /// Which tab is currently active on the package detail page.
 pub(crate) enum ActiveTab<'a> {
-    /// WIT definition and worlds.
+    /// WIT definition, worlds, and dependencies.
     Docs {
         version_detail: Option<&'a PackageVersion>,
     },
-    /// Forward dependencies of this package.
-    Dependencies,
-    /// Reverse dependencies: packages that import or export this interface.
-    Dependents {
-        importers: &'a [KnownPackage],
-        exporters: &'a [KnownPackage],
-    },
+    /// Packages that export/implement this interface.
+    Providers { exporters: &'a [KnownPackage] },
+    /// Packages that import/consume this interface.
+    Dependents { importers: &'a [KnownPackage] },
 }
 
 /// Render the package detail page for a given package and version.
 #[must_use]
-pub(crate) fn render(
-    pkg: &KnownPackage,
-    version: &str,
-    version_detail: Option<&PackageVersion>,
-) -> String {
+pub(crate) fn render(pkg: &KnownPackage, version: &str, tab: &ActiveTab<'_>) -> String {
     let display_name = match (&pkg.wit_namespace, &pkg.wit_name) {
         (Some(ns), Some(name)) => format!("{ns}:{name}"),
         _ => pkg.repository.clone(),
