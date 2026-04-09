@@ -66,6 +66,13 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
               muted:     'var(--color-fg-muted)',
               faint:     'var(--color-fg-faint)',
             }},
+            // WIT item kind colors
+            wit: {{
+              struct:   'var(--color-wit-struct)',
+              enum:     'var(--color-wit-enum)',
+              resource: 'var(--color-wit-resource)',
+              func:     'var(--color-wit-func)',
+            }},
           }},
           fontFamily: {{
             mono: ['ui-monospace', 'Cascadia Code', 'Source Code Pro', 'Menlo', 'Consolas', 'DejaVu Sans Mono', 'monospace'],
@@ -90,6 +97,11 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
       --color-fg-secondary: oklch(0.40 0.03 290);
       --color-fg-muted: oklch(0.54 0.025 290);
       --color-fg-faint: oklch(0.56 0.02 290);
+      /* WIT item kind colors */
+      --color-wit-struct: oklch(0.45 0.2 260);
+      --color-wit-enum: oklch(0.45 0.14 180);
+      --color-wit-resource: oklch(0.50 0.16 70);
+      --color-wit-func: oklch(0.42 0.2 240);
     }}
     @media (prefers-color-scheme: dark) {{
       :root {{
@@ -104,6 +116,11 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
         --color-fg-secondary: oklch(0.78 0.025 290);
         --color-fg-muted: oklch(0.66 0.03 290);
         --color-fg-faint: oklch(0.62 0.025 290);
+        /* WIT item kind colors (dark) */
+        --color-wit-struct: oklch(0.72 0.15 260);
+        --color-wit-enum: oklch(0.72 0.12 180);
+        --color-wit-resource: oklch(0.75 0.14 70);
+        --color-wit-func: oklch(0.70 0.15 240);
       }}
     }}
     /* Consistent focus ring for keyboard navigation */

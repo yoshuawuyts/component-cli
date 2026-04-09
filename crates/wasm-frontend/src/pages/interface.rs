@@ -146,7 +146,7 @@ fn render_type_section(heading: &str, types: &[&TypeDoc]) -> Division {
     });
 
     let mut ul = UnorderedList::builder();
-    ul.class("space-y-2");
+    ul.class("divide-y divide-border/50");
     for ty in types {
         ul.push(render_type_row(ty));
     }
@@ -154,39 +154,34 @@ fn render_type_section(heading: &str, types: &[&TypeDoc]) -> Division {
     div.build()
 }
 
-/// Render a single type row as a linked list item.
+/// Render a single type row in docs.rs style: linked name + doc excerpt.
 fn render_type_row(ty: &TypeDoc) -> ListItem {
-    let summary = type_kind_summary(&ty.kind);
+    let color_class = kind_color_class(&ty.kind);
 
     let mut li = ListItem::builder();
-    li.class(
-        "border border-border rounded-lg px-4 py-3 \
-         hover:border-accent/50 transition-colors",
-    );
-    li.anchor(|a| {
-        a.href(ty.url.clone())
-            .class("block group")
-            .division(|div| {
-                div.class("flex items-baseline gap-2")
-                    .span(|s| {
-                        s.class(
-                            "font-mono font-semibold text-accent \
-                             group-hover:underline",
-                        )
-                        .text(ty.name.clone())
-                    })
-                    .span(|s| {
-                        s.class("text-xs text-fg-secondary bg-surface-muted px-1.5 py-0.5 rounded").text(summary)
-                    })
-            });
-        if let Some(docs) = &ty.docs {
-            a.paragraph(|p| {
-                p.class("text-sm text-fg-secondary mt-1 line-clamp-2")
-                    .text(first_sentence(docs))
-            });
-        }
-        a
+    li.class("py-2.5 flex gap-4");
+
+    // Left: kind-colored name
+    li.division(|left| {
+        left.class("shrink-0 w-48")
+            .anchor(|a| {
+                a.href(ty.url.clone())
+                    .class(format!(
+                        "font-mono font-semibold hover:underline {color_class}"
+                    ))
+                    .text(ty.name.clone())
+            })
     });
+
+    // Right: doc excerpt
+    if let Some(docs) = &ty.docs {
+        li.division(|right| {
+            right
+                .class("text-sm text-fg-secondary line-clamp-2 min-w-0")
+                .text(first_sentence(docs))
+        });
+    }
+
     li.build()
 }
 
@@ -198,7 +193,7 @@ fn render_function_section(functions: &[FunctionDoc]) -> Division {
     });
 
     let mut ul = UnorderedList::builder();
-    ul.class("space-y-2");
+    ul.class("divide-y divide-border/50");
     for func in functions {
         ul.push(render_function_row(func));
     }
@@ -206,133 +201,52 @@ fn render_function_section(functions: &[FunctionDoc]) -> Division {
     div.build()
 }
 
-/// Render a single function row with its full signature visible.
+/// Render a single function row: linked name + doc excerpt.
 fn render_function_row(func: &FunctionDoc) -> ListItem {
+    // Color for functions: use a teal/cyan hue
+    let color_class = "text-wit-func";
+
     let mut li = ListItem::builder();
-    li.class(
-        "border border-border rounded-lg px-4 py-3 \
-         hover:border-accent/50 transition-colors",
-    );
-    li.anchor(|a| {
-        a.href(func.url.clone())
-            .class("block group")
-            .division(|div| {
-                div.push(
-                    html::text_content::PreformattedText::builder()
-                        .class("font-mono text-sm text-fg group-hover:text-accent transition-colors overflow-x-auto")
-                        .code(|c| {
-                            c.span(|s| s.class("text-accent font-semibold group-hover:underline").text(func.name.clone()))
-                             .text(escape_html(&format!("({})", format_params(func))))
-                             .text(escape_html(&format_return(func)))
-                        })
-                        .build()
-                )
-            });
-        if let Some(docs) = &func.docs {
-            a.paragraph(|p| {
-                p.class("text-sm text-fg-secondary mt-1 line-clamp-2")
-                    .text(first_sentence(docs))
-            });
-        }
-        a
+    li.class("py-2.5 flex gap-4");
+
+    // Left: function name
+    li.division(|left| {
+        left.class("shrink-0 w-48")
+            .anchor(|a| {
+                a.href(func.url.clone())
+                    .class(format!(
+                        "font-mono font-semibold hover:underline {color_class}"
+                    ))
+                    .text(func.name.clone())
+            })
     });
+
+    // Right: doc excerpt
+    if let Some(docs) = &func.docs {
+        li.division(|right| {
+            right
+                .class("text-sm text-fg-secondary line-clamp-2 min-w-0")
+                .text(first_sentence(docs))
+        });
+    }
+
     li.build()
 }
 
-/// Get a short summary string for a type kind.
-fn type_kind_summary(kind: &TypeKind) -> String {
+/// Get the CSS color class for a type kind.
+///
+/// Palette (OKLCH-based, same hue family as the design system):
+/// - Records/Variants: blue-violet (hue 260) — structural data types
+/// - Enums/Flags: teal (hue 180) — enumerable values
+/// - Resources: amber (hue 70) — managed handles
+/// - Aliases: default accent — pass-through types
+/// - Functions: indigo (hue 240) — callable items
+fn kind_color_class(kind: &TypeKind) -> &'static str {
     match kind {
-        TypeKind::Record { fields } => format!(
-            "{} {}",
-            fields.len(),
-            if fields.len() == 1 { "field" } else { "fields" }
-        ),
-        TypeKind::Variant { cases } => format!(
-            "{} {}",
-            cases.len(),
-            if cases.len() == 1 { "case" } else { "cases" }
-        ),
-        TypeKind::Enum { cases } => format!(
-            "{} {}",
-            cases.len(),
-            if cases.len() == 1 { "case" } else { "cases" }
-        ),
-        TypeKind::Flags { flags } => format!(
-            "{} {}",
-            flags.len(),
-            if flags.len() == 1 { "flag" } else { "flags" }
-        ),
-        TypeKind::Resource {
-            methods, statics, ..
-        } => {
-            let total = methods.len() + statics.len();
-            format!(
-                "{total} {}",
-                if total == 1 { "method" } else { "methods" }
-            )
-        }
-        TypeKind::Alias(_) => "alias".to_owned(),
-    }
-}
-
-/// Format function parameters as a comma-separated string.
-fn format_params(func: &FunctionDoc) -> String {
-    func.params
-        .iter()
-        .filter(|p| p.name != "self")
-        .map(|p| format!("{}: {}", p.name, format_type_ref_short(&p.ty)))
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
-/// Format the return type as ` -> type` or empty string.
-fn format_return(func: &FunctionDoc) -> String {
-    func.result
-        .as_ref()
-        .map(|r| format!(" -> {}", format_type_ref_short(r)))
-        .unwrap_or_default()
-}
-
-/// Format a `TypeRef` as a short inline string.
-fn format_type_ref_short(ty: &wasm_wit_doc::TypeRef) -> String {
-    match ty {
-        wasm_wit_doc::TypeRef::Primitive { name }
-        | wasm_wit_doc::TypeRef::Named { name, .. } => name.clone(),
-        wasm_wit_doc::TypeRef::List { ty } => {
-            format!("list<{}>", format_type_ref_short(ty))
-        }
-        wasm_wit_doc::TypeRef::Option { ty } => {
-            format!("option<{}>", format_type_ref_short(ty))
-        }
-        wasm_wit_doc::TypeRef::Result { ok, err } => {
-            let ok_str = ok
-                .as_ref()
-                .map_or_else(|| "_".to_owned(), |t| format_type_ref_short(t));
-            let err_str = err
-                .as_ref()
-                .map_or_else(|| "_".to_owned(), |t| format_type_ref_short(t));
-            format!("result<{ok_str}, {err_str}>")
-        }
-        wasm_wit_doc::TypeRef::Tuple { types } => {
-            let inner: Vec<String> = types.iter().map(format_type_ref_short).collect();
-            format!("tuple<{}>", inner.join(", "))
-        }
-        wasm_wit_doc::TypeRef::Handle {
-            handle_kind,
-            resource_name,
-            ..
-        } => match handle_kind {
-            wasm_wit_doc::HandleKind::Own => resource_name.clone(),
-            wasm_wit_doc::HandleKind::Borrow => format!("borrow<{resource_name}>"),
-        },
-        wasm_wit_doc::TypeRef::Future { ty } => match ty {
-            Some(t) => format!("future<{}>", format_type_ref_short(t)),
-            None => "future".to_owned(),
-        },
-        wasm_wit_doc::TypeRef::Stream { ty } => match ty {
-            Some(t) => format!("stream<{}>", format_type_ref_short(t)),
-            None => "stream".to_owned(),
-        },
+        TypeKind::Record { .. } | TypeKind::Variant { .. } => "text-wit-struct",
+        TypeKind::Enum { .. } | TypeKind::Flags { .. } => "text-wit-enum",
+        TypeKind::Resource { .. } => "text-wit-resource",
+        TypeKind::Alias(_) => "text-accent",
     }
 }
 
@@ -340,11 +254,4 @@ fn format_type_ref_short(ty: &wasm_wit_doc::TypeRef) -> String {
 fn first_sentence(text: &str) -> String {
     text.split_once(". ")
         .map_or_else(|| text.to_owned(), |(first, _)| format!("{first}."))
-}
-
-/// Escape HTML special characters in code text.
-fn escape_html(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
 }
