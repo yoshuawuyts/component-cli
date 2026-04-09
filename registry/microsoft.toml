@@ -25,3 +25,27 @@ repository = "gomodule-go"
 [[component]]
 name = "time-server-js"
 repository = "time-server-js"
+
+[[component]]
+name = "arxiv-rs"
+repository = "arxiv-rs"
+
+[[component]]
+name = "github-js"
+repository = "github-js"
+
+[[component]]
+name = "memory-js"
+repository = "memory-js"
+
+[[component]]
+name = "brave-search-rs"
+repository = "brave-search-rs"
+
+[[component]]
+name = "context7-rs"
+repository = "context7-rs"
+
+[[component]]
+name = "get-open-meteo-weather-js"
+repository = "get-open-meteo-weather-js"

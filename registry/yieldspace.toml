@@ -1,0 +1,17 @@
+[namespace]
+name = "yieldspace"
+registry = "ghcr.io/yieldspace"
+
+# yieldspace/imago - native plugin WIT + wasm plugins
+[[interface]]
+name = "imago"
+repository = "imago"
+
+[[component]]
+name = "imago"
+repository = "imago"
+
+# yieldspace/boards
+[[component]]
+name = "boards"
+repository = "boards"

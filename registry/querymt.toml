@@ -1,0 +1,8 @@
+[namespace]
+name = "querymt"
+registry = "ghcr.io/querymt"
+
+# querymt/querymt - provider plugins
+[[component]]
+name = "querymt"
+repository = "querymt"

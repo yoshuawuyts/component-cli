@@ -1,0 +1,8 @@
+[namespace]
+name = "patterns"
+registry = "ghcr.io/patterns"
+
+# patterns/pink-elephants
+[[component]]
+name = "pink-elephants"
+repository = "pink-elephants"

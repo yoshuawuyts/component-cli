@@ -1,0 +1,8 @@
+[namespace]
+name = "seamlezz"
+registry = "ghcr.io/seamlezz"
+
+# Seamlezz/surrealdb-wasi-component
+[[interface]]
+name = "surrealdb"
+repository = "surrealdb"
