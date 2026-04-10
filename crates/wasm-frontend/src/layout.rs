@@ -287,6 +287,10 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
       margin-left: -2px;
       cursor: pointer;
       transition: color 0.15s, background-color 0.15s;
+      flex: 1;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
     }}
     .tab-btn:first-child {{
       margin-left: 0;
@@ -295,9 +299,15 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
       background: var(--color-fg);
       color: var(--color-bg);
     }}
+    .tab-btn:hover > * {{
+      opacity: 1;
+    }}
     .tab-btn[aria-selected="true"] {{
       background: var(--color-fg);
       color: var(--color-bg);
+    }}
+    .tab-btn[aria-selected="true"] > * {{
+      opacity: 1;
     }}
     @media (prefers-reduced-motion: reduce) {{
       .tab-btn {{ transition: none; }}
@@ -305,7 +315,7 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
   </style>
 </head>
 <body class="bg-page text-fg min-h-screen flex flex-col leading-relaxed font-sans antialiased">
-  <main class="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 pb-10">
+  <main class="flex-1 w-full max-w-6xl mx-auto px-6 sm:px-8 pb-12">
     {body_content}
   </main>
   {footer}

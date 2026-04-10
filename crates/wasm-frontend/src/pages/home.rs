@@ -56,7 +56,7 @@ fn render_error(_err: &ApiError) -> String {
 /// Render the hero area with heading, search form, CTA, and quick-install hint.
 fn render_hero(_total: usize) -> Division {
     let mut hero = Division::builder();
-    hero.class("pt-8 pb-6");
+    hero.class("pt-12 pb-8");
 
     hero.division(|row| {
         row.class("flex items-baseline justify-between")
@@ -80,7 +80,7 @@ fn render_hero(_total: usize) -> Division {
     });
 
     hero.division(|row| {
-        row.class("mt-8 flex flex-col sm:flex-row gap-3 sm:items-center")
+        row.class("mt-10 flex flex-col sm:flex-row gap-3 sm:items-center")
             .form(|form| {
                 form.action("/search")
                     .method("get")
@@ -176,7 +176,7 @@ fn render_tabs(
                 .aria_controls_elements(format!("panel-{id}"))
                 .span(|s: &mut html::inline_text::builders::SpanBuilder| s.text(label.to_owned()))
                 .span(|s: &mut html::inline_text::builders::SpanBuilder| {
-                    s.class("ml-1.5 opacity-50")
+                    s.class("opacity-50")
                         .text(format!("{count}"))
                 })
         });
@@ -245,7 +245,7 @@ fn render_card(pkg: &KnownPackage) -> Division {
         (Some(ns), Some(name)) => Division::builder()
             .anchor(|a| {
                 a.href(format!("/{ns}/{name}"))
-                    .class("flex flex-col h-full bg-page p-3.5 border-r-2 border-b-2 border-fg card-lift")
+                    .class("flex flex-col h-full bg-page p-5 border-r-2 border-b-2 border-fg card-lift")
                     .span(|s| {
                         s.class("block text-sm text-fg-muted truncate")
                             .text(format!("{ns}:"))
@@ -266,7 +266,7 @@ fn render_card(pkg: &KnownPackage) -> Division {
             })
             .build(),
         _ => Division::builder()
-            .class("flex flex-col h-full bg-page p-3.5 border-r-2 border-b-2 border-fg card-lift")
+            .class("flex flex-col h-full bg-page p-5 border-r-2 border-b-2 border-fg card-lift")
             .span(|s| {
                 s.class("font-medium text-fg truncate")
                     .text(display_name)
