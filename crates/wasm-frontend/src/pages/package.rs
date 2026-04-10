@@ -34,37 +34,14 @@ pub(crate) fn render(
         ));
     }
 
-    // WIT nav sidebar (worlds/interfaces list)
-    if let Some(doc) = &wit_doc {
-        let sidebar_ctx = super::sidebar::SidebarContext {
-            display_name: &display_name,
-            version,
-            doc,
-            active: super::sidebar::SidebarActive::Interface(""),
-        };
-        let mut content_grid = Division::builder();
-        content_grid.class("grid grid-cols-1 md:grid-cols-[1fr_200px] gap-8");
-        content_grid.push(main_col.build());
-        content_grid.push(super::sidebar::render_sidebar(&sidebar_ctx));
-
-        let shell_ctx = package_shell::SidebarContext {
-            pkg,
-            version,
-            version_detail,
-            importers,
-            exporters,
-        };
-        package_shell::render_page(&shell_ctx, &display_name, content_grid.build())
-    } else {
-        let shell_ctx = package_shell::SidebarContext {
-            pkg,
-            version,
-            version_detail,
-            importers,
-            exporters,
-        };
-        package_shell::render_page(&shell_ctx, &display_name, main_col.build())
-    }
+    let shell_ctx = package_shell::SidebarContext {
+        pkg,
+        version,
+        version_detail,
+        importers,
+        exporters,
+    };
+    package_shell::render_page(&shell_ctx, &display_name, main_col.build())
 }
 
 /// Render the WIT content section for a package version.
@@ -130,9 +107,9 @@ fn build_dep_urls(
 /// Render the interfaces overview section.
 fn render_interface_overview(doc: &WitDocument) -> Division {
     let mut container = Division::builder();
-    container.class("space-y-3 mt-10");
+    container.class("space-y-1 mt-8");
     container.heading_2(|h2| {
-        h2.class("text-sm font-medium text-fg-muted uppercase tracking-wide mb-2")
+        h2.class("text-sm font-medium text-fg-muted uppercase tracking-wide mb-3 pb-2 border-b-2 border-fg")
             .text("Interfaces")
     });
 
@@ -173,9 +150,9 @@ fn render_interface_row(iface: &crate::wit_doc::InterfaceDoc) -> ListItem {
 /// Render the worlds overview section.
 fn render_world_overview(doc: &WitDocument) -> Division {
     let mut container = Division::builder();
-    container.class("space-y-3");
+    container.class("space-y-1 mt-8");
     container.heading_2(|h2| {
-        h2.class("text-sm font-medium text-fg-muted uppercase tracking-wide mb-2")
+        h2.class("text-sm font-medium text-fg-muted uppercase tracking-wide mb-3 pb-2 border-b-2 border-fg")
             .text("Worlds")
     });
 

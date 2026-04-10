@@ -6,7 +6,6 @@ use html::text_content::Division;
 use wasm_meta_registry_client::{KnownPackage, PackageVersion};
 
 use super::package_shell;
-use super::sidebar::{SidebarActive, SidebarContext, render_sidebar};
 
 /// Render the item detail page for a type.
 #[must_use]
@@ -16,7 +15,7 @@ pub(crate) fn render_type(
     version_detail: Option<&PackageVersion>,
     iface_name: &str,
     ty: &TypeDoc,
-    doc: &WitDocument,
+    _doc: &WitDocument,
 ) -> String {
     let display_name = package_shell::display_name_for(pkg);
     let title = format!("{display_name} \u{2014} {iface_name}::{}", ty.name);
@@ -40,24 +39,8 @@ pub(crate) fn render_type(
     // WIT definition block
     outer.push(render_type_definition(ty));
 
-    // Grid: main content + sidebar
-    let mut grid = Division::builder();
-    grid.class("grid grid-cols-1 md:grid-cols-3 gap-12");
-
-    let mut content = Division::builder();
-    content.class("md:col-span-2 space-y-8");
-    content.push(render_type_body(&ty.kind));
-    grid.push(content.build());
-
-    let sidebar_ctx = SidebarContext {
-        display_name: &display_name,
-        version,
-        doc,
-        active: SidebarActive::Item(iface_name, &ty.name),
-    };
-    grid.push(render_sidebar(&sidebar_ctx));
-
-    outer.push(grid.build());
+    // Type body content
+    outer.push(render_type_body(&ty.kind));
 
     let ctx = package_shell::SidebarContext {
         pkg,
@@ -88,7 +71,7 @@ pub(crate) fn render_function(
     version_detail: Option<&PackageVersion>,
     iface_name: &str,
     func: &FunctionDoc,
-    doc: &WitDocument,
+    _doc: &WitDocument,
 ) -> String {
     let display_name = package_shell::display_name_for(pkg);
     let title = format!("{display_name} \u{2014} {iface_name}::{}", func.name);
@@ -110,24 +93,8 @@ pub(crate) fn render_function(
     // WIT definition block
     outer.push(render_function_definition(func));
 
-    // Grid: main content + sidebar
-    let mut grid = Division::builder();
-    grid.class("grid grid-cols-1 md:grid-cols-3 gap-12");
-
-    let mut content = Division::builder();
-    content.class("md:col-span-2 space-y-8");
-    content.push(render_function_detail(func));
-    grid.push(content.build());
-
-    let sidebar_ctx = SidebarContext {
-        display_name: &display_name,
-        version,
-        doc,
-        active: SidebarActive::Item(iface_name, &func.name),
-    };
-    grid.push(render_sidebar(&sidebar_ctx));
-
-    outer.push(grid.build());
+    // Function detail content
+    outer.push(render_function_detail(func));
 
     let ctx = package_shell::SidebarContext {
         pkg,

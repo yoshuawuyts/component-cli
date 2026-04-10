@@ -57,11 +57,11 @@ fn render_page_inner(
         .unwrap_or("No description available");
 
     let mut body = Division::builder();
-    body.class("pt-4");
+    body.class("pt-6");
 
     // Description
     body.paragraph(|p| {
-        p.class("text-sm text-fg-muted mb-6")
+        p.class("text-fg leading-relaxed mb-8 max-w-[65ch]")
             .text(description.to_owned())
     });
 
@@ -121,6 +121,9 @@ fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
     }
 
     // Install command
+    sidebar.division(|d| {
+        d.class("text-sm text-fg-muted mb-1").text("Install")
+    });
     sidebar.push(render_install_command(display_name, version));
 
     // Metadata

@@ -5,7 +5,6 @@ use html::text_content::{Division, ListItem, UnorderedList};
 use wasm_meta_registry_client::{KnownPackage, PackageVersion};
 
 use super::package_shell;
-use super::sidebar::{SidebarActive, SidebarContext, render_sidebar};
 
 /// Render the world detail page.
 #[must_use]
@@ -14,7 +13,7 @@ pub(crate) fn render(
     version: &str,
     version_detail: Option<&PackageVersion>,
     world: &WorldDoc,
-    doc: &WitDocument,
+    _doc: &WitDocument,
 ) -> String {
     let display_name = package_shell::display_name_for(pkg);
     let title = format!("{display_name} \u{2014} {}", world.name);
@@ -35,12 +34,8 @@ pub(crate) fn render(
         div
     });
 
-    // Grid: main content + sidebar
-    let mut grid = Division::builder();
-    grid.class("grid grid-cols-1 md:grid-cols-3 gap-12");
-
     let mut content = Division::builder();
-    content.class("md:col-span-2 space-y-8");
+    content.class("space-y-8");
 
     if !world.imports.is_empty() {
         content.push(render_item_section("Imports", &world.imports));
@@ -49,18 +44,7 @@ pub(crate) fn render(
         content.push(render_item_section("Exports", &world.exports));
     }
 
-    grid.push(content.build());
-
-    // Sidebar
-    let sidebar_ctx = SidebarContext {
-        display_name: &display_name,
-        version,
-        doc,
-        active: SidebarActive::World(&world.name),
-    };
-    grid.push(render_sidebar(&sidebar_ctx));
-
-    outer.push(grid.build());
+    outer.push(content.build());
 
     let ctx = package_shell::SidebarContext {
         pkg,

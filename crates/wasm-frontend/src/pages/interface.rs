@@ -5,7 +5,6 @@ use html::text_content::{Division, ListItem, UnorderedList};
 use wasm_meta_registry_client::{KnownPackage, PackageVersion};
 
 use super::package_shell;
-use super::sidebar::{SidebarActive, SidebarContext, render_sidebar};
 
 /// Render the interface detail page.
 #[must_use]
@@ -14,7 +13,7 @@ pub(crate) fn render(
     version: &str,
     version_detail: Option<&PackageVersion>,
     iface: &InterfaceDoc,
-    doc: &WitDocument,
+    _doc: &WitDocument,
 ) -> String {
     let display_name = package_shell::display_name_for(pkg);
     let title = format!("{display_name} — {}", iface.name);
@@ -27,11 +26,9 @@ pub(crate) fn render(
         outer.paragraph(|p| p.class("text-sm text-fg-muted mb-6").text(docs.clone()));
     }
 
-    // Grid: main content + sidebar
-    let mut grid = Division::builder();
-    grid.class("grid grid-cols-1 md:grid-cols-3 gap-12");
-
-    // Group types by kind
+    // Grid: main content
+    let mut content = Division::builder();
+    content.class("space-y-8");
     let resources: Vec<&TypeDoc> = iface
         .types
         .iter()
@@ -88,18 +85,7 @@ pub(crate) fn render(
         content.push(render_function_section(&iface.functions));
     }
 
-    grid.push(content.build());
-
-    // Sidebar
-    let sidebar_ctx = SidebarContext {
-        display_name: &display_name,
-        version,
-        doc,
-        active: SidebarActive::Interface(&iface.name),
-    };
-    grid.push(render_sidebar(&sidebar_ctx));
-
-    outer.push(grid.build());
+    outer.push(content.build());
 
     let ctx = package_shell::SidebarContext {
         pkg,
