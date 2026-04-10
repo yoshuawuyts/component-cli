@@ -4,7 +4,7 @@ use crate::wit_doc::{WitDocument, WorldDoc, WorldItemDoc};
 use html::text_content::{Division, ListItem, UnorderedList};
 use wasm_meta_registry_client::{KnownPackage, PackageVersion};
 
-use super::package_shell::{self, ActiveTab};
+use super::package_shell;
 use super::sidebar::{SidebarActive, SidebarContext, render_sidebar};
 
 /// Render the world detail page.
@@ -62,12 +62,18 @@ pub(crate) fn render(
 
     outer.push(grid.build());
 
-    let tab = ActiveTab::Docs { version_detail };
+    let ctx = package_shell::SidebarContext {
+        pkg,
+        version,
+        version_detail,
+        importers: &[],
+        exporters: &[],
+    };
     let extra = vec![crate::nav::Crumb {
         label: world.name.clone(),
         href: None,
     }];
-    package_shell::render_page_with_crumbs(pkg, version, &tab, &title, outer.build(), extra)
+    package_shell::render_page_with_crumbs(&ctx, &title, outer.build(), extra)
 }
 
 /// Render an imports or exports section, grouped by package namespace.

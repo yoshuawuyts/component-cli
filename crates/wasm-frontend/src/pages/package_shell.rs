@@ -1,109 +1,95 @@
 //! Shared page shell for the package detail page and its sub-pages
 //! (interface, world, item).
 //!
-//! Provides the package header (title, version selector, description,
-//! install command, metadata) and tab bar (Documentation / Dependencies /
-//! Dependents) that appear on every package-scoped page.
+//! Provides a two-column layout: main content on the left, and a sidebar
+//! on the right with version selector, install command, metadata,
+//! dependencies, and dependents.
 
 use html::text_content::Division;
 use wasm_meta_registry_client::{KnownPackage, PackageVersion};
 
 use crate::layout;
 
-/// Which tab is currently active on the package detail page.
-pub(crate) enum ActiveTab<'a> {
-    /// WIT definition and worlds.
-    Docs {
-        /// Version detail for metadata display (may be `None` on sub-pages
-        /// that don't need the full version payload).
-        version_detail: Option<&'a PackageVersion>,
-    },
-    /// Forward dependencies of this package.
-    Dependencies,
-    /// Reverse dependencies: packages that import or export this interface.
-    Dependents {
-        importers: &'a [KnownPackage],
-        exporters: &'a [KnownPackage],
-    },
+/// Context for rendering the package page sidebar.
+pub(crate) struct SidebarContext<'a> {
+    /// Package being displayed.
+    pub pkg: &'a KnownPackage,
+    /// Current version string.
+    pub version: &'a str,
+    /// Version detail (annotations, size, etc.) if available.
+    pub version_detail: Option<&'a PackageVersion>,
+    /// Packages that import this one.
+    pub importers: &'a [KnownPackage],
+    /// Packages that export this one.
+    pub exporters: &'a [KnownPackage],
 }
 
-/// Render the shared page shell: header + tab bar + caller-provided body,
+/// Render the shared page shell: two-column layout with sidebar,
 /// wrapped in the HTML document layout.
 #[must_use]
-pub(crate) fn render_page(
-    pkg: &KnownPackage,
-    version: &str,
-    tab: &ActiveTab<'_>,
-    title: &str,
-    body_content: Division,
-) -> String {
-    render_page_inner(pkg, version, tab, title, body_content, vec![])
+pub(crate) fn render_page(ctx: &SidebarContext<'_>, title: &str, body_content: Division) -> String {
+    render_page_inner(ctx, title, body_content, vec![])
 }
 
 /// Render the page shell with extra breadcrumb segments after the package name.
 #[must_use]
 pub(crate) fn render_page_with_crumbs(
-    pkg: &KnownPackage,
-    version: &str,
-    tab: &ActiveTab<'_>,
+    ctx: &SidebarContext<'_>,
     title: &str,
     body_content: Division,
     extra_crumbs: Vec<crate::nav::Crumb>,
 ) -> String {
-    render_page_inner(pkg, version, tab, title, body_content, extra_crumbs)
+    render_page_inner(ctx, title, body_content, extra_crumbs)
 }
 
 /// Inner page shell renderer.
 fn render_page_inner(
-    pkg: &KnownPackage,
-    version: &str,
-    tab: &ActiveTab<'_>,
+    ctx: &SidebarContext<'_>,
     title: &str,
     body_content: Division,
     extra_crumbs: Vec<crate::nav::Crumb>,
 ) -> String {
+    let pkg = ctx.pkg;
     let display_name = display_name_for(pkg);
     let description = pkg
         .description
         .as_deref()
         .unwrap_or("No description available");
 
-    let version_detail = match tab {
-        ActiveTab::Docs { version_detail } => *version_detail,
-        _ => None,
-    };
-
     let mut body = Division::builder();
-    body.class("pt-8");
+    body.class("pt-4");
 
-    // Header: title + description on left, metadata on right
-    body.push(render_page_header(
-        pkg,
-        &display_name,
-        description,
-        version,
-        version_detail,
-    ));
+    // Description
+    body.paragraph(|p| {
+        p.class("text-sm text-fg-muted mb-6")
+            .text(description.to_owned())
+    });
 
-    // Tab bar
-    let url_base = url_base_for(pkg, version);
-    body.push(render_tab_bar(&url_base, tab));
+    // Two-column grid: content + sidebar
+    let mut grid = Division::builder();
+    grid.class("grid grid-cols-1 md:grid-cols-[1fr_280px] gap-8");
 
-    // Caller-provided body content
-    body.push(body_content);
+    // Left: main content
+    grid.push(body_content);
 
+    // Right: sidebar
+    grid.push(render_sidebar(ctx, &display_name));
+
+    body.push(grid.build());
+
+    // Breadcrumbs
     let ns_crumb = pkg.wit_namespace.as_ref().map(|ns| crate::nav::Crumb {
         label: ns.clone(),
         href: Some(format!("/{ns}")),
     });
     let pkg_label = pkg.wit_name.as_deref().unwrap_or(&display_name);
-    let url_base_for_crumb = url_base_for(pkg, version);
+    let url_base = url_base_for(pkg, ctx.version);
     let pkg_crumb = crate::nav::Crumb {
         label: pkg_label.to_owned(),
         href: if extra_crumbs.is_empty() {
             None
         } else {
-            Some(url_base_for_crumb)
+            Some(url_base)
         },
     };
     let crumbs: Vec<crate::nav::Crumb> = ns_crumb
@@ -115,6 +101,150 @@ fn render_page_inner(
     layout::document_with_breadcrumbs(title, &body.build().to_string(), &crumbs)
 }
 
+/// Render the right sidebar with all package metadata.
+fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
+    let pkg = ctx.pkg;
+    let version = ctx.version;
+    let version_detail = ctx.version_detail;
+    let annotations = version_detail.and_then(|d| d.annotations.as_ref());
+
+    let mut sidebar = Division::builder();
+    sidebar.class("space-y-6 text-sm");
+
+    // Version selector
+    if !pkg.tags.is_empty() {
+        let url_name = match (&pkg.wit_namespace, &pkg.wit_name) {
+            (Some(ns), Some(name)) => format!("{ns}/{name}"),
+            _ => pkg.repository.clone(),
+        };
+        sidebar.push(render_version_select(pkg, version, &url_name));
+    }
+
+    // Install command
+    sidebar.push(render_install_command(display_name, version));
+
+    // Metadata
+    let mut meta = Division::builder();
+    meta.class("space-y-2 leading-relaxed");
+
+    if let Some(source) = annotations.and_then(|a| a.source.as_deref()) {
+        meta.push(meta_link_row("Repository", &abbreviate_url(source), source));
+    } else {
+        let repo_url = format!("https://{}/{}", pkg.registry, pkg.repository);
+        let repo_display = format!("{}/{}", pkg.registry, pkg.repository);
+        meta.push(meta_link_row("Repository", &repo_display, &repo_url));
+    }
+    if let Some(license) = annotations.and_then(|a| a.licenses.as_deref()) {
+        meta.push(meta_row("License", license));
+    }
+    if let Some(kind) = &pkg.kind {
+        meta.push(meta_row("Kind", &kind.to_string()));
+    }
+    if let Some(size) = version_detail.and_then(|d| d.size_bytes) {
+        meta.push(meta_row("Size", &format_size(size)));
+    }
+    if let Some(created) = version_detail.and_then(|d| d.created_at.as_deref()) {
+        meta.push(meta_row("Published", &format_date(created)));
+    }
+    if let Some(docs_url) = annotations.and_then(|a| a.documentation.as_deref()) {
+        meta.push(meta_link_row("Docs", &abbreviate_url(docs_url), docs_url));
+    }
+    let source = annotations.and_then(|a| a.source.as_deref());
+    if let Some(url) = annotations.and_then(|a| a.url.as_deref())
+        && source != Some(url)
+    {
+        meta.push(meta_link_row("Homepage", &abbreviate_url(url), url));
+    }
+    sidebar.push(meta.build());
+
+    // Dependencies
+    if !pkg.dependencies.is_empty() {
+        sidebar.division(|div| {
+            div.class("border-t-2 border-fg pt-4").heading_3(|h3| {
+                h3.class("text-sm font-medium text-fg-muted mb-2")
+                    .text("Dependencies")
+            });
+            let mut ul = html::text_content::UnorderedList::builder();
+            ul.class("space-y-1");
+            for dep in &pkg.dependencies {
+                ul.list_item(|li| {
+                    li.class("font-mono text-sm");
+                    match dep.package.split_once(':') {
+                        Some((ns, name)) => {
+                            li.anchor(|a| {
+                                a.href(format!("/{ns}/{name}"))
+                                    .class("text-accent hover:underline")
+                                    .text(dep.package.clone())
+                            });
+                        }
+                        None => {
+                            li.span(|s| s.class("text-fg").text(dep.package.clone()));
+                        }
+                    }
+                    if let Some(v) = &dep.version {
+                        li.span(|s| s.class("text-fg-faint ml-1").text(format!("@{v}")));
+                    }
+                    li
+                });
+            }
+            div.push(ul.build());
+            div
+        });
+    }
+
+    // Dependents
+    let total_dependents = ctx.importers.len() + ctx.exporters.len();
+    if total_dependents > 0 {
+        sidebar.division(|div| {
+            div.class("border-t-2 border-fg pt-4").heading_3(|h3| {
+                h3.class("text-sm font-medium text-fg-muted mb-2")
+                    .text(format!("Dependents ({total_dependents})"))
+            });
+
+            let mut all: Vec<&KnownPackage> =
+                ctx.importers.iter().chain(ctx.exporters.iter()).collect();
+            all.sort_by(|a, b| a.repository.cmp(&b.repository));
+            all.dedup_by(|a, b| a.repository == b.repository);
+
+            let mut ul = html::text_content::UnorderedList::builder();
+            ul.class("space-y-1");
+            for dep_pkg in all.iter().take(10) {
+                let name = match (&dep_pkg.wit_namespace, &dep_pkg.wit_name) {
+                    (Some(ns), Some(n)) => format!("{ns}:{n}"),
+                    _ => dep_pkg.repository.clone(),
+                };
+                ul.list_item(|li| {
+                    li.class("text-sm");
+                    match (&dep_pkg.wit_namespace, &dep_pkg.wit_name) {
+                        (Some(ns), Some(n)) => {
+                            li.anchor(|a| {
+                                a.href(format!("/{ns}/{n}"))
+                                    .class("text-accent hover:underline font-mono")
+                                    .text(name.clone())
+                            });
+                        }
+                        _ => {
+                            li.span(|s| s.class("text-fg font-mono").text(name.clone()));
+                        }
+                    }
+                    li
+                });
+            }
+            div.push(ul.build());
+
+            if all.len() > 10 {
+                div.paragraph(|p| {
+                    p.class("text-sm text-fg-faint mt-1")
+                        .text(format!("and {} more", all.len() - 10))
+                });
+            }
+            div
+        });
+    }
+
+    sidebar.build()
+}
+
 /// Compute the display name from package WIT metadata.
 pub(crate) fn display_name_for(pkg: &KnownPackage) -> String {
     match (&pkg.wit_namespace, &pkg.wit_name) {
@@ -123,7 +253,7 @@ pub(crate) fn display_name_for(pkg: &KnownPackage) -> String {
     }
 }
 
-/// Compute the URL base for tab links.
+/// Compute the URL base for sub-page links.
 pub(crate) fn url_base_for(pkg: &KnownPackage, version: &str) -> String {
     match (&pkg.wit_namespace, &pkg.wit_name) {
         (Some(ns), Some(name)) => format!("/{ns}/{name}/{version}"),
@@ -131,134 +261,32 @@ pub(crate) fn url_base_for(pkg: &KnownPackage, version: &str) -> String {
     }
 }
 
-/// Render the tab bar with links to each tab route.
-fn render_tab_bar(url_base: &str, active: &ActiveTab<'_>) -> Division {
-    let active_class = "bg-fg text-page font-medium";
-    let inactive_class = "text-fg hover:bg-fg hover:text-page";
-    let tab_base = "px-4 py-2 text-sm transition-colors inline-block border-2 border-fg border-b-0 -ml-0.5 first:ml-0";
+/// Render the version selector dropdown.
+fn render_version_select(pkg: &KnownPackage, current_version: &str, url_name: &str) -> Division {
+    let mut select = html::forms::Select::builder();
+    select
+        .id("version-select")
+        .name("version")
+        .class("w-full px-2 py-1.5 border-2 border-fg bg-page text-fg text-sm cursor-pointer");
 
-    let tabs: &[(&str, &str, bool)] = &[
-        (
-            "Documentation",
-            url_base,
-            matches!(active, ActiveTab::Docs { .. }),
-        ),
-        (
-            "Dependencies",
-            &format!("{url_base}/dependencies"),
-            matches!(active, ActiveTab::Dependencies),
-        ),
-        (
-            "Dependents",
-            &format!("{url_base}/dependents"),
-            matches!(active, ActiveTab::Dependents { .. }),
-        ),
-    ];
+    for tag in &pkg.tags {
+        let is_current = tag == current_version;
+        if is_current {
+            select.option(|opt| opt.value(tag.clone()).text(tag.clone()).selected(true));
+        } else {
+            select.option(|opt| opt.value(tag.clone()).text(tag.clone()));
+        }
+    }
+
+    let script_body = format!(
+        "document.getElementById('version-select').addEventListener('change',function(){{window.location.href='/{url_name}/'+this.value}})"
+    );
 
     Division::builder()
-        .class("flex")
-        .push({
-            let mut nav = Division::builder();
-            nav.class("flex");
-            for &(label, href, is_active) in tabs {
-                let style = if is_active {
-                    active_class
-                } else {
-                    inactive_class
-                };
-                nav.anchor(|a| {
-                    a.href(href.to_owned())
-                        .class(format!("{tab_base} {style}"))
-                        .text(label.to_owned())
-                });
-            }
-            nav.build()
-        })
+        .division(|d| d.class("text-sm text-fg-muted mb-1").text("Version"))
+        .push(select.build())
+        .script(|s| s.text(script_body))
         .build()
-}
-
-/// Render the page header: title + description on left, metadata on right.
-fn render_page_header(
-    pkg: &KnownPackage,
-    display_name: &str,
-    description: &str,
-    current_version: &str,
-    version_detail: Option<&PackageVersion>,
-) -> Division {
-    let url_name = match (&pkg.wit_namespace, &pkg.wit_name) {
-        (Some(ns), Some(name)) => format!("{ns}/{name}"),
-        _ => pkg.repository.clone(),
-    };
-
-    let annotations = version_detail.and_then(|d| d.annotations.as_ref());
-
-    let mut header = Division::builder();
-    header.class("flex flex-col md:flex-row md:items-start md:justify-between gap-6 mb-6");
-
-    // Left: title with inline version + description + install command
-    header.division(|left| {
-        left.class("flex-1 min-w-0")
-            .division(|title_row| {
-                title_row
-                    .class("flex items-baseline gap-2 flex-wrap")
-                    .heading_1(|h1| {
-                        h1.class("text-3xl font-normal tracking-display text-accent")
-                            .text(display_name.to_owned())
-                    })
-                    .push(render_version_inline(pkg, current_version, &url_name))
-            })
-            .paragraph(|p| {
-                p.class("text-fg-secondary mt-1")
-                    .text(description.to_owned())
-            })
-            .division(|d| {
-                d.class("mt-4")
-                    .push(render_install_command(display_name, current_version))
-            })
-    });
-
-    // Right: metadata rows
-    header.division(|right| {
-        right.class("shrink-0 md:w-72 space-y-3 text-sm");
-
-        let mut meta = Division::builder();
-        meta.class("space-y-2 text-sm leading-relaxed");
-
-        if let Some(source) = annotations.and_then(|a| a.source.as_deref()) {
-            meta.push(meta_link_row("Repository", &abbreviate_url(source), source));
-        } else {
-            let repo_url = format!("https://{}/{}", pkg.registry, pkg.repository);
-            let repo_display = format!("{}/{}", pkg.registry, pkg.repository);
-            meta.push(meta_link_row("Repository", &repo_display, &repo_url));
-        }
-
-        if let Some(license) = annotations.and_then(|a| a.licenses.as_deref()) {
-            meta.push(meta_row("License", license));
-        }
-        if let Some(kind) = &pkg.kind {
-            meta.push(meta_row("Kind", &kind.to_string()));
-        }
-        if let Some(size) = version_detail.and_then(|d| d.size_bytes) {
-            meta.push(meta_row("Size", &format_size(size)));
-        }
-        if let Some(created) = version_detail.and_then(|d| d.created_at.as_deref()) {
-            meta.push(meta_row("Published", &format_date(created)));
-        }
-        if let Some(docs_url) = annotations.and_then(|a| a.documentation.as_deref()) {
-            meta.push(meta_link_row("Docs", &abbreviate_url(docs_url), docs_url));
-        }
-        let source = annotations.and_then(|a| a.source.as_deref());
-        if let Some(url) = annotations.and_then(|a| a.url.as_deref())
-            && source != Some(url)
-        {
-            meta.push(meta_link_row("Homepage", &abbreviate_url(url), url));
-        }
-
-        right.push(meta.build());
-        right
-    });
-
-    header.build()
 }
 
 /// Render the install command section with a copy button.
@@ -282,7 +310,6 @@ fn render_install_command(display_name: &str, version: &str) -> Division {
     );
 
     Division::builder()
-        .class("max-w-lg group/install")
         .division(|div| {
             div.class(
                 "flex items-center gap-2 bg-surface-muted border-2 border-fg \
@@ -293,41 +320,11 @@ fn render_install_command(display_name: &str, version: &str) -> Division {
                     .text(command)
             })
             .button(|btn| {
-                btn.id("copy-install-btn").class(
-                    "shrink-0 text-fg-muted opacity-0 group-hover/install:opacity-100 \
-                     hover:text-fg transition-opacity cursor-pointer",
-                )
+                btn.id("copy-install-btn")
+                    .class("shrink-0 text-fg-muted hover:text-fg transition-opacity cursor-pointer")
             })
             .script(|s| s.text(script))
         })
-        .build()
-}
-
-/// Render the inline version selector: `@ <select>` next to the package title.
-fn render_version_inline(pkg: &KnownPackage, current_version: &str, url_name: &str) -> Division {
-    let mut select = html::forms::Select::builder();
-    select.id("version-select").name("version").class(
-        "px-1.5 py-0.5 border-2 border-fg bg-surface text-fg text-xl font-normal cursor-pointer",
-    );
-
-    for tag in &pkg.tags {
-        let is_current = tag == current_version;
-        if is_current {
-            select.option(|opt| opt.value(tag.clone()).text(tag.clone()).selected(true));
-        } else {
-            select.option(|opt| opt.value(tag.clone()).text(tag.clone()));
-        }
-    }
-
-    let script_body = format!(
-        "document.getElementById('version-select').addEventListener('change',function(){{window.location.href='/{url_name}/'+this.value}})"
-    );
-
-    Division::builder()
-        .class("flex items-baseline gap-1")
-        .span(|s| s.class("text-xl text-fg-muted font-normal").text("@"))
-        .push(select.build())
-        .script(|s| s.text(script_body))
         .build()
 }
 

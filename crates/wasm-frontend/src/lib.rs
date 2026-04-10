@@ -28,7 +28,6 @@ use serde::Deserialize;
 use wasm_meta_registry_client::{KnownPackage, RegistryClient};
 
 use crate::reserved::is_reserved;
-use pages::package_shell::ActiveTab;
 
 /// Build the application router with all frontend routes.
 fn app() -> Router {
@@ -211,34 +210,6 @@ async fn package_detail(
         .await
         .ok()
         .flatten();
-    let tab = ActiveTab::Docs {
-        version_detail: version_detail.as_ref(),
-    };
-    let html = pages::package::render(&pkg, &version, &tab);
-    with_cache_control(html, "public, max-age=300")
-}
-
-/// Dependencies tab at `/<namespace>/<name>/<version>/dependencies`.
-async fn package_dependencies(
-    Path((namespace, name, version)): Path<(String, String, String)>,
-) -> Response {
-    let client = RegistryClient::from_env();
-    let Some(pkg) = fetch_package_or_404(&client, &namespace, &name, &version).await else {
-        return not_found_response();
-    };
-    let tab = ActiveTab::Dependencies;
-    let html = pages::package::render(&pkg, &version, &tab);
-    with_cache_control(html, "public, max-age=300")
-}
-
-/// Dependents tab at `/<namespace>/<name>/<version>/dependents`.
-async fn package_dependents(
-    Path((namespace, name, version)): Path<(String, String, String)>,
-) -> Response {
-    let client = RegistryClient::from_env();
-    let Some(pkg) = fetch_package_or_404(&client, &namespace, &name, &version).await else {
-        return not_found_response();
-    };
     let display_name = format!("{namespace}:{name}");
     let importers = client
         .search_packages_by_import(&display_name)
@@ -248,12 +219,28 @@ async fn package_dependents(
         .search_packages_by_export(&display_name)
         .await
         .unwrap_or_default();
-    let tab = ActiveTab::Dependents {
-        importers: &importers,
-        exporters: &exporters,
-    };
-    let html = pages::package::render(&pkg, &version, &tab);
+    let html = pages::package::render(
+        &pkg,
+        &version,
+        version_detail.as_ref(),
+        &importers,
+        &exporters,
+    );
     with_cache_control(html, "public, max-age=300")
+}
+
+/// Legacy dependencies route — redirects to the main package page.
+async fn package_dependencies(
+    Path((namespace, name, version)): Path<(String, String, String)>,
+) -> Response {
+    Redirect::permanent(&format!("/{namespace}/{name}/{version}")).into_response()
+}
+
+/// Legacy dependents route — redirects to the main package page.
+async fn package_dependents(
+    Path((namespace, name, version)): Path<(String, String, String)>,
+) -> Response {
+    Redirect::permanent(&format!("/{namespace}/{name}/{version}")).into_response()
 }
 
 /// Interface detail page at `/<namespace>/<name>/<version>/interface/<iface>`.

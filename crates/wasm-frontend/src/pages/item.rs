@@ -5,7 +5,7 @@ use html::tables::{Table, TableRow};
 use html::text_content::Division;
 use wasm_meta_registry_client::{KnownPackage, PackageVersion};
 
-use super::package_shell::{self, ActiveTab};
+use super::package_shell;
 use super::sidebar::{SidebarActive, SidebarContext, render_sidebar};
 
 /// Render the item detail page for a type.
@@ -59,7 +59,13 @@ pub(crate) fn render_type(
 
     outer.push(grid.build());
 
-    let tab = ActiveTab::Docs { version_detail };
+    let ctx = package_shell::SidebarContext {
+        pkg,
+        version,
+        version_detail,
+        importers: &[],
+        exporters: &[],
+    };
     let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
     let extra = vec![
         crate::nav::Crumb {
@@ -71,7 +77,7 @@ pub(crate) fn render_type(
             href: None,
         },
     ];
-    package_shell::render_page_with_crumbs(pkg, version, &tab, &title, outer.build(), extra)
+    package_shell::render_page_with_crumbs(&ctx, &title, outer.build(), extra)
 }
 
 /// Render the item detail page for a freestanding function.
@@ -123,7 +129,13 @@ pub(crate) fn render_function(
 
     outer.push(grid.build());
 
-    let tab = ActiveTab::Docs { version_detail };
+    let ctx = package_shell::SidebarContext {
+        pkg,
+        version,
+        version_detail,
+        importers: &[],
+        exporters: &[],
+    };
     let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
     let extra = vec![
         crate::nav::Crumb {
@@ -135,7 +147,7 @@ pub(crate) fn render_function(
             href: None,
         },
     ];
-    package_shell::render_page_with_crumbs(pkg, version, &tab, &title, outer.build(), extra)
+    package_shell::render_page_with_crumbs(&ctx, &title, outer.build(), extra)
 }
 
 /// Render the WIT definition code block for a type, with linked type refs.
