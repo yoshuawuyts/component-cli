@@ -252,30 +252,10 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
       transition: opacity 0.3s cubic-bezier(0.25, 1, 0.5, 1);
     }}
     .carousel-word {{
-      display: inline-block;
-      opacity: 0;
-      transform: translateY(-0.6em);
-    }}
-    /* Exit: slow start, then accelerate down and away */
-    .carousel-word.out {{
-      opacity: 0;
-      transform: translateY(0.6em);
-      transition:
-        opacity 0.25s cubic-bezier(0.55, 0, 1, 0.45),
-        transform 0.25s cubic-bezier(0.55, 0, 1, 0.45);
-    }}
-    /* Enter: fly in fast from above, overshoot slightly, settle back */
-    .carousel-word.in {{
-      opacity: 1;
-      transform: translateY(0);
-      transition:
-        opacity 0.3s cubic-bezier(0.22, 1.15, 0.36, 1),
-        transform 0.3s cubic-bezier(0.22, 1.15, 0.36, 1);
+      display: inline;
     }}
     @media (prefers-reduced-motion: reduce) {{
-      .carousel-word,
-      .carousel-word.out,
-      .carousel-word.in {{
+      .carousel-word {{
         transition: none;
       }}
     }}
@@ -415,30 +395,67 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
       input.addEventListener('focus', updateVisibility);
       input.addEventListener('blur', updateVisibility);
       updateVisibility();
-      el.classList.add('in');
-      setInterval(function() {{
-        if (input.value) return;
-        // Fade out gently
-        el.classList.remove('in');
-        el.classList.add('out');
-        // Swap text after exit completes, then fade in
-        var swapDelay = reducedMotion ? 0 : 250;
-        setTimeout(function() {{
-          var next = idx;
-          while (next === idx) next = Math.floor(Math.random() * words.length);
-          idx = next;
-          el.textContent = words[idx];
-          // Disable transition, snap to top start position, then animate in
-          el.classList.remove('out');
-          el.style.transition = 'none';
-          // Force reflow so the snap is committed
-          void el.offsetWidth;
-          el.style.transition = '';
-          requestAnimationFrame(function() {{
-            el.classList.add('in');
-          }});
-        }}, swapDelay);
-      }}, 7000);
+
+      var currentWord = words[idx];
+      el.textContent = currentWord;
+      var typing = false;
+
+      function jitter() {{
+        return 50 + Math.random() * 90;
+      }}
+
+      function deleteWord(cb) {{
+        var text = el.textContent;
+        if (text.length === 0) {{ cb(); return; }}
+        typing = true;
+        var first = true;
+        function step() {{
+          text = text.slice(0, -1);
+          el.textContent = text;
+          if (text.length > 0) {{
+            if (first) {{
+              first = false;
+              setTimeout(step, 300);
+            }} else {{
+              setTimeout(step, 20 + Math.random() * 25);
+            }}
+          }} else {{
+            typing = false;
+            cb();
+          }}
+        }}
+        setTimeout(step, 20);
+      }}
+
+      function typeWord(word, cb) {{
+        var i = 0;
+        typing = true;
+        function step() {{
+          i++;
+          el.textContent = word.slice(0, i);
+          if (i < word.length) {{
+            setTimeout(step, jitter());
+          }} else {{
+            typing = false;
+            if (cb) cb();
+          }}
+        }}
+        setTimeout(step, jitter());
+      }}
+
+      function cycle() {{
+        if (input.value || typing) return;
+        deleteWord(function() {{
+          setTimeout(function() {{
+            var next = idx;
+            while (next === idx) next = Math.floor(Math.random() * words.length);
+            idx = next;
+            typeWord(words[idx]);
+          }}, reducedMotion ? 0 : 200);
+        }});
+      }}
+
+      setInterval(cycle, 5000);
     }})();
   </script>
 </body>

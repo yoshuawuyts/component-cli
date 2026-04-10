@@ -114,7 +114,7 @@ fn render_hero(_total: usize) -> Division {
                     })
                     .button(|btn| {
                         btn.type_("submit")
-                            .class("px-5 py-2.5 text-sm font-normal bg-fg text-page hover:bg-accent-hover border-2 border-fg transition-colors")
+                            .class("px-5 py-2.5 text-sm font-normal bg-fg text-page border-2 border-fg transition-transform hover:scale-105 hover:shadow-md")
                             .text("Search")
                     })
             })
