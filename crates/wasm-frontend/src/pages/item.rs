@@ -104,8 +104,8 @@ fn render_type_definition(ty: &TypeDoc) -> Division {
                 let mut pre = html::text_content::PreformattedText::builder();
                 pre.class(pre_class);
                 pre.code(|c| {
-                    c.span(|s| s.class("text-wit-struct").text("record "))
-                        .span(|s| s.class("font-medium").text(ty.name.clone()))
+                    c.span(|s| s.class("text-fg-muted").text("record "))
+                        .span(|s| s.class("text-wit-struct font-medium").text(ty.name.clone()))
                         .text(" {\n".to_owned());
                     for f in fields {
                         c.text("    ".to_owned())
@@ -121,8 +121,8 @@ fn render_type_definition(ty: &TypeDoc) -> Division {
                 let mut pre = html::text_content::PreformattedText::builder();
                 pre.class(pre_class);
                 pre.code(|c| {
-                    c.span(|s| s.class("text-wit-struct").text("variant "))
-                        .span(|s| s.class("font-medium").text(ty.name.clone()))
+                    c.span(|s| s.class("text-fg-muted").text("variant "))
+                        .span(|s| s.class("text-wit-struct font-medium").text(ty.name.clone()))
                         .text(" {\n".to_owned());
                     for case in cases {
                         c.text(format!("    {}", case.name));
@@ -141,8 +141,8 @@ fn render_type_definition(ty: &TypeDoc) -> Division {
                 let mut pre = html::text_content::PreformattedText::builder();
                 pre.class(pre_class);
                 pre.code(|c| {
-                    c.span(|s| s.class("text-wit-enum").text("enum "))
-                        .span(|s| s.class("font-medium").text(ty.name.clone()))
+                    c.span(|s| s.class("text-fg-muted").text("enum "))
+                        .span(|s| s.class("text-wit-enum font-medium").text(ty.name.clone()))
                         .text(" {\n".to_owned());
                     for case in cases {
                         c.text(format!("    {},\n", case.name));
@@ -155,8 +155,8 @@ fn render_type_definition(ty: &TypeDoc) -> Division {
                 let mut pre = html::text_content::PreformattedText::builder();
                 pre.class(pre_class);
                 pre.code(|c| {
-                    c.span(|s| s.class("text-wit-enum").text("flags "))
-                        .span(|s| s.class("font-medium").text(ty.name.clone()))
+                    c.span(|s| s.class("text-fg-muted").text("flags "))
+                        .span(|s| s.class("text-wit-enum font-medium").text(ty.name.clone()))
                         .text(" {\n".to_owned());
                     for f in flags {
                         c.text(format!("    {},\n", f.name));
@@ -168,16 +168,16 @@ fn render_type_definition(ty: &TypeDoc) -> Division {
             TypeKind::Resource { .. } => html::text_content::PreformattedText::builder()
                 .class(pre_class)
                 .code(|c| {
-                    c.span(|s| s.class("text-wit-resource").text("resource "))
-                        .span(|s| s.class("font-medium").text(ty.name.clone()))
+                    c.span(|s| s.class("text-fg-muted").text("resource "))
+                        .span(|s| s.class("text-wit-resource font-medium").text(ty.name.clone()))
                         .text(";".to_owned())
                 })
                 .build(),
             TypeKind::Alias(type_ref) => html::text_content::PreformattedText::builder()
                 .class(pre_class)
                 .code(|c| {
-                    c.span(|s| s.class("text-accent").text("type "))
-                        .span(|s| s.class("font-medium").text(ty.name.clone()))
+                    c.span(|s| s.class("text-fg-muted").text("type "))
+                        .span(|s| s.class("text-accent font-medium").text(ty.name.clone()))
                         .text(" = ".to_owned())
                         .push(render_type_ref(type_ref))
                         .text(";".to_owned())
@@ -197,9 +197,9 @@ fn render_function_definition(func: &FunctionDoc) -> Division {
             html::text_content::PreformattedText::builder()
                 .class(pre_class)
                 .code(|c| {
-                    c.span(|s| s.class("font-medium").text(func.name.clone()))
+                    c.span(|s| s.class("text-wit-func font-medium").text(func.name.clone()))
                         .text(": ".to_owned())
-                        .span(|s| s.class("text-wit-func").text("func"))
+                        .span(|s| s.class("text-fg-muted").text("func"))
                         .text("(".to_owned());
                     let visible_params: Vec<_> =
                         func.params.iter().filter(|p| p.name != "self").collect();
