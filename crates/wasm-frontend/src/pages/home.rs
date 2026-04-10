@@ -246,20 +246,20 @@ fn render_card(pkg: &KnownPackage) -> Division {
                 a.href(format!("/{ns}/{name}"))
                     .class("flex flex-col h-full bg-page p-5 border-r-2 border-b-2 border-fg card-lift")
                     .span(|s| {
-                        s.class("block text-sm text-fg-muted uppercase tracking-wide")
+                        s.class("block text-sm text-fg-muted")
                             .text(ns.clone())
                     })
                     .span(|s| {
-                        s.class("block text-lg font-normal tracking-display mt-0.5 truncate")
+                        s.class("block text-2xl font-light tracking-display truncate")
                             .text(name.clone())
                     })
                     .span(|s| {
-                        s.class("block text-sm text-fg-secondary mt-3 overflow-hidden leading-relaxed")
+                        s.class("block text-sm text-fg-muted mt-4 overflow-hidden")
                             .style("display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 3rem")
                             .text(description.to_owned())
                     })
                     .span(|s| {
-                        s.class("block text-sm text-fg-muted mt-auto pt-3 font-mono")
+                        s.class("block text-sm text-fg-faint mt-auto pt-4 font-mono")
                             .text(version.clone())
                     })
             })
@@ -267,16 +267,16 @@ fn render_card(pkg: &KnownPackage) -> Division {
         _ => Division::builder()
             .class("flex flex-col h-full bg-page p-5 border-r-2 border-b-2 border-fg card-lift")
             .span(|s| {
-                s.class("block text-lg font-normal tracking-display truncate")
+                s.class("block text-2xl font-light tracking-display truncate")
                     .text(display_name)
             })
             .span(|s| {
-                s.class("block text-sm text-fg-secondary mt-3 overflow-hidden leading-relaxed")
+                s.class("block text-sm text-fg-muted mt-4 overflow-hidden")
                     .style("display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 3rem")
                     .text(description.to_owned())
             })
             .span(|s| {
-                s.class("block text-sm text-fg-muted mt-auto pt-3 font-mono")
+                s.class("block text-sm text-fg-faint mt-auto pt-4 font-mono")
                     .text(version.clone())
             })
             .build(),
