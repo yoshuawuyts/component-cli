@@ -259,23 +259,32 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
       pointer-events: none;
       white-space: nowrap;
       overflow: hidden;
-      transition: opacity 0.15s;
+      transition: opacity 0.3s cubic-bezier(0.25, 1, 0.5, 1);
     }}
     .carousel-word {{
       display: inline-block;
-      transition: opacity 0.3s, transform 0.3s;
+      opacity: 0;
+      transform: translateY(-0.25em);
+      filter: blur(2px);
+      transition:
+        opacity 0.35s cubic-bezier(0.25, 1, 0.5, 1),
+        transform 0.35s cubic-bezier(0.25, 1, 0.5, 1),
+        filter 0.35s cubic-bezier(0.25, 1, 0.5, 1);
     }}
     .carousel-word.out {{
       opacity: 0;
-      transform: translateY(-0.5em);
+      transform: translateY(0.25em);
+      filter: blur(2px);
     }}
     .carousel-word.in {{
       opacity: 1;
       transform: translateY(0);
+      filter: blur(0);
     }}
     @media (prefers-reduced-motion: reduce) {{
       .carousel-word {{
         transition: none;
+        filter: none;
       }}
     }}
     /* Tab buttons */
@@ -352,31 +361,45 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
     }});
     // Search placeholder carousel
     (function() {{
-      var words = ['components\u2026', 'interfaces\u2026', 'libraries\u2026'];
+      var words = ['components\u2026', 'interfaces\u2026', 'libraries\u2026', 'plugins\u2026', 'servers\u2026', 'tools\u2026', 'apps\u2026', 'extensions\u2026', 'handlers\u2026', 'services\u2026', 'applets\u2026', 'clients\u2026'];
       var el = document.getElementById('carousel-word');
       var overlay = document.getElementById('search-carousel');
       var input = document.getElementById('search-input');
       if (!el || !overlay || !input) return;
       var idx = 0;
       var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      function hide() {{ overlay.style.opacity = input.value ? '0' : ''; }}
-      input.addEventListener('input', hide);
-      input.addEventListener('focus', hide);
-      input.addEventListener('blur', hide);
-      hide();
+      function updateVisibility() {{
+        var hasValue = input.value.length > 0;
+        overlay.style.opacity = hasValue ? '0' : '';
+      }}
+      input.addEventListener('input', updateVisibility);
+      input.addEventListener('focus', updateVisibility);
+      input.addEventListener('blur', updateVisibility);
+      updateVisibility();
+      el.classList.add('in');
       setInterval(function() {{
         if (input.value) return;
+        // Fade out gently
         el.classList.remove('in');
         el.classList.add('out');
-        var swapDelay = reducedMotion ? 0 : 300;
+        // Swap text after exit completes, then fade in
+        var swapDelay = reducedMotion ? 0 : 600;
         setTimeout(function() {{
-          idx = (idx + 1) % words.length;
+          var next = idx;
+          while (next === idx) next = Math.floor(Math.random() * words.length);
+          idx = next;
           el.textContent = words[idx];
+          // Disable transition, snap to top start position, then animate in
           el.classList.remove('out');
-          el.classList.add('in');
+          el.style.transition = 'none';
+          // Force reflow so the snap is committed
+          void el.offsetWidth;
+          el.style.transition = '';
+          requestAnimationFrame(function() {{
+            el.classList.add('in');
+          }});
         }}, swapDelay);
-      }}, 3000);
-      el.classList.add('in');
+      }}, 7000);
     }})();
   </script>
 </body>
