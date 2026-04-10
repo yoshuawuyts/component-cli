@@ -166,8 +166,8 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
       transform-origin: center center;
     }}
     .card-lift:hover {{
-      transform: scale(1.06);
-      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
+      transform: scale(1.03);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
       z-index: 1;
       position: relative;
       outline: 2px solid var(--color-fg);

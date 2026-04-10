@@ -56,7 +56,7 @@ fn render_error(_err: &ApiError) -> String {
 /// Render the hero area with heading, search form, CTA, and quick-install hint.
 fn render_hero(_total: usize) -> Division {
     let mut hero = Division::builder();
-    hero.class("pt-12 pb-8");
+    hero.class("pt-16 pb-12");
 
     hero.division(|row| {
         row.class("flex items-baseline justify-between")
@@ -246,8 +246,15 @@ fn render_card(pkg: &KnownPackage) -> Division {
                 a.href(format!("/{ns}/{name}"))
                     .class("flex flex-col h-full bg-page p-5 border-r-2 border-b-2 border-fg card-lift")
                     .span(|s| {
-                        s.class("block text-xs text-fg-faint leading-tight")
-                            .text(ns.clone())
+                        s.class("flex justify-between items-start")
+                            .span(|left| {
+                                left.class("text-xs text-fg-faint leading-tight")
+                                    .text(ns.clone())
+                            })
+                            .span(|right| {
+                                right.class("text-xs text-fg-faint font-mono shrink-0")
+                                    .text(version.clone())
+                            })
                     })
                     .span(|s| {
                         s.class("block text-2xl font-light tracking-display leading-tight truncate")
@@ -258,26 +265,25 @@ fn render_card(pkg: &KnownPackage) -> Division {
                             .style("display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 2.75rem")
                             .text(description.to_owned())
                     })
-                    .span(|s| {
-                        s.class("block text-xs text-fg-faint mt-auto pt-2 font-mono")
-                            .text(version.clone())
-                    })
             })
             .build(),
         _ => Division::builder()
             .class("flex flex-col h-full bg-page p-5 border-r-2 border-b-2 border-fg card-lift")
             .span(|s| {
-                s.class("block text-2xl font-light tracking-display leading-tight truncate")
-                    .text(display_name)
+                s.class("flex justify-between items-start")
+                    .span(|left| {
+                        left.class("text-2xl font-light tracking-display leading-tight truncate")
+                            .text(display_name)
+                    })
+                    .span(|right| {
+                        right.class("text-xs text-fg-faint font-mono shrink-0 mt-1")
+                            .text(version.clone())
+                    })
             })
             .span(|s| {
                 s.class("block text-sm text-fg-muted mt-6 overflow-hidden")
                     .style("display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 2.75rem")
                     .text(description.to_owned())
-            })
-            .span(|s| {
-                s.class("block text-xs text-fg-faint mt-auto pt-2 font-mono")
-                    .text(version.clone())
             })
             .build(),
     }
