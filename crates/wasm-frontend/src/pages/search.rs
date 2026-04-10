@@ -72,7 +72,7 @@ fn render_results(query: &str, packages: &[KnownPackage]) -> String {
         body.push(list.build());
     }
 
-    layout::document("Search", &body.build().to_string())
+    layout::document_with_nav("Search", &body.build().to_string())
 }
 
 /// Render the page with an API error message.
@@ -95,7 +95,7 @@ fn render_error(query: &str, err: &ApiError) -> String {
             .paragraph(|p| p.class("text-sm text-fg-muted mt-2").text(err.to_string()))
     });
 
-    layout::document("Search", &body.build().to_string())
+    layout::document_with_nav("Search", &body.build().to_string())
 }
 
 /// Inline search form for refining queries.

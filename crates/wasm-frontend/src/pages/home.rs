@@ -72,9 +72,9 @@ fn render_hero(_total: usize) -> Division {
                             .text("Docs")
                     })
                     .anchor(|a| {
-                        a.href("/about")
+                        a.href("/downloads")
                             .class("text-fg-muted hover:text-fg transition-colors")
-                            .text("About")
+                            .text("Downloads")
                     })
             })
     });

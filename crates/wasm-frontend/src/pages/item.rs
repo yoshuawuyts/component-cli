@@ -1,7 +1,6 @@
 //! Item detail page (type or function within an interface).
 
 use crate::wit_doc::{FunctionDoc, HandleKind, TypeDoc, TypeKind, TypeRef, WitDocument};
-use html::content::Navigation;
 use html::tables::{Table, TableRow};
 use html::text_content::Division;
 use wasm_meta_registry_client::{KnownPackage, PackageVersion};
@@ -20,19 +19,9 @@ pub(crate) fn render_type(
     doc: &WitDocument,
 ) -> String {
     let display_name = package_shell::display_name_for(pkg);
-    let title = format!("{display_name} — {iface_name}::{}", ty.name);
-    let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
-    let iface_url = format!("{pkg_url}/interface/{iface_name}");
+    let title = format!("{display_name} \u{2014} {iface_name}::{}", ty.name);
 
     let mut outer = Division::builder();
-
-    outer.push(render_breadcrumb(
-        &display_name,
-        &pkg_url,
-        iface_name,
-        &iface_url,
-        &ty.name,
-    ));
 
     // Header
     outer.division(|div| {
@@ -85,19 +74,9 @@ pub(crate) fn render_function(
     doc: &WitDocument,
 ) -> String {
     let display_name = package_shell::display_name_for(pkg);
-    let title = format!("{display_name} — {iface_name}::{}", func.name);
-    let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
-    let iface_url = format!("{pkg_url}/interface/{iface_name}");
+    let title = format!("{display_name} \u{2014} {iface_name}::{}", func.name);
 
     let mut outer = Division::builder();
-
-    outer.push(render_breadcrumb(
-        &display_name,
-        &pkg_url,
-        iface_name,
-        &iface_url,
-        &func.name,
-    ));
 
     outer.division(|div| {
         div.class("mb-6").heading_2(|h2| {
@@ -135,38 +114,6 @@ pub(crate) fn render_function(
 
     let tab = ActiveTab::Docs { version_detail };
     package_shell::render_page(pkg, version, &tab, &title, outer.build())
-}
-
-/// Breadcrumb: Home / package / interface / item
-fn render_breadcrumb(
-    display_name: &str,
-    pkg_url: &str,
-    iface_name: &str,
-    iface_url: &str,
-    item_name: &str,
-) -> Navigation {
-    Navigation::builder()
-        .class("text-sm text-fg-muted mb-4")
-        .anchor(|a| {
-            a.href("/")
-                .class("hover:text-accent transition-colors")
-                .text("Home")
-        })
-        .span(|s| s.class("mx-1").text("/"))
-        .anchor(|a| {
-            a.href(pkg_url.to_owned())
-                .class("hover:text-accent transition-colors")
-                .text(display_name.to_owned())
-        })
-        .span(|s| s.class("mx-1").text("/"))
-        .anchor(|a| {
-            a.href(iface_url.to_owned())
-                .class("hover:text-accent transition-colors")
-                .text(iface_name.to_owned())
-        })
-        .span(|s| s.class("mx-1").text("/"))
-        .span(|s| s.class("text-fg font-medium").text(item_name.to_owned()))
-        .build()
 }
 
 /// Render the WIT definition code block for a type, with linked type refs.

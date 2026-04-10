@@ -67,7 +67,20 @@ pub(crate) fn render_page(
     // Caller-provided body content
     body.push(body_content);
 
-    layout::document(title, &body.build().to_string())
+    let ns_crumb = pkg.wit_namespace.as_ref().map(|ns| crate::nav::Crumb {
+        label: ns.clone(),
+        href: Some(format!("/{ns}")),
+    });
+    let pkg_crumb = crate::nav::Crumb {
+        label: display_name.clone(),
+        href: None,
+    };
+    let crumbs: Vec<crate::nav::Crumb> = ns_crumb
+        .into_iter()
+        .chain(std::iter::once(pkg_crumb))
+        .collect();
+
+    layout::document_with_breadcrumbs(title, &body.build().to_string(), &crumbs)
 }
 
 /// Compute the display name from package WIT metadata.
@@ -261,10 +274,9 @@ fn render_install_command(display_name: &str, version: &str) -> Division {
 /// Render the inline version selector: `@ <select>` next to the package title.
 fn render_version_inline(pkg: &KnownPackage, current_version: &str, url_name: &str) -> Division {
     let mut select = html::forms::Select::builder();
-    select
-        .id("version-select")
-        .name("version")
-        .class("px-1.5 py-0.5 border-2 border-fg bg-surface text-fg text-xl font-normal cursor-pointer");
+    select.id("version-select").name("version").class(
+        "px-1.5 py-0.5 border-2 border-fg bg-surface text-fg text-xl font-normal cursor-pointer",
+    );
 
     for tag in &pkg.tags {
         let is_current = tag == current_version;

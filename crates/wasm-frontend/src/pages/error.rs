@@ -24,5 +24,5 @@ pub(crate) fn render(message: &str) -> String {
         })
         .build();
 
-    layout::document("Error", &body.to_string())
+    layout::document_with_nav("Error", &body.to_string())
 }

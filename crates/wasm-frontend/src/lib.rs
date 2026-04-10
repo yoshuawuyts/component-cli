@@ -14,6 +14,7 @@
 mod fonts;
 mod footer;
 mod layout;
+mod nav;
 mod pages;
 mod reserved;
 mod wit_doc;
@@ -37,12 +38,14 @@ fn app() -> Router {
         .route("/search", get(search))
         .route("/about", get(about))
         .route("/docs", get(docs))
+        .route("/downloads", get(downloads))
         .route("/health", get(health))
         .route("/fonts/iosevka-regular.woff2", get(fonts::regular))
         .route("/fonts/iosevka-medium.woff2", get(fonts::medium))
         .route("/fonts/iosevka-semibold.woff2", get(fonts::semibold))
         .route("/fonts/iosevka-bold.woff2", get(fonts::bold))
         .route("/{namespace}/{name}", get(package_redirect))
+        .route("/{namespace}", get(namespace_page))
         .route("/{namespace}/{name}/{version}", get(package_detail))
         .route(
             "/{namespace}/{name}/{version}/dependencies",
@@ -130,16 +133,32 @@ async fn all_packages(Query(params): Query<AllPackagesParams>) -> Response {
     with_cache_control(html, "public, max-age=60")
 }
 
-/// About page (placeholder).
+/// About page — redirects to docs.
 async fn about() -> Response {
-    let html = pages::about::render();
-    with_cache_control(html, "public, max-age=3600")
+    Redirect::permanent("/docs").into_response()
 }
 
 /// Documentation page.
 async fn docs() -> Response {
     let html = pages::docs::render();
     with_cache_control(html, "public, max-age=3600")
+}
+
+/// Downloads page.
+async fn downloads() -> Response {
+    let html = pages::downloads::render();
+    with_cache_control(html, "public, max-age=3600")
+}
+
+/// Namespace page — list all packages under a publisher.
+async fn namespace_page(Path(namespace): Path<String>) -> Response {
+    if is_reserved(&namespace) {
+        return not_found_response();
+    }
+
+    let client = RegistryClient::from_env();
+    let html = pages::namespace::render(&client, &namespace).await;
+    with_cache_control(html, "public, max-age=60")
 }
 
 // r[impl frontend.pages.package-redirect]

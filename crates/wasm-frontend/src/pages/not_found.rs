@@ -44,5 +44,5 @@ pub(crate) fn render() -> String {
         })
         .build();
 
-    layout::document("Not Found", &body.to_string())
+    layout::document_with_nav("Not Found", &body.to_string())
 }

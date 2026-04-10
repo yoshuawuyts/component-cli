@@ -1,7 +1,6 @@
 //! World detail page.
 
 use crate::wit_doc::{WitDocument, WorldDoc, WorldItemDoc};
-use html::content::Navigation;
 use html::text_content::{Division, ListItem, UnorderedList};
 use wasm_meta_registry_client::{KnownPackage, PackageVersion};
 
@@ -18,12 +17,9 @@ pub(crate) fn render(
     doc: &WitDocument,
 ) -> String {
     let display_name = package_shell::display_name_for(pkg);
-    let title = format!("{display_name} — {}", world.name);
-    let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
+    let title = format!("{display_name} \u{2014} {}", world.name);
 
     let mut outer = Division::builder();
-
-    outer.push(render_breadcrumb(&display_name, &pkg_url, &world.name));
 
     // Header
     outer.division(|div| {
@@ -68,26 +64,6 @@ pub(crate) fn render(
 
     let tab = ActiveTab::Docs { version_detail };
     package_shell::render_page(pkg, version, &tab, &title, outer.build())
-}
-
-/// Breadcrumb: Home / package / world
-fn render_breadcrumb(display_name: &str, pkg_url: &str, world_name: &str) -> Navigation {
-    Navigation::builder()
-        .class("text-sm text-fg-muted mb-4")
-        .anchor(|a| {
-            a.href("/")
-                .class("hover:text-accent transition-colors")
-                .text("Home")
-        })
-        .span(|s| s.class("mx-1").text("/"))
-        .anchor(|a| {
-            a.href(pkg_url.to_owned())
-                .class("hover:text-accent transition-colors")
-                .text(display_name.to_owned())
-        })
-        .span(|s| s.class("mx-1").text("/"))
-        .span(|s| s.class("text-fg font-medium").text(world_name.to_owned()))
-        .build()
 }
 
 /// Render an imports or exports section, grouped by package namespace.

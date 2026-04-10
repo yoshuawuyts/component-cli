@@ -1,7 +1,6 @@
 //! Interface detail page.
 
 use crate::wit_doc::{FunctionDoc, InterfaceDoc, TypeDoc, TypeKind, WitDocument};
-use html::content::Navigation;
 use html::text_content::{Division, ListItem, UnorderedList};
 use wasm_meta_registry_client::{KnownPackage, PackageVersion};
 
@@ -19,13 +18,9 @@ pub(crate) fn render(
 ) -> String {
     let display_name = package_shell::display_name_for(pkg);
     let title = format!("{display_name} — {}", iface.name);
-    let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
 
-    // Breadcrumb + interface header + content grid
+    // Interface header + content grid
     let mut outer = Division::builder();
-
-    // Breadcrumb
-    outer.push(render_breadcrumb(&display_name, &pkg_url, &iface.name));
 
     // Header
     outer.division(|div| {
@@ -116,26 +111,6 @@ pub(crate) fn render(
 
     let tab = ActiveTab::Docs { version_detail };
     package_shell::render_page(pkg, version, &tab, &title, outer.build())
-}
-
-/// Render a breadcrumb: Home / package / interface
-fn render_breadcrumb(display_name: &str, pkg_url: &str, iface_name: &str) -> Navigation {
-    Navigation::builder()
-        .class("text-sm text-fg-muted mb-4")
-        .anchor(|a| {
-            a.href("/")
-                .class("hover:text-accent transition-colors")
-                .text("Home")
-        })
-        .span(|s| s.class("mx-1").text("/"))
-        .anchor(|a| {
-            a.href(pkg_url.to_owned())
-                .class("hover:text-accent transition-colors")
-                .text(display_name.to_owned())
-        })
-        .span(|s| s.class("mx-1").text("/"))
-        .span(|s| s.class("text-fg font-medium").text(iface_name.to_owned()))
-        .build()
 }
 
 /// Render a section of types grouped by kind.

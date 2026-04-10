@@ -20,6 +20,29 @@ pub(crate) const ACCENT_COLOR: &str = "#232cf4";
 /// color CSS variables, and footer.
 #[must_use]
 pub(crate) fn document(title: &str, body_content: &str) -> String {
+    document_inner(title, body_content, "")
+}
+
+/// Render a complete HTML document with nav bar, title, and body content.
+#[must_use]
+pub(crate) fn document_with_nav(title: &str, body_content: &str) -> String {
+    let nav = crate::nav::render(&[]);
+    document_inner(title, body_content, &nav)
+}
+
+/// Render a complete HTML document with nav bar, breadcrumbs, title, and body.
+#[must_use]
+pub(crate) fn document_with_breadcrumbs(
+    title: &str,
+    body_content: &str,
+    crumbs: &[crate::nav::Crumb],
+) -> String {
+    let nav = crate::nav::render(crumbs);
+    document_inner(title, body_content, &nav)
+}
+
+/// Inner document renderer.
+fn document_inner(title: &str, body_content: &str, nav: &str) -> String {
     let escaped_title = escape_html_text(title);
 
     format!(
@@ -298,6 +321,7 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
   </style>
 </head>
 <body class="bg-page text-fg min-h-screen flex flex-col leading-relaxed font-sans antialiased">
+  {nav}
   <main class="flex-1 w-full max-w-6xl mx-auto px-6 sm:px-8 pb-12">
     {body_content}
   </main>

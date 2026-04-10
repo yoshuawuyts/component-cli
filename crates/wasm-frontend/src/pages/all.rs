@@ -59,7 +59,7 @@ fn render_packages(packages: &[KnownPackage], offset: u32, limit: u32) -> String
         body.push(render_pagination(packages, offset, limit));
     }
 
-    layout::document("All Packages", &body.build().to_string())
+    layout::document_with_nav("All Packages", &body.build().to_string())
 }
 
 /// Render the page with an API error message.
@@ -85,7 +85,7 @@ fn render_error(err: &ApiError, offset: u32, limit: u32) -> String {
 
     body.push(render_pagination(&[], offset, limit));
 
-    layout::document("All Packages", &body.build().to_string())
+    layout::document_with_nav("All Packages", &body.build().to_string())
 }
 
 /// Render a single package row.
