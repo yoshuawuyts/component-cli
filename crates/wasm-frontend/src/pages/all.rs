@@ -22,7 +22,7 @@ fn render_packages(packages: &[KnownPackage], offset: u32, limit: u32) -> String
 
     // Page header with count
     body.division(|div| {
-        div.class("pt-8 flex items-baseline justify-between pb-6 border-b border-border mb-6")
+        div.class("pt-8 flex items-baseline justify-between pb-6 border-b-2 border-fg mb-6")
             .heading_1(|h1| {
                 h1.class("text-3xl font-normal tracking-display")
                     .text("All Packages")
@@ -67,7 +67,7 @@ fn render_error(err: &ApiError, offset: u32, limit: u32) -> String {
     let mut body = Division::builder();
 
     body.division(|div| {
-        div.class("pt-8 pb-6 border-b border-border mb-6")
+        div.class("pt-8 pb-6 border-b-2 border-fg mb-6")
             .heading_1(|h1| {
                 h1.class("text-3xl font-normal tracking-display")
                     .text("All Packages")
@@ -104,7 +104,7 @@ fn render_row(pkg: &KnownPackage) -> Division {
             .anchor(|a| {
                 a.href(format!("/{ns}/{name}"))
                     .class(
-                        "flex items-baseline gap-3 py-3 hover:bg-surface -mx-2 px-2 rounded transition-colors",
+                        "flex items-baseline gap-3 py-3 hover:bg-surface -mx-2 px-2 transition-colors",
                     )
                     .span(|s| {
                         s.class("w-48 shrink-0 font-medium text-accent truncate")
@@ -121,7 +121,7 @@ fn render_row(pkg: &KnownPackage) -> Division {
             })
             .build(),
         _ => Division::builder()
-            .class("flex items-baseline gap-3 py-3 -mx-2 px-2 rounded")
+            .class("flex items-baseline gap-3 py-3 -mx-2 px-2 ")
             .span(|s| {
                 s.class("w-48 shrink-0 font-medium text-fg truncate")
                     .text(display_name)
@@ -141,7 +141,7 @@ fn render_row(pkg: &KnownPackage) -> Division {
 fn render_pagination(packages: &[KnownPackage], offset: u32, limit: u32) -> Division {
     let state = PaginationState::new(packages.len(), offset, limit);
     let mut container = Division::builder();
-    container.class("flex items-center justify-between gap-4 mt-8 pt-6 border-t border-border");
+    container.class("flex items-center justify-between gap-4 mt-8 pt-6 border-t-2 border-fg");
     container.span(|s| {
         s.class("text-sm text-fg-faint")
             .text(format!("Showing {}–{}", state.start, state.end))
@@ -197,12 +197,12 @@ fn render_pagination_controls(state: &PaginationState) -> Division {
                 "/all?offset={}&limit={}",
                 state.prev_offset, state.effective_limit
             ))
-            .class("px-3 py-1.5 rounded border border-border text-sm hover:bg-surface transition-colors")
+            .class("px-3 py-1.5 border-2 border-fg text-sm hover:bg-surface transition-colors")
             .text("Previous")
         });
     } else {
         controls.span(|s| {
-            s.class("px-3 py-1.5 rounded border border-border-light text-sm text-fg-faint")
+            s.class("px-3 py-1.5 border-2 border-fg-light text-sm text-fg-faint")
                 .text("Previous")
         });
     }
@@ -212,12 +212,12 @@ fn render_pagination_controls(state: &PaginationState) -> Division {
                 "/all?offset={}&limit={}",
                 state.next_offset, state.effective_limit
             ))
-            .class("px-3 py-1.5 rounded border border-border text-sm hover:bg-surface transition-colors")
+            .class("px-3 py-1.5 border-2 border-fg text-sm hover:bg-surface transition-colors")
             .text("Next")
         });
     } else {
         controls.span(|s| {
-            s.class("px-3 py-1.5 rounded border border-border-light text-sm text-fg-faint")
+            s.class("px-3 py-1.5 border-2 border-fg-light text-sm text-fg-faint")
                 .text("Next")
         });
     }

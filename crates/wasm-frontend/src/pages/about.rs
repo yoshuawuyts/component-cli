@@ -18,12 +18,12 @@ pub(crate) fn render() -> String {
             p.class("text-fg-secondary leading-relaxed mt-4")
                 .text("This frontend is itself a WebAssembly component, compiled to ")
                 .code(|c| {
-                    c.class("bg-surface-muted px-1.5 py-0.5 rounded text-sm")
+                    c.class("bg-surface-muted px-1.5 py-0.5 text-sm")
                         .text("wasm32-wasip2")
                 })
                 .text(" and served via ")
                 .code(|c| {
-                    c.class("bg-surface-muted px-1.5 py-0.5 rounded text-sm")
+                    c.class("bg-surface-muted px-1.5 py-0.5 text-sm")
                         .text("wasi:http")
                 })
                 .text(".")

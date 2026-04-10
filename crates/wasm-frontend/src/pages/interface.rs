@@ -141,7 +141,7 @@ fn render_breadcrumb(display_name: &str, pkg_url: &str, iface_name: &str) -> Nav
 /// Render a section of types grouped by kind.
 fn render_type_section(heading: &str, types: &[&TypeDoc]) -> Division {
     let mut div = Division::builder();
-    div.class("pt-6 border-t border-border/50 first:pt-0 first:border-0");
+    div.class("pt-6 border-t-2 border-fg/50 first:pt-0 first:border-0");
     div.heading_2(|h2| {
         h2.class("text-sm font-medium text-fg-muted uppercase tracking-wide mb-3")
             .text(heading.to_owned())
@@ -189,7 +189,7 @@ fn render_type_row(ty: &TypeDoc) -> ListItem {
 /// Render the freestanding functions section.
 fn render_function_section(functions: &[FunctionDoc]) -> Division {
     let mut div = Division::builder();
-    div.class("pt-6 border-t border-border/50 first:pt-0 first:border-0");
+    div.class("pt-6 border-t-2 border-fg/50 first:pt-0 first:border-0");
     div.heading_2(|h2| {
         h2.class("text-sm font-medium text-fg-muted uppercase tracking-wide mb-3")
             .text("Functions")

@@ -228,7 +228,7 @@ fn render_raw_wit(wit_text: &str) -> Division {
         })
         .push(
             html::text_content::PreformattedText::builder()
-                .class("bg-surface-muted border border-border rounded-lg p-4 overflow-x-auto text-sm leading-relaxed")
+                .class("bg-surface-muted border-2 border-fg p-4 overflow-x-auto text-sm leading-relaxed")
                 .code(|code| code.class("text-fg").text(wit_text.to_owned()))
                 .build(),
         )
@@ -370,9 +370,9 @@ fn render_dependencies_panel(pkg: &KnownPackage) -> Division {
 
 /// Render the dependents panel with All / Importers / Exporters filter.
 fn render_dependents_panel(importers: &[KnownPackage], exporters: &[KnownPackage]) -> Division {
-    let active_class = "text-accent border-b-2 border-accent font-medium";
-    let inactive_class = "text-fg-muted hover:text-fg";
-    let filter_base = "px-3 py-1.5 text-sm cursor-pointer transition-colors";
+    let active_class = "bg-fg text-page font-medium";
+    let inactive_class = "text-fg hover:bg-fg hover:text-page";
+    let filter_base = "px-3 py-1.5 text-sm cursor-pointer transition-colors border-2 border-fg border-b-0 -ml-0.5 first:ml-0";
 
     let mut container = Division::builder();
     container.paragraph(|p| {
@@ -384,7 +384,7 @@ fn render_dependents_panel(importers: &[KnownPackage], exporters: &[KnownPackage
 
     // Sub-filter bar
     container.division(|div| {
-        div.class("flex border-b border-border mb-4")
+        div.class("flex")
             .button(|btn| {
                 btn.id("filter-all")
                     .class(format!("{filter_base} {active_class}"))

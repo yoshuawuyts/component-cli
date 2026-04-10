@@ -88,9 +88,9 @@ pub(crate) fn url_base_for(pkg: &KnownPackage, version: &str) -> String {
 
 /// Render the tab bar with links to each tab route.
 fn render_tab_bar(url_base: &str, active: &ActiveTab<'_>) -> Division {
-    let active_class = "text-accent border-b-2 border-accent font-medium";
-    let inactive_class = "text-fg-muted hover:text-fg";
-    let tab_base = "px-4 py-2 text-sm transition-colors inline-block";
+    let active_class = "bg-fg text-page font-medium";
+    let inactive_class = "text-fg hover:bg-fg hover:text-page";
+    let tab_base = "px-4 py-2 text-sm transition-colors inline-block border-2 border-fg border-b-0 -ml-0.5 first:ml-0";
 
     let tabs: &[(&str, &str, bool)] = &[
         (
@@ -111,7 +111,7 @@ fn render_tab_bar(url_base: &str, active: &ActiveTab<'_>) -> Division {
     ];
 
     Division::builder()
-        .class("flex border-b border-border mb-8")
+        .class("flex")
         .push({
             let mut nav = Division::builder();
             nav.class("flex");
@@ -240,8 +240,8 @@ fn render_install_command(display_name: &str, version: &str) -> Division {
         .class("max-w-lg group/install")
         .division(|div| {
             div.class(
-                "flex items-center gap-2 bg-surface-muted border border-border \
-                 rounded-md px-3 py-2 font-mono text-sm text-fg",
+                "flex items-center gap-2 bg-surface-muted border-2 border-fg \
+                 px-3 py-2 font-mono text-sm text-fg",
             )
             .code(|code| {
                 code.class("flex-1 select-all overflow-hidden whitespace-nowrap text-ellipsis")
@@ -264,7 +264,7 @@ fn render_version_inline(pkg: &KnownPackage, current_version: &str, url_name: &s
     select
         .id("version-select")
         .name("version")
-        .class("px-1.5 py-0.5 rounded border border-border bg-surface text-fg text-xl font-normal cursor-pointer");
+        .class("px-1.5 py-0.5 border-2 border-fg bg-surface text-fg text-xl font-normal cursor-pointer");
 
     for tag in &pkg.tags {
         let is_current = tag == current_version;

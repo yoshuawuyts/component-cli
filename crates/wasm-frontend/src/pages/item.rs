@@ -171,7 +171,7 @@ fn render_breadcrumb(
 
 /// Render the WIT definition code block for a type, with linked type refs.
 fn render_type_definition(ty: &TypeDoc) -> Division {
-    let pre_class = "bg-surface-muted border border-border rounded-lg px-4 py-3 text-sm font-mono text-fg overflow-x-auto";
+    let pre_class = "bg-surface-muted border-2 border-fg px-4 py-3 text-sm font-mono text-fg overflow-x-auto";
 
     Division::builder()
         .class("mb-6")
@@ -265,7 +265,7 @@ fn render_type_definition(ty: &TypeDoc) -> Division {
 
 /// Render the WIT definition code block for a function, with linked type refs.
 fn render_function_definition(func: &FunctionDoc) -> Division {
-    let pre_class = "bg-surface-muted border border-border rounded-lg px-4 py-3 text-sm font-mono text-fg overflow-x-auto";
+    let pre_class = "bg-surface-muted border-2 border-fg px-4 py-3 text-sm font-mono text-fg overflow-x-auto";
 
     Division::builder()
         .class("mb-6")
@@ -323,7 +323,7 @@ fn render_field_table(heading: &str, fields: &[crate::wit_doc::FieldDoc]) -> Div
     let mut table = Table::builder();
     table.class("w-full text-sm");
     table.table_row(|tr| {
-        tr.class("border-b border-border text-left text-fg-muted")
+        tr.class("border-b-2 border-fg text-left text-fg-muted")
             .table_header(|th| th.class("py-2 pr-4 font-medium").text("Name"))
             .table_header(|th| th.class("py-2 pr-4 font-medium").text("Type"))
             .table_header(|th| th.class("py-2 font-medium").text("Description"))
@@ -342,7 +342,7 @@ fn render_field_table(heading: &str, fields: &[crate::wit_doc::FieldDoc]) -> Div
 /// Render a single field/param row.
 fn render_field_row(name: &str, ty: &TypeRef, docs: Option<&str>) -> TableRow {
     TableRow::builder()
-        .class("border-b border-border/50")
+        .class("border-b-2 border-fg/50")
         .table_cell(|td| {
             td.class("py-2 pr-4 font-mono text-accent")
                 .text(name.to_owned())
@@ -369,7 +369,7 @@ fn render_variant_table(cases: &[crate::wit_doc::CaseDoc]) -> Division {
     let mut table = Table::builder();
     table.class("w-full text-sm");
     table.table_row(|tr| {
-        tr.class("border-b border-border text-left text-fg-muted")
+        tr.class("border-b-2 border-fg text-left text-fg-muted")
             .table_header(|th| th.class("py-2 pr-4 font-medium").text("Case"))
             .table_header(|th| th.class("py-2 pr-4 font-medium").text("Payload"))
             .table_header(|th| th.class("py-2 font-medium").text("Description"))
@@ -380,7 +380,7 @@ fn render_variant_table(cases: &[crate::wit_doc::CaseDoc]) -> Division {
             .as_ref()
             .map_or_else(|| "—".to_owned(), format_type_ref_short);
         table.table_row(|tr| {
-            tr.class("border-b border-border/50")
+            tr.class("border-b-2 border-fg/50")
                 .table_cell(|td| {
                     td.class("py-2 pr-4 font-mono text-accent")
                         .text(case.name.clone())
@@ -406,13 +406,13 @@ fn render_enum_list(cases: &[crate::wit_doc::EnumCaseDoc]) -> Division {
     let mut table = Table::builder();
     table.class("w-full text-sm");
     table.table_row(|tr| {
-        tr.class("border-b border-border text-left text-fg-muted")
+        tr.class("border-b-2 border-fg text-left text-fg-muted")
             .table_header(|th| th.class("py-2 pr-4 font-medium").text("Case"))
             .table_header(|th| th.class("py-2 font-medium").text("Description"))
     });
     for case in cases {
         table.table_row(|tr| {
-            tr.class("border-b border-border/50")
+            tr.class("border-b-2 border-fg/50")
                 .table_cell(|td| {
                     td.class("py-2 pr-4 font-mono text-accent")
                         .text(case.name.clone())
@@ -437,13 +437,13 @@ fn render_flags_list(flags: &[crate::wit_doc::FlagDoc]) -> Division {
     let mut table = Table::builder();
     table.class("w-full text-sm");
     table.table_row(|tr| {
-        tr.class("border-b border-border text-left text-fg-muted")
+        tr.class("border-b-2 border-fg text-left text-fg-muted")
             .table_header(|th| th.class("py-2 pr-4 font-medium").text("Flag"))
             .table_header(|th| th.class("py-2 font-medium").text("Description"))
     });
     for flag in flags {
         table.table_row(|tr| {
-            tr.class("border-b border-border/50")
+            tr.class("border-b-2 border-fg/50")
                 .table_cell(|td| {
                     td.class("py-2 pr-4 font-mono text-accent")
                         .text(flag.name.clone())
@@ -526,13 +526,13 @@ fn render_function_detail(func: &FunctionDoc) -> Division {
         let mut table = Table::builder();
         table.class("w-full text-sm mt-3");
         table.table_row(|tr| {
-            tr.class("border-b border-border text-left text-fg-muted")
+            tr.class("border-b-2 border-fg text-left text-fg-muted")
                 .table_header(|th| th.class("py-2 pr-4 font-medium").text("Parameter"))
                 .table_header(|th| th.class("py-2 font-medium").text("Type"))
         });
         for param in &visible_params {
             table.table_row(|tr| {
-                tr.class("border-b border-border/50")
+                tr.class("border-b-2 border-fg/50")
                     .table_cell(|td| {
                         td.class("py-2 pr-4 font-mono text-accent")
                             .text(param.name.clone())

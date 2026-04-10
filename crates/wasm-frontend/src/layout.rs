@@ -73,6 +73,9 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
           letterSpacing: {{
             display: '-0.06em',
           }},
+          fontSize: {{
+            sm: ['1rem', {{ lineHeight: '1.5rem' }}],
+          }},
         }}
       }}
     }}
@@ -110,11 +113,11 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
     /* Color system: two-tone, inspired by charcuterie.elastiq.ch.
        Warm off-white background, vivid blue foreground. */
     :root {{
-      --color-bg: #fcfdf7;
+      --color-bg: #d9d9d9;
       --color-accent: {ACCENT_COLOR};
       --color-accent-hover: #1a22c0;
-      --color-surface: #f4f5ef;
-      --color-surface-muted: #eceee7;
+      --color-surface: #cfcfcf;
+      --color-surface-muted: #c8c8c8;
       --color-border: rgba(35, 44, 244, 0.25);
       --color-border-light: rgba(35, 44, 244, 0.12);
       --color-fg: {ACCENT_COLOR};
@@ -155,12 +158,21 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
         animation: none;
       }}
     }}
-    /* Card hover — border change only, no shadows */
+    /* Card hover — pop out with scale, shadow, and strong border */
     .card-lift {{
-      transition: border-color 0.15s, background-color 0.15s;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }}
+    .card-lift:hover {{
+      transform: scale(1.03);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+      z-index: 1;
+      position: relative;
+      outline: 2px solid var(--color-fg);
+      outline-offset: -2px;
     }}
     @media (prefers-reduced-motion: reduce) {{
       .card-lift {{ transition: none; }}
+      .card-lift:hover {{ transform: none; box-shadow: none; }}
     }}
     /* Card kind variants — thin left border for categorization */
     .card-interface {{
@@ -209,8 +221,8 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
       justify-content: center;
       width: 1.5rem;
       height: 1.5rem;
-      border: 1px solid var(--color-border);
-      border-radius: 0.375rem;
+      border: 2px solid var(--color-border);
+      border-radius: 0;
       font-size: 0.8125rem;
       font-family: inherit;
       color: var(--color-fg-muted);
@@ -264,24 +276,28 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
         transition: none;
       }}
     }}
-    /* Tab buttons */
+    /* Tab buttons — square, bordered, Charcuterie style */
     .tab-btn {{
-      padding: 0.5rem 0.75rem;
-      font-size: 0.875rem;
-      color: var(--color-fg-muted);
-      background: none;
-      border: none;
-      border-bottom: 2px solid transparent;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      color: var(--color-fg);
+      background: var(--color-bg);
+      border: 2px solid var(--color-fg);
+      border-bottom: none;
+      margin-left: -2px;
       cursor: pointer;
-      transition: color 0.15s, border-color 0.15s;
-      margin-bottom: -1px;
+      transition: color 0.15s, background-color 0.15s;
+    }}
+    .tab-btn:first-child {{
+      margin-left: 0;
     }}
     .tab-btn:hover {{
-      color: var(--color-fg);
+      background: var(--color-fg);
+      color: var(--color-bg);
     }}
     .tab-btn[aria-selected="true"] {{
-      color: var(--color-fg);
-      border-bottom-color: var(--color-accent);
+      background: var(--color-fg);
+      color: var(--color-bg);
     }}
     @media (prefers-reduced-motion: reduce) {{
       .tab-btn {{ transition: none; }}

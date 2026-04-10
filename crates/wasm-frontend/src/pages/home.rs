@@ -58,9 +58,25 @@ fn render_hero(_total: usize) -> Division {
     let mut hero = Division::builder();
     hero.class("pt-8 pb-6");
 
-    hero.heading_1(|h1| {
-        h1.class("text-5xl font-light tracking-display")
-            .text("WebAssembly Component Registry")
+    hero.division(|row| {
+        row.class("flex items-baseline justify-between")
+            .heading_1(|h1| {
+                h1.class("text-5xl font-light tracking-display")
+                    .text("WebAssembly Component Registry")
+            })
+            .division(|nav| {
+                nav.class("flex gap-5 text-sm")
+                    .anchor(|a| {
+                        a.href("/docs")
+                            .class("text-fg-muted hover:text-fg transition-colors")
+                            .text("Docs")
+                    })
+                    .anchor(|a| {
+                        a.href("/about")
+                            .class("text-fg-muted hover:text-fg transition-colors")
+                            .text("About")
+                    })
+            })
     });
 
     hero.division(|row| {
@@ -78,7 +94,7 @@ fn render_hero(_total: usize) -> Division {
                                     .id("search-input")
                                     .aria_label("Search components and interfaces")
                                     .autofocus(true)
-                                    .class("w-full px-4 pr-8 py-2.5 rounded-l-md text-base border border-border bg-surface text-fg focus:border-accent focus:outline-none transition-colors")
+                                    .class("w-full px-4 pr-8 py-2.5 text-sm border-2 border-fg bg-page text-fg focus:border-accent focus:outline-none transition-colors")
                             })
                             // Carousel placeholder overlay
                             .span(|overlay| {
@@ -95,15 +111,10 @@ fn render_hero(_total: usize) -> Division {
                                             .text("components\u{2026}")
                                     })
                             })
-                            .span(|kbd| {
-                                kbd.class("search-kbd")
-                                    .aria_hidden(true)
-                                    .text("/")
-                            })
                     })
                     .button(|btn| {
                         btn.type_("submit")
-                            .class("px-5 py-2.5 rounded-r-md text-sm font-normal bg-accent text-white hover:bg-accent-hover border border-accent transition-colors")
+                            .class("px-5 py-2.5 text-sm font-normal bg-fg text-page hover:bg-accent-hover border-2 border-fg transition-colors")
                             .text("Search")
                     })
             })
@@ -151,7 +162,7 @@ fn render_tabs(
 
     // Tab bar
     let mut bar = Division::builder();
-    bar.class("flex gap-1 border-b border-border mb-6");
+    bar.class("flex");
     bar.role("tablist");
     for (i, &(id, label, pkgs)) in tabs.iter().enumerate() {
         let count = pkgs.len();
@@ -165,7 +176,7 @@ fn render_tabs(
                 .aria_controls_elements(format!("panel-{id}"))
                 .span(|s: &mut html::inline_text::builders::SpanBuilder| s.text(label.to_owned()))
                 .span(|s: &mut html::inline_text::builders::SpanBuilder| {
-                    s.class("ml-1.5 text-sm text-fg-faint")
+                    s.class("ml-1.5 opacity-50")
                         .text(format!("{count}"))
                 })
         });
@@ -205,33 +216,14 @@ fn render_card_grid(container: &mut DivisionBuilder, packages: &[&KnownPackage])
         return;
     }
 
-    let has_more = packages.len() > HOME_SECTION_LIMIT;
     let visible = packages.get(..HOME_SECTION_LIMIT).unwrap_or(packages);
 
     let mut grid = Division::builder();
-    grid.class("grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3");
+    grid.class("grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 border-t-2 border-l-2 border-fg");
     for pkg in visible {
         grid.push(render_card(pkg));
     }
     container.push(grid.build());
-
-    if has_more {
-        container.paragraph(|p| {
-            p.class("mt-4").anchor(|a| {
-                a.href("/all")
-                    .class("text-sm text-accent hover:underline")
-                    .text("View all \u{2192}")
-            })
-        });
-    }
-}
-
-/// Icon for a package kind.
-fn kind_icon(kind: Option<wasm_meta_registry_client::PackageKind>) -> &'static str {
-    match kind {
-        Some(wasm_meta_registry_client::PackageKind::Interface) => "\u{2b21}",
-        _ => "\u{25c8}",
-    }
 }
 
 /// Render a single package as a card.
@@ -248,37 +240,23 @@ fn render_card(pkg: &KnownPackage) -> Division {
             .cloned()
             .unwrap_or_else(|| "\u{2014}".to_owned())
     });
-    let icon = kind_icon(pkg.kind);
 
     match (&pkg.wit_namespace, &pkg.wit_name) {
         (Some(ns), Some(name)) => Division::builder()
             .anchor(|a| {
                 a.href(format!("/{ns}/{name}"))
-                    .class(
-                        "flex flex-col h-full border border-border rounded-lg p-3.5 hover:border-accent/40 hover:bg-surface card-lift",
-                    )
+                    .class("flex flex-col h-full bg-page p-3.5 border-r-2 border-b-2 border-fg card-lift")
                     .span(|s| {
-                        s.class("flex items-start justify-between gap-2")
-                            .span(|name_span| {
-                                name_span
-                                    .class("font-medium truncate")
-                                    .span(|ns_span| {
-                                        ns_span
-                                            .class("text-fg-muted")
-                                            .text(format!("{ns}:"))
-                                    })
-                                    .span(|pkg_span| {
-                                        pkg_span.class("text-accent").text(name.clone())
-                                    })
-                            })
-                            .span(|badge| {
-                                badge
-                                    .class("text-sm text-fg-faint shrink-0")
-                                    .text(icon.to_owned())
-                            })
+                        s.class("block text-sm text-fg-muted truncate")
+                            .text(format!("{ns}:"))
                     })
                     .span(|s| {
-                        s.class("block text-sm text-fg-muted mt-1 line-clamp-2 flex-1")
+                        s.class("block font-medium text-accent truncate")
+                            .text(name.clone())
+                    })
+                    .span(|s| {
+                        s.class("block text-sm text-fg-muted mt-2 overflow-hidden")
+                            .style("display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 3em")
                             .text(description.to_owned())
                     })
                     .span(|s| {
@@ -288,22 +266,14 @@ fn render_card(pkg: &KnownPackage) -> Division {
             })
             .build(),
         _ => Division::builder()
-            .class("flex flex-col h-full border border-border rounded-lg p-3.5 card-lift")
+            .class("flex flex-col h-full bg-page p-3.5 border-r-2 border-b-2 border-fg card-lift")
             .span(|s| {
-                s.class("flex items-start justify-between gap-2")
-                    .span(|name_span| {
-                        name_span
-                            .class("font-medium text-fg truncate")
-                            .text(display_name)
-                    })
-                    .span(|badge| {
-                        badge
-                            .class("text-sm text-fg-faint shrink-0")
-                            .text(icon.to_owned())
-                    })
+                s.class("font-medium text-fg truncate")
+                    .text(display_name)
             })
             .span(|s| {
-                s.class("block text-sm text-fg-muted mt-1 line-clamp-2 flex-1")
+                s.class("block text-sm text-fg-muted mt-1 overflow-hidden")
+                    .style("display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 3em")
                     .text(description.to_owned())
             })
             .span(|s| {

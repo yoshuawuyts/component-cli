@@ -168,7 +168,7 @@ fn extract_package_name(qualified: &str) -> &str {
 /// Render a single world item row.
 fn render_world_item_row(item: &WorldItemDoc) -> ListItem {
     let mut li = ListItem::builder();
-    li.class("px-2 py-1.5 rounded hover:bg-surface-muted transition-colors");
+    li.class("px-2 py-1.5 hover:bg-surface-muted transition-colors");
 
     match item {
         WorldItemDoc::Interface {

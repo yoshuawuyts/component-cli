@@ -23,7 +23,7 @@ fn render_results(query: &str, packages: &[KnownPackage]) -> String {
 
     // Page header
     body.division(|div| {
-        div.class("pt-8 pb-6 border-b border-border mb-6")
+        div.class("pt-8 pb-6 border-b-2 border-fg mb-6")
             .heading_1(|h1| {
                 h1.class("text-3xl font-normal tracking-display")
                     .text(format!("Results for \u{201c}{query}\u{201d}"))
@@ -80,7 +80,7 @@ fn render_error(query: &str, err: &ApiError) -> String {
     let mut body = Division::builder();
 
     body.division(|div| {
-        div.class("pt-8 pb-6 border-b border-border mb-6")
+        div.class("pt-8 pb-6 border-b-2 border-fg mb-6")
             .heading_1(|h1| {
                 h1.class("text-3xl font-normal tracking-display")
                     .text(format!("Results for \u{201c}{query}\u{201d}"))
@@ -112,11 +112,11 @@ fn render_search_form(query: &str) -> Division {
                         .name("q")
                         .value(query.to_owned())
                         .placeholder("Search\u{2026}")
-                        .class("flex-1 px-3 py-2 rounded border border-border bg-page text-fg text-sm placeholder:text-fg-faint focus:border-accent focus:ring-1 focus:ring-accent outline-none")
+                        .class("flex-1 px-3 py-2 border-2 border-fg bg-page text-fg text-sm placeholder:text-fg-faint focus:border-accent focus:ring-1 focus:ring-accent outline-none")
                 })
                 .button(|btn| {
                     btn.type_("submit")
-                        .class("px-4 py-2 rounded bg-accent text-white text-sm font-normal hover:bg-accent-hover transition-colors")
+                        .class("px-4 py-2 bg-accent text-white text-sm font-normal hover:bg-accent-hover transition-colors")
                         .text("Search")
                 })
         })
@@ -144,7 +144,7 @@ fn render_row(pkg: &KnownPackage) -> Division {
         row.anchor(|a| {
             a.href(href)
                 .class(
-                    "flex items-baseline gap-3 py-3 hover:bg-surface -mx-2 px-2 rounded transition-colors",
+                    "flex items-baseline gap-3 py-3 hover:bg-surface -mx-2 px-2 transition-colors",
                 )
                 .push(name_span)
                 .push(version_span)
@@ -153,7 +153,7 @@ fn render_row(pkg: &KnownPackage) -> Division {
         row.build()
     } else {
         let mut row = Division::builder();
-        row.class("flex items-baseline gap-3 py-3 -mx-2 px-2 rounded")
+        row.class("flex items-baseline gap-3 py-3 -mx-2 px-2 ")
             .push(name_span)
             .push(version_span)
             .push(description_span);

@@ -28,7 +28,7 @@ pub(crate) fn render() -> String {
                 .anchor(|a| {
                     a.href("/")
                         .class(
-                            "px-4 py-2 bg-accent text-white rounded-md \
+                            "px-4 py-2 bg-accent text-white \
                              font-medium hover:bg-accent-hover transition-colors",
                         )
                         .text("Browse packages")
@@ -36,7 +36,7 @@ pub(crate) fn render() -> String {
                 .anchor(|a| {
                     a.href("/search")
                         .class(
-                            "px-4 py-2 border border-border rounded-md \
+                            "px-4 py-2 border-2 border-fg \
                              text-fg hover:border-accent/50 transition-colors",
                         )
                         .text("Search")
