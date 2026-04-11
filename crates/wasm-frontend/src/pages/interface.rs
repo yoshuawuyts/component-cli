@@ -88,7 +88,7 @@ pub(crate) fn render(
         version_detail,
         importers: &[],
         exporters: &[],
-        description_override: Some(iface.docs.as_deref().unwrap_or("")),
+        description: iface.docs.as_deref().unwrap_or(""),
     };
     let extra = vec![crate::nav::Crumb {
         label: iface.name.clone(),
@@ -219,133 +219,34 @@ fn first_sentence(text: &str) -> String {
 
 /// Render the full interface definition as a WIT code block.
 fn render_interface_definition(iface: &InterfaceDoc) -> Division {
-    let pre_class = "border-2 border-fg px-4 py-3 text-sm font-mono text-fg overflow-x-auto";
-
-    let mut lines = Vec::new();
-
-    // Types
-    for ty in &iface.types {
-        match &ty.kind {
-            TypeKind::Record { fields } => {
-                lines.push(format!("  record {} {{", ty.name));
-                for f in fields {
-                    lines.push(format!("    {}: {},", f.name, format_type_ref_short(&f.ty)));
-                }
-                lines.push("  }".to_owned());
-            }
-            TypeKind::Variant { cases } => {
-                lines.push(format!("  variant {} {{", ty.name));
-                for c in cases {
-                    if let Some(t) = &c.ty {
-                        lines.push(format!("    {}({}),", c.name, format_type_ref_short(t)));
-                    } else {
-                        lines.push(format!("    {},", c.name));
-                    }
-                }
-                lines.push("  }".to_owned());
-            }
-            TypeKind::Enum { cases } => {
-                lines.push(format!("  enum {} {{", ty.name));
-                for c in cases {
-                    lines.push(format!("    {},", c.name));
-                }
-                lines.push("  }".to_owned());
-            }
-            TypeKind::Flags { flags } => {
-                lines.push(format!("  flags {} {{", ty.name));
-                for f in flags {
-                    lines.push(format!("    {},", f.name));
-                }
-                lines.push("  }".to_owned());
-            }
-            TypeKind::Resource { .. } => {
-                lines.push(format!("  resource {};", ty.name));
-            }
-            TypeKind::Alias(type_ref) => {
-                lines.push(format!(
-                    "  type {} = {};",
-                    ty.name,
-                    format_type_ref_short(type_ref)
-                ));
-            }
-        }
-        lines.push(String::new());
-    }
-
-    // Functions
-    for func in &iface.functions {
-        let params: Vec<String> = func
-            .params
-            .iter()
-            .filter(|p| p.name != "self")
-            .map(|p| format!("{}: {}", p.name, format_type_ref_short(&p.ty)))
-            .collect();
-        let ret = func
-            .result
-            .as_ref()
-            .map(|r| format!(" -> {}", format_type_ref_short(r)))
-            .unwrap_or_default();
-        lines.push(format!(
-            "  {}: func({}){};",
-            func.name,
-            params.join(", "),
-            ret
-        ));
-    }
-
-    let body = lines.join("\n");
-    let wit_text = format!("interface {} {{\n{}\n}}", iface.name, body);
+    use super::wit_render::{self, CODE_BLOCK_CLASS};
 
     Division::builder()
         .class("mb-8")
         .push(
             html::text_content::PreformattedText::builder()
-                .class(pre_class)
-                .code(|c| c.text(wit_text))
+                .class(CODE_BLOCK_CLASS)
+                .code(|c| {
+                    c.span(|s| s.class("text-fg-muted").text("interface "))
+                        .span(|s| {
+                            s.class("text-wit-iface font-medium")
+                                .text(iface.name.clone())
+                        })
+                        .text(" {\n".to_owned());
+
+                    for ty in &iface.types {
+                        wit_render::render_type_in_code(c, ty, "  ");
+                        c.text("\n\n".to_owned());
+                    }
+
+                    for func in &iface.functions {
+                        wit_render::render_func_in_code(c, func, "  ");
+                        c.text("\n".to_owned());
+                    }
+
+                    c.text("}".to_owned())
+                })
                 .build(),
         )
         .build()
-}
-
-/// Format a type ref as a short string for code block display.
-fn format_type_ref_short(ty: &crate::wit_doc::TypeRef) -> String {
-    use crate::wit_doc::TypeRef;
-    match ty {
-        TypeRef::Primitive { name } | TypeRef::Named { name, .. } => name.clone(),
-        TypeRef::List { ty } => format!("list<{}>", format_type_ref_short(ty)),
-        TypeRef::Option { ty } => format!("option<{}>", format_type_ref_short(ty)),
-        TypeRef::Result { ok, err } => {
-            let ok_s = ok
-                .as_ref()
-                .map_or("_".to_owned(), |t| format_type_ref_short(t));
-            let err_s = err
-                .as_ref()
-                .map_or("_".to_owned(), |t| format_type_ref_short(t));
-            format!("result<{ok_s}, {err_s}>")
-        }
-        TypeRef::Tuple { types } => {
-            let inner: Vec<String> = types.iter().map(format_type_ref_short).collect();
-            format!("tuple<{}>", inner.join(", "))
-        }
-        TypeRef::Handle {
-            resource_name,
-            handle_kind,
-            ..
-        } => match handle_kind {
-            crate::wit_doc::HandleKind::Own => resource_name.clone(),
-            crate::wit_doc::HandleKind::Borrow => format!("borrow<{resource_name}>"),
-        },
-        TypeRef::Future { ty } => {
-            let inner = ty
-                .as_ref()
-                .map_or("_".to_owned(), |t| format_type_ref_short(t));
-            format!("future<{inner}>")
-        }
-        TypeRef::Stream { ty } => {
-            let inner = ty
-                .as_ref()
-                .map_or("_".to_owned(), |t| format_type_ref_short(t));
-            format!("stream<{inner}>")
-        }
-    }
 }

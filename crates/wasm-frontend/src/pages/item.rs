@@ -1,6 +1,6 @@
 //! Item detail page (type or function within an interface).
 
-use crate::wit_doc::{FunctionDoc, HandleKind, TypeDoc, TypeKind, TypeRef, WitDocument};
+use crate::wit_doc::{FunctionDoc, TypeDoc, TypeKind, TypeRef, WitDocument};
 use html::tables::{Table, TableRow};
 use html::text_content::Division;
 use wasm_meta_registry_client::{KnownPackage, PackageVersion};
@@ -34,7 +34,7 @@ pub(crate) fn render_type(
         version_detail,
         importers: &[],
         exporters: &[],
-        description_override: Some(""),
+        description: "",
     };
     let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
     let extra = vec![
@@ -77,7 +77,7 @@ pub(crate) fn render_function(
         version_detail,
         importers: &[],
         exporters: &[],
-        description_override: Some(""),
+        description: "",
     };
     let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
     let extra = vec![
@@ -95,128 +95,34 @@ pub(crate) fn render_function(
 
 /// Render the WIT definition code block for a type, with linked type refs.
 fn render_type_definition(ty: &TypeDoc) -> Division {
-    let pre_class = "border-2 border-fg px-4 py-3 text-sm font-mono text-fg overflow-x-auto";
-
-    Division::builder()
-        .class("mb-6")
-        .push(match &ty.kind {
-            TypeKind::Record { fields } => {
-                let mut pre = html::text_content::PreformattedText::builder();
-                pre.class(pre_class);
-                pre.code(|c| {
-                    c.span(|s| s.class("text-fg-muted").text("record "))
-                        .span(|s| s.class("text-wit-struct font-medium").text(ty.name.clone()))
-                        .text(" {\n".to_owned());
-                    for f in fields {
-                        c.text("    ".to_owned())
-                            .text(format!("{}: ", f.name))
-                            .push(render_type_ref(&f.ty))
-                            .text(",\n".to_owned());
-                    }
-                    c.text("}".to_owned())
-                });
-                pre.build()
-            }
-            TypeKind::Variant { cases } => {
-                let mut pre = html::text_content::PreformattedText::builder();
-                pre.class(pre_class);
-                pre.code(|c| {
-                    c.span(|s| s.class("text-fg-muted").text("variant "))
-                        .span(|s| s.class("text-wit-struct font-medium").text(ty.name.clone()))
-                        .text(" {\n".to_owned());
-                    for case in cases {
-                        c.text(format!("    {}", case.name));
-                        if let Some(t) = &case.ty {
-                            c.text("(".to_owned())
-                                .push(render_type_ref(t))
-                                .text(")".to_owned());
-                        }
-                        c.text(",\n".to_owned());
-                    }
-                    c.text("}".to_owned())
-                });
-                pre.build()
-            }
-            TypeKind::Enum { cases } => {
-                let mut pre = html::text_content::PreformattedText::builder();
-                pre.class(pre_class);
-                pre.code(|c| {
-                    c.span(|s| s.class("text-fg-muted").text("enum "))
-                        .span(|s| s.class("text-wit-enum font-medium").text(ty.name.clone()))
-                        .text(" {\n".to_owned());
-                    for case in cases {
-                        c.text(format!("    {},\n", case.name));
-                    }
-                    c.text("}".to_owned())
-                });
-                pre.build()
-            }
-            TypeKind::Flags { flags } => {
-                let mut pre = html::text_content::PreformattedText::builder();
-                pre.class(pre_class);
-                pre.code(|c| {
-                    c.span(|s| s.class("text-fg-muted").text("flags "))
-                        .span(|s| s.class("text-wit-enum font-medium").text(ty.name.clone()))
-                        .text(" {\n".to_owned());
-                    for f in flags {
-                        c.text(format!("    {},\n", f.name));
-                    }
-                    c.text("}".to_owned())
-                });
-                pre.build()
-            }
-            TypeKind::Resource { .. } => html::text_content::PreformattedText::builder()
-                .class(pre_class)
-                .code(|c| {
-                    c.span(|s| s.class("text-fg-muted").text("resource "))
-                        .span(|s| {
-                            s.class("text-wit-resource font-medium")
-                                .text(ty.name.clone())
-                        })
-                        .text(";".to_owned())
-                })
-                .build(),
-            TypeKind::Alias(type_ref) => html::text_content::PreformattedText::builder()
-                .class(pre_class)
-                .code(|c| {
-                    c.span(|s| s.class("text-fg-muted").text("type "))
-                        .span(|s| s.class("text-accent font-medium").text(ty.name.clone()))
-                        .text(" = ".to_owned())
-                        .push(render_type_ref(type_ref))
-                        .text(";".to_owned())
-                })
-                .build(),
-        })
-        .build()
-}
-
-/// Render the WIT definition code block for a function, with linked type refs.
-fn render_function_definition(func: &FunctionDoc) -> Division {
-    let pre_class = "border-2 border-fg px-4 py-3 text-sm font-mono text-fg overflow-x-auto";
+    use super::wit_render::{self, CODE_BLOCK_CLASS};
 
     Division::builder()
         .class("mb-6")
         .push(
             html::text_content::PreformattedText::builder()
-                .class(pre_class)
+                .class(CODE_BLOCK_CLASS)
                 .code(|c| {
-                    c.span(|s| s.class("text-wit-func font-medium").text(func.name.clone()))
-                        .text(": ".to_owned())
-                        .span(|s| s.class("text-fg-muted").text("func"))
-                        .text("(".to_owned());
-                    let visible_params: Vec<_> =
-                        func.params.iter().filter(|p| p.name != "self").collect();
-                    for (i, p) in visible_params.iter().enumerate() {
-                        if i > 0 {
-                            c.text(", ".to_owned());
-                        }
-                        c.text(format!("{}: ", p.name)).push(render_type_ref(&p.ty));
-                    }
-                    c.text(")".to_owned());
-                    if let Some(ret) = &func.result {
-                        c.text(" -> ".to_owned()).push(render_type_ref(ret));
-                    }
-                    c.text(";".to_owned())
+                    wit_render::render_type_in_code(c, ty, "");
+                    c
+                })
+                .build(),
+        )
+        .build()
+}
+
+/// Render the WIT definition code block for a function, with linked type refs.
+fn render_function_definition(func: &FunctionDoc) -> Division {
+    use super::wit_render::{self, CODE_BLOCK_CLASS};
+
+    Division::builder()
+        .class("mb-6")
+        .push(
+            html::text_content::PreformattedText::builder()
+                .class(CODE_BLOCK_CLASS)
+                .code(|c| {
+                    wit_render::render_func_in_code(c, func, "");
+                    c
                 })
                 .build(),
         )
@@ -276,7 +182,7 @@ fn render_field_row(name: &str, ty: &TypeRef, docs: Option<&str>) -> TableRow {
         })
         .table_cell(|td| {
             td.class("py-2 pr-4 font-mono text-fg")
-                .push(render_type_ref(ty))
+                .push(super::wit_render::render_type_ref(ty))
         })
         .table_cell(|td| {
             td.class("py-2 text-fg-secondary")
@@ -302,17 +208,21 @@ fn render_variant_table(cases: &[crate::wit_doc::CaseDoc]) -> Division {
             .table_header(|th| th.class("py-2 font-medium").text("Description"))
     });
     for case in cases {
-        let payload = case
-            .ty
-            .as_ref()
-            .map_or_else(|| "—".to_owned(), format_type_ref_short);
         table.table_row(|tr| {
             tr.class("border-b-2 border-fg/50")
                 .table_cell(|td| {
                     td.class("py-2 pr-4 font-mono text-accent")
                         .text(case.name.clone())
                 })
-                .table_cell(|td| td.class("py-2 pr-4 font-mono text-fg").text(payload))
+                .table_cell(|td| {
+                    td.class("py-2 pr-4 font-mono text-fg");
+                    if let Some(t) = &case.ty {
+                        td.push(super::wit_render::render_type_ref(t));
+                    } else {
+                        td.text("\u{2014}".to_owned());
+                    }
+                    td
+                })
                 .table_cell(|td| {
                     td.class("py-2 text-fg-secondary")
                         .text(case.docs.clone().unwrap_or_default())
@@ -438,7 +348,10 @@ fn render_alias(type_ref: &TypeRef) -> Division {
             h2.class("text-sm font-medium text-fg-muted uppercase tracking-wide mb-3")
                 .text("Definition")
         })
-        .paragraph(|p| p.class("font-mono text-fg").push(render_type_ref(type_ref)))
+        .paragraph(|p| {
+            p.class("font-mono text-fg")
+                .push(super::wit_render::render_type_ref(type_ref))
+        })
         .build()
 }
 
@@ -466,7 +379,7 @@ fn render_function_detail(func: &FunctionDoc) -> Division {
                     })
                     .table_cell(|td| {
                         td.class("py-2 font-mono text-fg")
-                            .push(render_type_ref(&param.ty))
+                            .push(super::wit_render::render_type_ref(&param.ty))
                     })
             });
         }
@@ -478,156 +391,12 @@ fn render_function_detail(func: &FunctionDoc) -> Division {
         div.division(|d| {
             d.class("mt-3 text-sm")
                 .span(|s| s.class("text-fg-muted").text("Returns: "))
-                .span(|s| s.class("font-mono text-fg").push(render_type_ref(ret)))
+                .span(|s| {
+                    s.class("font-mono text-fg")
+                        .push(super::wit_render::render_type_ref(ret))
+                })
         });
     }
 
     div.build()
-}
-
-/// Render a `TypeRef` as an inline HTML span with links.
-fn render_type_ref(ty: &TypeRef) -> html::inline_text::Span {
-    let mut span = html::inline_text::Span::builder();
-    match ty {
-        TypeRef::Primitive { name } => {
-            span.class("text-fg-muted").text(name.clone());
-        }
-        TypeRef::Named {
-            name,
-            url: Some(url),
-        } => {
-            span.anchor(|a| {
-                a.href(url.clone())
-                    .class("text-accent hover:underline")
-                    .text(name.clone())
-            });
-        }
-        TypeRef::Named { name, url: None } => {
-            span.text(name.clone());
-        }
-        TypeRef::List { ty } => {
-            span.text("list\u{200b}<".to_owned())
-                .push(render_type_ref(ty))
-                .text(">".to_owned());
-        }
-        TypeRef::Option { ty } => {
-            span.text("option\u{200b}<".to_owned())
-                .push(render_type_ref(ty))
-                .text(">".to_owned());
-        }
-        TypeRef::Result { ok, err } => {
-            span.text("result\u{200b}<".to_owned());
-            if let Some(ok) = ok {
-                span.push(render_type_ref(ok));
-            } else {
-                span.text("_".to_owned());
-            }
-            span.text(", ".to_owned());
-            if let Some(err) = err {
-                span.push(render_type_ref(err));
-            } else {
-                span.text("_".to_owned());
-            }
-            span.text(">".to_owned());
-        }
-        TypeRef::Tuple { types } => {
-            span.text("tuple\u{200b}<".to_owned());
-            for (i, t) in types.iter().enumerate() {
-                if i > 0 {
-                    span.text(", ".to_owned());
-                }
-                span.push(render_type_ref(t));
-            }
-            span.text(">".to_owned());
-        }
-        TypeRef::Handle {
-            handle_kind,
-            resource_name,
-            resource_url,
-        } => match handle_kind {
-            HandleKind::Own => {
-                if let Some(url) = resource_url {
-                    span.anchor(|a| {
-                        a.href(url.clone())
-                            .class("text-accent hover:underline")
-                            .text(resource_name.clone())
-                    });
-                } else {
-                    span.text(resource_name.clone());
-                }
-            }
-            HandleKind::Borrow => {
-                span.text("borrow\u{200b}<".to_owned());
-                if let Some(url) = resource_url {
-                    span.anchor(|a| {
-                        a.href(url.clone())
-                            .class("text-accent hover:underline")
-                            .text(resource_name.clone())
-                    });
-                } else {
-                    span.text(resource_name.clone());
-                }
-                span.text(">".to_owned());
-            }
-        },
-        TypeRef::Future { ty } => match ty {
-            Some(t) => {
-                span.text("future\u{200b}<".to_owned())
-                    .push(render_type_ref(t))
-                    .text(">".to_owned());
-            }
-            None => {
-                span.text("future".to_owned());
-            }
-        },
-        TypeRef::Stream { ty } => match ty {
-            Some(t) => {
-                span.text("stream\u{200b}<".to_owned())
-                    .push(render_type_ref(t))
-                    .text(">".to_owned());
-            }
-            None => {
-                span.text("stream".to_owned());
-            }
-        },
-    }
-    span.build()
-}
-
-/// Format a `TypeRef` as a short inline string (no links).
-fn format_type_ref_short(ty: &TypeRef) -> String {
-    match ty {
-        TypeRef::Primitive { name } | TypeRef::Named { name, .. } => name.clone(),
-        TypeRef::List { ty } => format!("list<{}>", format_type_ref_short(ty)),
-        TypeRef::Option { ty } => format!("option<{}>", format_type_ref_short(ty)),
-        TypeRef::Result { ok, err } => {
-            let ok_s = ok
-                .as_ref()
-                .map_or_else(|| "_".to_owned(), |t| format_type_ref_short(t));
-            let err_s = err
-                .as_ref()
-                .map_or_else(|| "_".to_owned(), |t| format_type_ref_short(t));
-            format!("result<{ok_s}, {err_s}>")
-        }
-        TypeRef::Tuple { types } => {
-            let inner: Vec<String> = types.iter().map(format_type_ref_short).collect();
-            format!("tuple<{}>", inner.join(", "))
-        }
-        TypeRef::Handle {
-            handle_kind,
-            resource_name,
-            ..
-        } => match handle_kind {
-            HandleKind::Own => resource_name.clone(),
-            HandleKind::Borrow => format!("borrow<{resource_name}>"),
-        },
-        TypeRef::Future { ty } => match ty {
-            Some(t) => format!("future<{}>", format_type_ref_short(t)),
-            None => "future".to_owned(),
-        },
-        TypeRef::Stream { ty } => match ty {
-            Some(t) => format!("stream<{}>", format_type_ref_short(t)),
-            None => "stream".to_owned(),
-        },
-    }
 }

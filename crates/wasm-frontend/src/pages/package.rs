@@ -40,7 +40,7 @@ pub(crate) fn render(
         version_detail,
         importers,
         exporters,
-        description_override: None,
+        description: pkg.description.as_deref().unwrap_or(""),
     };
     package_shell::render_page(&shell_ctx, &display_name, main_col.build())
 }

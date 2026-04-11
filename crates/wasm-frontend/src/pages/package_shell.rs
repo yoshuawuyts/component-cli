@@ -22,8 +22,8 @@ pub(crate) struct SidebarContext<'a> {
     pub importers: &'a [KnownPackage],
     /// Packages that export this one.
     pub exporters: &'a [KnownPackage],
-    /// Override the description shown at the top (uses pkg.description if None).
-    pub description_override: Option<&'a str>,
+    /// Description to show at the top of the page. Empty string = no description.
+    pub description: &'a str,
 }
 
 /// Render the shared page shell: two-column layout with sidebar,
@@ -53,10 +53,7 @@ fn render_page_inner(
 ) -> String {
     let pkg = ctx.pkg;
     let display_name = display_name_for(pkg);
-    let description = match ctx.description_override {
-        Some(d) => d,
-        None => pkg.description.as_deref().unwrap_or(""),
-    };
+    let description = ctx.description;
 
     let mut body = Division::builder();
     body.class("pt-6");
