@@ -21,6 +21,20 @@ pub(crate) fn render(
     // Interface content
     let mut outer = Division::builder();
 
+    // Heading
+    outer.heading_2(|h2| {
+        h2.class("text-2xl font-light tracking-display mb-4")
+            .span(|s| s.class("text-fg-muted").text("interface "))
+            .span(|s| s.class("text-wit-iface").text(iface.name.clone()))
+    });
+
+    if let Some(docs) = &iface.docs {
+        outer.paragraph(|p| {
+            p.class("text-fg leading-relaxed mb-8 max-w-[65ch]")
+                .text(docs.clone())
+        });
+    }
+
     // Grouped type and function sections
     let mut content = Division::builder();
     content.class("space-y-8");
@@ -85,13 +99,8 @@ pub(crate) fn render(
         version_detail,
         importers: &[],
         exporters: &[],
-        description: iface.docs.as_deref().unwrap_or(""),
     };
-    let extra = vec![crate::nav::Crumb {
-        label: iface.name.clone(),
-        href: None,
-    }];
-    package_shell::render_page_with_crumbs(&ctx, &title, outer.build(), extra)
+    package_shell::render_page(&ctx, &title, outer.build())
 }
 
 /// Render a section of types grouped by kind.
@@ -215,6 +224,7 @@ fn first_sentence(text: &str) -> String {
 }
 
 /// Render the full interface definition as a WIT code block.
+#[allow(dead_code)]
 fn render_interface_definition(iface: &InterfaceDoc) -> Division {
     use super::wit_render::{self, CODE_BLOCK_CLASS};
 

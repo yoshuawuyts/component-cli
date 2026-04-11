@@ -26,6 +26,25 @@ pub(crate) fn render(
     let mut main_col = Division::builder();
     main_col.class("space-y-10");
 
+    // Package heading
+    let kind_label = match pkg.kind {
+        Some(wasm_meta_registry_client::PackageKind::Interface) => "interface",
+        Some(wasm_meta_registry_client::PackageKind::Component) => "component",
+        _ => "package",
+    };
+    main_col.heading_2(|h2| {
+        h2.class("text-2xl font-light tracking-display mb-4")
+            .span(|s| s.class("text-fg-muted").text(format!("{kind_label} ")))
+            .span(|s| s.class("text-accent").text(display_name.clone()))
+    });
+
+    if let Some(desc) = pkg.description.as_deref() {
+        main_col.paragraph(|p| {
+            p.class("text-fg leading-relaxed mb-8 max-w-[65ch]")
+                .text(desc.to_owned())
+        });
+    }
+
     if let Some(detail) = version_detail {
         main_col.push(render_wit_content_with_doc(
             detail,
@@ -40,7 +59,6 @@ pub(crate) fn render(
         version_detail,
         importers,
         exporters,
-        description: pkg.description.as_deref().unwrap_or(""),
     };
     package_shell::render_page(&shell_ctx, &display_name, main_col.build())
 }

@@ -22,8 +22,27 @@ pub(crate) fn render_type(
 
     let mut outer = Division::builder();
 
+    // Item heading: "record datetime" style
+    let kind_color = type_kind_color(&ty.kind);
+    outer.heading_2(|h2| {
+        h2.class("text-2xl font-light tracking-display mb-4")
+            .span(|s| {
+                s.class("text-fg-muted")
+                    .text(format!("{} ", type_kind_label(&ty.kind)))
+            })
+            .span(|s| s.class(kind_color).text(ty.name.clone()))
+    });
+
     // WIT definition block
     outer.push(render_type_definition(ty));
+
+    // Description after code
+    if let Some(docs) = &ty.docs {
+        outer.paragraph(|p| {
+            p.class("text-fg leading-relaxed mb-8 max-w-[65ch]")
+                .text(docs.clone())
+        });
+    }
 
     // Type body content
     outer.push(render_type_body(&ty.kind));
@@ -34,19 +53,11 @@ pub(crate) fn render_type(
         version_detail,
         importers: &[],
         exporters: &[],
-        description: ty.docs.as_deref().unwrap_or(""),
     };
-    let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
-    let extra = vec![
-        crate::nav::Crumb {
-            label: iface_name.to_owned(),
-            href: Some(format!("{pkg_url}/interface/{iface_name}")),
-        },
-        crate::nav::Crumb {
-            label: ty.name.clone(),
-            href: None,
-        },
-    ];
+    let extra = vec![crate::nav::Crumb {
+        label: iface_name.to_owned(),
+        href: None,
+    }];
     package_shell::render_page_with_crumbs(&ctx, &title, outer.build(), extra)
 }
 
@@ -65,6 +76,20 @@ pub(crate) fn render_function(
 
     let mut outer = Division::builder();
 
+    // Item heading
+    outer.heading_2(|h2| {
+        h2.class("text-2xl font-light tracking-display mb-4")
+            .span(|s| s.class("text-fg-muted").text("function "))
+            .span(|s| s.class("text-wit-func").text(func.name.clone()))
+    });
+
+    if let Some(docs) = &func.docs {
+        outer.paragraph(|p| {
+            p.class("text-fg leading-relaxed mb-8 max-w-[65ch]")
+                .text(docs.clone())
+        });
+    }
+
     // WIT definition block
     outer.push(render_function_definition(func));
 
@@ -77,20 +102,34 @@ pub(crate) fn render_function(
         version_detail,
         importers: &[],
         exporters: &[],
-        description: func.docs.as_deref().unwrap_or(""),
     };
-    let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
-    let extra = vec![
-        crate::nav::Crumb {
-            label: iface_name.to_owned(),
-            href: Some(format!("{pkg_url}/interface/{iface_name}")),
-        },
-        crate::nav::Crumb {
-            label: func.name.clone(),
-            href: None,
-        },
-    ];
+    let extra = vec![crate::nav::Crumb {
+        label: iface_name.to_owned(),
+        href: None,
+    }];
     package_shell::render_page_with_crumbs(&ctx, &title, outer.build(), extra)
+}
+
+/// Get the display label for a type kind.
+fn type_kind_label(kind: &TypeKind) -> &'static str {
+    match kind {
+        TypeKind::Record { .. } => "record",
+        TypeKind::Variant { .. } => "variant",
+        TypeKind::Enum { .. } => "enum",
+        TypeKind::Flags { .. } => "flags",
+        TypeKind::Resource { .. } => "resource",
+        TypeKind::Alias(_) => "type",
+    }
+}
+
+/// Get the CSS color class for a type kind heading.
+fn type_kind_color(kind: &TypeKind) -> &'static str {
+    match kind {
+        TypeKind::Record { .. } | TypeKind::Variant { .. } => "text-wit-struct",
+        TypeKind::Enum { .. } | TypeKind::Flags { .. } => "text-wit-enum",
+        TypeKind::Resource { .. } => "text-wit-resource",
+        TypeKind::Alias(_) => "text-accent",
+    }
 }
 
 /// Render the WIT definition code block for a type, with linked type refs.

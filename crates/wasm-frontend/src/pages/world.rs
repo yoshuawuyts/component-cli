@@ -20,6 +20,20 @@ pub(crate) fn render(
 
     let mut outer = Division::builder();
 
+    // Heading
+    outer.heading_2(|h2| {
+        h2.class("text-2xl font-light tracking-display mb-4")
+            .span(|s| s.class("text-fg-muted").text("world "))
+            .span(|s| s.class("text-wit-world").text(world.name.clone()))
+    });
+
+    if let Some(docs) = &world.docs {
+        outer.paragraph(|p| {
+            p.class("text-fg leading-relaxed mb-8 max-w-[65ch]")
+                .text(docs.clone())
+        });
+    }
+
     let mut content = Division::builder();
     content.class("space-y-10");
 
@@ -38,13 +52,8 @@ pub(crate) fn render(
         version_detail,
         importers: &[],
         exporters: &[],
-        description: world.docs.as_deref().unwrap_or(""),
     };
-    let extra = vec![crate::nav::Crumb {
-        label: world.name.clone(),
-        href: None,
-    }];
-    package_shell::render_page_with_crumbs(&ctx, &title, outer.build(), extra)
+    package_shell::render_page(&ctx, &title, outer.build())
 }
 
 /// Render an imports or exports section, grouped by package namespace.
