@@ -20,29 +20,35 @@ pub(crate) const ACCENT_COLOR: &str = "#232cf4";
 /// color CSS variables, and footer.
 #[must_use]
 pub(crate) fn document(title: &str, body_content: &str) -> String {
-    document_inner(title, body_content, "", MAIN_CLASS_CENTERED)
+    document_inner(title, body_content, "", MAIN_CLASS_CENTERED, true)
 }
 
 /// Render a complete HTML document with nav bar, title, and body content.
 #[must_use]
 pub(crate) fn document_with_nav(title: &str, body_content: &str) -> String {
     let nav = crate::nav::render(&[]);
-    document_inner(title, body_content, &nav, MAIN_CLASS_CENTERED)
+    document_inner(title, body_content, &nav, MAIN_CLASS_CENTERED, true)
 }
 
-/// Render a full-width document (no centered max-width, no top nav).
+/// Render a full-width document (no centered max-width, no top nav, no footer).
 ///
 /// Used by the golden-layout pages where the sidebar is flush left.
 #[must_use]
 pub(crate) fn document_full_width(title: &str, body_content: &str) -> String {
-    document_inner(title, body_content, "", MAIN_CLASS_FULL)
+    document_inner(title, body_content, "", MAIN_CLASS_FULL, false)
 }
 
 const MAIN_CLASS_CENTERED: &str = "flex-1 w-full max-w-6xl mx-auto px-6 sm:px-8 pb-12";
 const MAIN_CLASS_FULL: &str = "flex-1 w-full px-6 sm:px-8 pb-12";
 
 /// Inner document renderer.
-fn document_inner(title: &str, body_content: &str, nav: &str, main_class: &str) -> String {
+fn document_inner(
+    title: &str,
+    body_content: &str,
+    nav: &str,
+    main_class: &str,
+    show_footer: bool,
+) -> String {
     let escaped_title = escape_html_text(title);
 
     format!(
@@ -489,7 +495,11 @@ fn document_inner(title: &str, body_content: &str, nav: &str, main_class: &str) 
 </body>
 </html>"#,
         escaped_title = escaped_title,
-        footer = footer::render(),
+        footer = if show_footer {
+            footer::render()
+        } else {
+            String::new()
+        },
         body_content = body_content,
     )
 }

@@ -25,7 +25,7 @@ pub(crate) fn render_type(
     // Item heading: "record datetime" style
     let kind_color = type_kind_color(&ty.kind);
     outer.heading_2(|h2| {
-        h2.class("text-2xl font-light tracking-display mb-4")
+        h2.class("text-4xl font-light tracking-display mb-6")
             .span(|s| {
                 s.class("text-fg-muted")
                     .text(format!("{} ", type_kind_label(&ty.kind)))
@@ -54,23 +54,15 @@ pub(crate) fn render_type(
         importers: &[],
         exporters: &[],
     };
-    let pkg_url = package_shell::url_base_for(pkg, version);
-    let pkg_label = pkg.wit_name.as_deref().unwrap_or(&display_name);
     let iface_url = format!(
         "/{}/{version}/interface/{iface_name}",
         display_name.replace(':', "/")
     );
-    let extra = vec![
-        crate::nav::Crumb {
-            label: pkg_label.to_owned(),
-            href: Some(pkg_url),
-        },
-        crate::nav::Crumb {
-            label: iface_name.to_owned(),
-            href: Some(iface_url),
-        },
-    ];
-    package_shell::render_page_with_crumbs(&ctx, &title, &outer.build(), extra)
+    let extra = vec![crate::nav::Crumb {
+        label: iface_name.to_owned(),
+        href: Some(iface_url),
+    }];
+    package_shell::render_page_with_crumbs(&ctx, &title, &outer.build(), &extra)
 }
 
 /// Render the item detail page for a freestanding function.
@@ -90,8 +82,8 @@ pub(crate) fn render_function(
 
     // Item heading
     outer.heading_2(|h2| {
-        h2.class("text-2xl font-light tracking-display mb-4")
-            .span(|s| s.class("text-fg-muted").text("function "))
+        h2.class("text-4xl font-light tracking-display mb-6")
+            .span(|s| s.class("text-fg-muted").text("Function "))
             .span(|s| s.class("text-wit-func").text(func.name.clone()))
     });
 
@@ -116,34 +108,26 @@ pub(crate) fn render_function(
         importers: &[],
         exporters: &[],
     };
-    let pkg_url = package_shell::url_base_for(pkg, version);
-    let pkg_label = pkg.wit_name.as_deref().unwrap_or(&display_name);
     let iface_url = format!(
         "/{}/{version}/interface/{iface_name}",
         display_name.replace(':', "/")
     );
-    let extra = vec![
-        crate::nav::Crumb {
-            label: pkg_label.to_owned(),
-            href: Some(pkg_url),
-        },
-        crate::nav::Crumb {
-            label: iface_name.to_owned(),
-            href: Some(iface_url),
-        },
-    ];
-    package_shell::render_page_with_crumbs(&ctx, &title, &outer.build(), extra)
+    let extra = vec![crate::nav::Crumb {
+        label: iface_name.to_owned(),
+        href: Some(iface_url),
+    }];
+    package_shell::render_page_with_crumbs(&ctx, &title, &outer.build(), &extra)
 }
 
 /// Get the display label for a type kind.
 fn type_kind_label(kind: &TypeKind) -> &'static str {
     match kind {
-        TypeKind::Record { .. } => "record",
-        TypeKind::Variant { .. } => "variant",
-        TypeKind::Enum { .. } => "enum",
-        TypeKind::Flags { .. } => "flags",
-        TypeKind::Resource { .. } => "resource",
-        TypeKind::Alias(_) => "type",
+        TypeKind::Record { .. } => "Record",
+        TypeKind::Variant { .. } => "Variant",
+        TypeKind::Enum { .. } => "Enum",
+        TypeKind::Flags { .. } => "Flags",
+        TypeKind::Resource { .. } => "Resource",
+        TypeKind::Alias(_) => "Type",
     }
 }
 

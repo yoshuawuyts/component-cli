@@ -15,10 +15,8 @@ pub(crate) fn render(crumbs: &[Crumb]) -> String {
     for (i, crumb) in crumbs.iter().enumerate() {
         if i == 0 {
             breadcrumb_html.push(' ');
-        } else if i == 1 {
-            breadcrumb_html.push_str(r#" <span class="text-fg-faint mx-1">:</span> "#);
         } else {
-            breadcrumb_html.push_str(r#" <span class="text-fg-faint mx-1">/</span> "#);
+            breadcrumb_html.push_str(r#" <span class="text-fg-faint mx-0.5">/</span> "#);
         }
         if let Some(href) = &crumb.href {
             use std::fmt::Write;

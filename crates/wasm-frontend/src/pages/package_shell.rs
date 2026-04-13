@@ -32,7 +32,7 @@ pub(crate) fn render_page(
     title: &str,
     body_content: &Division,
 ) -> String {
-    render_page_inner(ctx, title, body_content, vec![])
+    render_page_inner(ctx, title, body_content, &[])
 }
 
 /// Render the page shell with extra breadcrumb segments after the package name.
@@ -41,7 +41,7 @@ pub(crate) fn render_page_with_crumbs(
     ctx: &SidebarContext<'_>,
     title: &str,
     body_content: &Division,
-    extra_crumbs: Vec<crate::nav::Crumb>,
+    extra_crumbs: &[crate::nav::Crumb],
 ) -> String {
     render_page_inner(ctx, title, body_content, extra_crumbs)
 }
@@ -55,18 +55,14 @@ fn render_page_inner(
     ctx: &SidebarContext<'_>,
     title: &str,
     body_content: &Division,
-    extra_crumbs: Vec<crate::nav::Crumb>,
+    extra_crumbs: &[crate::nav::Crumb],
 ) -> String {
     let pkg = ctx.pkg;
+    let version = ctx.version;
     let display_name = display_name_for(pkg);
 
-    // Build breadcrumbs
-    let ns_crumb = pkg.wit_namespace.as_ref().map(|ns| crate::nav::Crumb {
-        label: ns.clone(),
-        href: Some(format!("/{ns}")),
-    });
-    let crumbs: Vec<crate::nav::Crumb> = ns_crumb.into_iter().chain(extra_crumbs).collect();
-    let breadcrumb_html = render_breadcrumb_path(&crumbs);
+    // Build breadcrumbs (extra crumbs only — package name is in the navbar)
+    let breadcrumb_html = render_breadcrumb_path(extra_crumbs);
 
     // Build sidebar metadata
     let sidebar_meta = render_sidebar(ctx, &display_name).to_string();
@@ -74,51 +70,104 @@ fn render_page_inner(
     // Build main content
     let content = body_content.to_string();
 
-    // Golden layout: sidebar left, content right
+    // Top navbar with bunny, breadcrumbs, and links
+    // Golden layout below: sidebar left, content right
+    let pkg_url = url_base_for(pkg, version);
+    let pkg_name_html = match (&pkg.wit_namespace, &pkg.wit_name) {
+        (Some(ns), Some(name)) => {
+            format!(
+                r#"<a href="/{ns}" class="text-fg-muted hover:text-fg transition-colors">{ns}</a><span class="text-fg-faint">:</span><a href="{pkg_url}" class="text-fg-muted hover:text-fg transition-colors">{name}</a>"#
+            )
+        }
+        _ => {
+            format!(
+                r#"<a href="{pkg_url}" class="text-fg-muted hover:text-fg transition-colors">{display_name}</a>"#
+            )
+        }
+    };
     let body = format!(
-        r#"<div class="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-x-10 gap-y-6 items-start pt-6">
-  <aside class="space-y-4">
-    <a href="/" id="bunny" class="text-lg font-medium text-fg hover:text-accent transition-colors inline-block" style="cursor:pointer;min-width:10ch">(๑╹ᆺ╹)</a>
-    <form action="/search" method="get">
-      <input type="search" name="q" placeholder="Search…" aria-label="Search" class="w-full px-3 py-1.5 text-sm border-2 border-fg bg-page text-fg-muted focus:text-fg focus:outline-none" id="search-input">
-    </form>
-    <nav class="text-sm leading-relaxed" aria-label="Breadcrumb">{breadcrumb_html}</nav>
-    <div class="flex flex-col gap-1 text-sm">
-      <a href="/docs" class="text-fg-muted hover:text-fg transition-colors">Docs</a>
-      <a href="/downloads" class="text-fg-muted hover:text-fg transition-colors">Downloads</a>
+        r#"<style>
+  .page-grid {{
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    grid-template-areas:
+      "sidebar topbar"
+      "sidebar main";
+    gap: 0 2.5rem;
+    min-height: 100vh;
+  }}
+  @media (min-width: 1280px) {{
+    .page-grid {{
+      grid-template-columns: 260px 1fr auto;
+      grid-template-areas:
+        "sidebar main rightbar"
+        "sidebar main rightbar";
+    }}
+    .page-grid .topbar {{
+      display: none;
+    }}
+    .page-grid .rightbar {{
+      display: block;
+    }}
+  }}
+</style>
+<div class="page-grid px-3 sm:px-4 pt-3 xl:pt-6">
+  <aside class="space-y-5" style="grid-area:sidebar;position:sticky;top:1.5rem;align-self:start;display:flex;flex-direction:column;min-height:calc(100vh - 3rem)">
+    <div class="space-y-5 flex-1">
+    <a href="/" id="bunny" class="text-lg font-medium text-fg hover:text-accent transition-colors shrink-0 inline-block text-left mb-4" style="cursor:pointer;min-width:10ch">(๑╹ᆺ╹)</a>
+    {sidebar_meta}
     </div>
-    <div class="border-t-2 border-fg pt-4">
-      {sidebar_meta}
-    </div>
-    <script>
-    (function(){{
-      var b=document.getElementById('bunny');
-      if(!b)return;
-      var anims=[
-        ['(๑╹ᆺ╹)','(๑°ᆺ°)!','(๑◉ᆺ◉)!!'],
-        ['(๑╹ᆺ╹)','(๑°ᆺ°)♪','ヽ(๑≧ᆺ≦)ノ'],
-        ['(๑╹ᆺ╹)','(๑╹ᆺ╹)>','(๑°ᆺ°)>>']
-      ];
-      var seq=anims[Math.floor(Math.random()*anims.length)];
-      var timer=null;
-      b.addEventListener('mouseenter',function(){{
-        if(timer)return;
-        b.textContent=seq[1];
-        timer=setTimeout(function(){{
-          b.textContent=seq[2];
-        }},80);
-      }});
-      b.addEventListener('mouseleave',function(){{
-        if(timer){{clearTimeout(timer);timer=null;}}
-        b.textContent=seq[0];
-      }});
-    }})();
-    </script>
+    <p class="text-xs text-fg-faint pb-6">Made by Yosh Wuyts</p>
   </aside>
-  <div class="max-w-3xl">
+  <div class="topbar flex items-center justify-end gap-4 pb-2" style="grid-area:topbar">
+    <a href="/docs" class="text-sm text-fg-muted hover:text-fg transition-colors">Docs</a>
+    <a href="/downloads" class="text-sm text-fg-muted hover:text-fg transition-colors">Downloads</a>
+    <form action="/search" method="get" class="relative flex">
+      <input type="search" name="q" placeholder="Search…" aria-label="Search" class="w-48 px-3 pr-12 py-1.5 text-sm border-2 border-fg bg-page text-fg-muted focus:text-fg focus:outline-none" id="search-input">
+      <span class="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-mono pointer-events-none opacity-30" aria-hidden="true">[ / ]</span>
+    </form>
+  </div>
+  <div style="grid-area:main;min-width:0;max-width:48rem">
+    <div class="flex flex-wrap items-baseline text-2xl font-light tracking-display mb-6">
+      {pkg_name_html}{breadcrumb_html}
+    </div>
     {content}
   </div>
-</div>"#
+  <aside class="rightbar hidden" style="grid-area:rightbar;position:sticky;top:1.5rem;align-self:start">
+    <div class="flex items-center gap-4">
+      <a href="/docs" class="text-sm text-fg-muted hover:text-fg transition-colors">Docs</a>
+      <a href="/downloads" class="text-sm text-fg-muted hover:text-fg transition-colors">Downloads</a>
+      <form action="/search" method="get" class="relative flex">
+        <input type="search" name="q" placeholder="Search…" aria-label="Search" class="w-36 px-3 pr-10 py-1.5 text-sm border-2 border-fg bg-page text-fg-muted focus:text-fg focus:outline-none" id="search-input-lg">
+        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-mono pointer-events-none opacity-30" aria-hidden="true">[ / ]</span>
+      </form>
+    </div>
+  </aside>
+</div>
+<script>
+(function(){{
+  var b=document.getElementById('bunny');
+  if(!b)return;
+  var anims=[
+    ['(๑╹ᆺ╹)','(๑°ᆺ°)!','(๑◉ᆺ◉)!!'],
+    ['(๑╹ᆺ╹)','(๑°ᆺ°)♪','ヽ(๑≧ᆺ≦)ノ'],
+    ['(๑╹ᆺ╹)','(๑╹ᆺ╹)>','(๑°ᆺ°)>>']
+  ];
+  var seq=anims[Math.floor(Math.random()*anims.length)];
+  var timer=null;
+  b.addEventListener('mouseenter',function(){{
+    if(timer)return;
+    b.textContent=seq[1];
+    timer=setTimeout(function(){{
+      b.textContent=seq[2];
+    }},80);
+  }});
+  b.addEventListener('mouseleave',function(){{
+    if(timer){{clearTimeout(timer);timer=null;}}
+    b.textContent=seq[0];
+  }});
+}})();
+</script>"#
     );
 
     layout::document_full_width(title, &body)
@@ -128,12 +177,8 @@ fn render_page_inner(
 fn render_breadcrumb_path(crumbs: &[crate::nav::Crumb]) -> String {
     use std::fmt::Write;
     let mut html = String::new();
-    for (i, crumb) in crumbs.iter().enumerate() {
-        if i == 1 {
-            html.push_str(r#" <span class="text-fg-faint mx-0.5">:</span> "#);
-        } else if i > 1 {
-            html.push_str(r#" <span class="text-fg-faint mx-0.5">/</span> "#);
-        }
+    for crumb in crumbs {
+        html.push_str(r#" <span class="text-fg-faint mx-0.5">/</span> "#);
         if let Some(href) = &crumb.href {
             write!(
                 html,
@@ -161,7 +206,7 @@ fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
     let annotations = version_detail.and_then(|d| d.annotations.as_ref());
 
     let mut sidebar = Division::builder();
-    sidebar.class("space-y-6 text-sm");
+    sidebar.class("space-y-4 text-sm");
 
     // Version selector
     if !pkg.tags.is_empty() {
@@ -173,13 +218,22 @@ fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
     }
 
     // Install command
-    sidebar.division(|d| d.class("text-sm text-fg-muted mb-1").text("Install"));
-    sidebar.push(render_install_command(display_name, version));
+    let install_cmd = render_install_command(display_name, version);
+    sidebar.division(|d| {
+        d.class("")
+            .division(|label| label.class("text-sm text-fg-muted mb-1").text("Install"))
+            .push(install_cmd)
+    });
 
     // Metadata
     let mut meta = Division::builder();
-    meta.class("space-y-2 leading-relaxed");
+    meta.class("space-y-3 leading-relaxed");
 
+    {
+        let registry_url = format!("https://{}/{}", pkg.registry, pkg.repository);
+        let registry_display = format!("{}/{}", pkg.registry, pkg.repository);
+        meta.push(meta_link_row("Registry", &registry_display, &registry_url));
+    }
     if let Some(source) = annotations.and_then(|a| a.source.as_deref()) {
         meta.push(meta_link_row("Repository", &abbreviate_url(source), source));
     } else {
@@ -189,13 +243,6 @@ fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
     }
     if let Some(license) = annotations.and_then(|a| a.licenses.as_deref()) {
         meta.push(meta_row("License", license));
-    }
-    if let Some(kind) = &pkg.kind {
-        let kind_display = match kind {
-            wasm_meta_registry_client::PackageKind::Interface => "types",
-            wasm_meta_registry_client::PackageKind::Component => "component",
-        };
-        meta.push(meta_row("Kind", kind_display));
     }
     if let Some(size) = version_detail.and_then(|d| d.size_bytes) {
         meta.push(meta_row("Size", &format_size(size)));
@@ -217,7 +264,7 @@ fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
     // Dependencies
     if !pkg.dependencies.is_empty() {
         sidebar.division(|div| {
-            div.class("border-t-2 border-fg pt-4").heading_3(|h3| {
+            div.class("border-t border-border pt-3").heading_3(|h3| {
                 h3.class("text-sm font-medium text-fg-muted mb-2")
                     .text("Dependencies")
             });
@@ -253,7 +300,7 @@ fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
     let total_dependents = ctx.importers.len() + ctx.exporters.len();
     if total_dependents > 0 {
         sidebar.division(|div| {
-            div.class("border-t-2 border-fg pt-4").heading_3(|h3| {
+            div.class("border-t border-border pt-3").heading_3(|h3| {
                 h3.class("text-sm font-medium text-fg-muted mb-2")
                     .text(format!("Dependents ({total_dependents})"))
             });
@@ -324,7 +371,7 @@ fn render_version_select(pkg: &KnownPackage, current_version: &str, url_name: &s
     select
         .id("version-select")
         .name("version")
-        .class("w-full px-2 py-1.5 border-2 border-fg bg-page text-fg text-sm cursor-pointer");
+        .class("w-full px-3 py-2 border-2 border-fg bg-page text-fg text-sm cursor-pointer");
 
     for tag in &pkg.tags {
         let is_current = tag == current_version;
@@ -336,7 +383,14 @@ fn render_version_select(pkg: &KnownPackage, current_version: &str, url_name: &s
     }
 
     let script_body = format!(
-        "document.getElementById('version-select').addEventListener('change',function(){{window.location.href='/{url_name}/'+this.value}})"
+        "document.getElementById('version-select').addEventListener('change',function(){{\
+        var p=window.location.pathname;\
+        var base='/{url_name}/';\
+        var rest=p.indexOf(base)===0?p.slice(base.length):'';\
+        var slash=rest.indexOf('/');\
+        var sub=slash>=0?rest.slice(slash):'';\
+        window.location.href=base+this.value+sub\
+        }})"
     );
 
     Division::builder()
@@ -388,26 +442,26 @@ fn render_install_command(display_name: &str, version: &str) -> Division {
 /// Render a label: value metadata row.
 fn meta_row(label: &str, value: &str) -> Division {
     Division::builder()
-        .class("flex gap-2")
+        .class("leading-snug")
         .span(|s| {
-            s.class("text-fg-muted w-20 shrink-0")
+            s.class("text-fg-muted block text-xs leading-tight")
                 .text(label.to_owned())
         })
-        .span(|s| s.class("text-fg truncate").text(value.to_owned()))
+        .span(|s| s.class("text-fg").text(value.to_owned()))
         .build()
 }
 
 /// Render a label: linked-value metadata row.
 fn meta_link_row(label: &str, text: &str, href: &str) -> Division {
     Division::builder()
-        .class("flex gap-2")
+        .class("leading-snug")
         .span(|s| {
-            s.class("text-fg-muted w-20 shrink-0")
+            s.class("text-fg-muted block text-xs leading-tight")
                 .text(label.to_owned())
         })
         .anchor(|a| {
             a.href(href.to_owned())
-                .class("text-accent hover:underline truncate")
+                .class("text-accent hover:underline break-all")
                 .text(text.to_owned())
         })
         .build()

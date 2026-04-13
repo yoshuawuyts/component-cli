@@ -22,8 +22,8 @@ pub(crate) fn render(
 
     // Heading
     outer.heading_2(|h2| {
-        h2.class("text-2xl font-light tracking-display mb-4")
-            .span(|s| s.class("text-fg-muted").text("world "))
+        h2.class("text-4xl font-light tracking-display mb-6")
+            .span(|s| s.class("text-fg-muted").text("World "))
             .span(|s| s.class("text-wit-world").text(world.name.clone()))
     });
 
@@ -53,13 +53,7 @@ pub(crate) fn render(
         importers: &[],
         exporters: &[],
     };
-    let pkg_url = package_shell::url_base_for(pkg, version);
-    let pkg_label = pkg.wit_name.as_deref().unwrap_or(&display_name);
-    let extra = vec![crate::nav::Crumb {
-        label: pkg_label.to_owned(),
-        href: Some(pkg_url),
-    }];
-    package_shell::render_page_with_crumbs(&ctx, &title, &outer.build(), extra)
+    package_shell::render_page_with_crumbs(&ctx, &title, &outer.build(), &[])
 }
 
 /// Render an imports or exports section, grouped by package namespace.
