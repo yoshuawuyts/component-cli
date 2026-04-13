@@ -27,12 +27,11 @@ pub(crate) fn render(
             .span(|s| s.class("text-wit-world").text(world.name.clone()))
     });
 
-    if let Some(docs) = &world.docs {
-        outer.paragraph(|p| {
-            p.class("text-fg leading-relaxed mb-8 max-w-[65ch]")
-                .text(docs.clone())
-        });
-    }
+    let docs_html = world
+        .docs
+        .as_deref()
+        .map(|d| crate::markdown::render_block(d, crate::markdown::DOC_CLASS))
+        .unwrap_or_default();
 
     let mut content = Division::builder();
     content.class("space-y-10");
@@ -44,7 +43,7 @@ pub(crate) fn render(
         content.push(render_item_section("Exports", &world.exports, false));
     }
 
-    outer.push(content.build());
+    let body_html = format!("{}{docs_html}{}", outer.build(), content.build());
 
     let ctx = package_shell::SidebarContext {
         pkg,
@@ -53,7 +52,7 @@ pub(crate) fn render(
         importers: &[],
         exporters: &[],
     };
-    package_shell::render_page_with_crumbs(&ctx, &title, &outer.build(), &[])
+    package_shell::render_page_with_crumbs(&ctx, &title, &body_html, &[])
 }
 
 /// Render an imports or exports section, grouped by package namespace.
@@ -117,7 +116,7 @@ fn render_world_item_row(item: &WorldItemDoc, link_color: &str) -> ListItem {
             if let Some(docs) = &func.docs {
                 li.paragraph(|p| {
                     p.class("text-sm text-fg-secondary mt-1")
-                        .text(first_sentence(docs))
+                        .text(crate::markdown::render_inline(&first_sentence(docs)))
                 });
             }
         }
@@ -130,7 +129,7 @@ fn render_world_item_row(item: &WorldItemDoc, link_color: &str) -> ListItem {
             if let Some(docs) = &ty.docs {
                 li.paragraph(|p| {
                     p.class("text-sm text-fg-secondary mt-1")
-                        .text(first_sentence(docs))
+                        .text(crate::markdown::render_inline(&first_sentence(docs)))
                 });
             }
         }

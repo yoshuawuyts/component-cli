@@ -18,26 +18,29 @@ pub(crate) fn render(
     let display_name = package_shell::display_name_for(pkg);
     let title = format!("{display_name} — {}", iface.name);
 
-    // Interface content
-    let mut outer = Division::builder();
-
-    // Heading
-    outer.heading_2(|h2| {
-        h2.class("text-4xl font-light tracking-display mb-6")
-            .span(|s| s.class("text-fg-muted").text("Interface "))
-            .span(|s| s.class("text-wit-iface").text(iface.name.clone()))
-    });
-
-    if let Some(docs) = &iface.docs {
-        outer.paragraph(|p| {
-            p.class("text-fg leading-relaxed mb-8 max-w-[65ch]")
-                .text(docs.clone())
+    // Interface content — built as raw HTML to support markdown docs
+    let heading = {
+        let mut h = Division::builder();
+        h.heading_2(|h2| {
+            h2.class("text-4xl font-light tracking-display mb-6")
+                .span(|s| s.class("text-fg-muted").text("Interface "))
+                .span(|s| s.class("text-wit-iface").text(iface.name.clone()))
         });
-    }
+        h.build().to_string()
+    };
+
+    let docs_html = iface
+        .docs
+        .as_deref()
+        .map(|docs| {
+            let md = crate::markdown::render_block(docs, crate::markdown::DOC_CLASS);
+            format!(r#"<div class="flex gap-6 max-w-3xl"><div class="shrink-0 w-52"></div><div class="min-w-0">{md}</div></div>"#)
+        })
+        .unwrap_or_default();
 
     // Grouped type and function sections
     let mut content = Division::builder();
-    content.class("space-y-8");
+    content.class("space-y-8 max-w-3xl");
     let resources: Vec<&TypeDoc> = iface
         .types
         .iter()
@@ -91,7 +94,7 @@ pub(crate) fn render(
         content.push(render_function_section(&iface.functions));
     }
 
-    outer.push(content.build());
+    let body_html = format!("{heading}{docs_html}{}", content.build());
 
     let ctx = package_shell::SidebarContext {
         pkg,
@@ -100,7 +103,7 @@ pub(crate) fn render(
         importers: &[],
         exporters: &[],
     };
-    package_shell::render_page_with_crumbs(&ctx, &title, &outer.build(), &[])
+    package_shell::render_page_with_crumbs(&ctx, &title, &body_html, &[])
 }
 
 /// Render a section of types grouped by kind.
@@ -144,7 +147,7 @@ fn render_type_row(ty: &TypeDoc) -> ListItem {
         li.division(|right| {
             right
                 .class("text-sm leading-relaxed text-fg-secondary line-clamp-2 min-w-0")
-                .text(first_sentence(docs))
+                .text(crate::markdown::render_inline(&first_sentence(docs)))
         });
     }
 
@@ -193,7 +196,7 @@ fn render_function_row(func: &FunctionDoc) -> ListItem {
         li.division(|right| {
             right
                 .class("text-sm leading-relaxed text-fg-secondary line-clamp-2 min-w-0")
-                .text(first_sentence(docs))
+                .text(crate::markdown::render_inline(&first_sentence(docs)))
         });
     }
 

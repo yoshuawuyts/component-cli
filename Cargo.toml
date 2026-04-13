@@ -153,6 +153,9 @@ wit-parser = "0.246"
 
 # frontend dependencies
 html = "0.6"
+pulldown-cmark = { version = "0.12", default-features = false, features = [
+    "html",
+] }
 wstd = "0.6"
 wstd-axum = "0.6"
 

@@ -95,7 +95,7 @@ fn render_card(pkg: &wasm_meta_registry_client::KnownPackage) -> Division {
                     .span(|s| {
                         s.class("block text-sm text-fg-muted mt-6 overflow-hidden")
                             .style("display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 2.75rem")
-                            .text(description.to_owned())
+                            .text(crate::markdown::render_inline(description))
                     })
             })
             .build(),
@@ -116,7 +116,7 @@ fn render_card(pkg: &wasm_meta_registry_client::KnownPackage) -> Division {
             .span(|s| {
                 s.class("block text-sm text-fg-muted mt-6 overflow-hidden")
                     .style("display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 2.75rem")
-                    .text(description.to_owned())
+                    .text(crate::markdown::render_inline(description))
             })
             .build(),
     }

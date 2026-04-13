@@ -38,10 +38,10 @@ pub(crate) fn render_type(
 
     // Description after code
     if let Some(docs) = &ty.docs {
-        outer.paragraph(|p| {
-            p.class("text-fg leading-relaxed mb-8 max-w-[65ch]")
-                .text(docs.clone())
-        });
+        outer.text(crate::markdown::render_block(
+            docs,
+            crate::markdown::DOC_CLASS,
+        ));
     }
 
     // Type body content
@@ -62,7 +62,7 @@ pub(crate) fn render_type(
         label: iface_name.to_owned(),
         href: Some(iface_url),
     }];
-    package_shell::render_page_with_crumbs(&ctx, &title, &outer.build(), &extra)
+    package_shell::render_page_with_crumbs(&ctx, &title, &outer.build().to_string(), &extra)
 }
 
 /// Render the item detail page for a freestanding function.
@@ -92,10 +92,10 @@ pub(crate) fn render_function(
 
     // Description after code
     if let Some(docs) = &func.docs {
-        outer.paragraph(|p| {
-            p.class("text-fg leading-relaxed mb-8 max-w-[65ch]")
-                .text(docs.clone())
-        });
+        outer.text(crate::markdown::render_block(
+            docs,
+            crate::markdown::DOC_CLASS,
+        ));
     }
 
     // Function detail content
@@ -116,7 +116,7 @@ pub(crate) fn render_function(
         label: iface_name.to_owned(),
         href: Some(iface_url),
     }];
-    package_shell::render_page_with_crumbs(&ctx, &title, &outer.build(), &extra)
+    package_shell::render_page_with_crumbs(&ctx, &title, &outer.build().to_string(), &extra)
 }
 
 /// Get the display label for a type kind.
@@ -234,7 +234,7 @@ fn render_field_row(name: &str, ty: &TypeRef, docs: Option<&str>) -> TableRow {
         })
         .table_cell(|td| {
             td.class("py-2 text-fg-secondary")
-                .text(docs.unwrap_or("").to_owned())
+                .text(crate::markdown::render_inline(docs.unwrap_or("")))
         })
         .build()
 }
@@ -273,7 +273,9 @@ fn render_variant_table(cases: &[crate::wit_doc::CaseDoc]) -> Division {
                 })
                 .table_cell(|td| {
                     td.class("py-2 text-fg-secondary")
-                        .text(case.docs.clone().unwrap_or_default())
+                        .text(crate::markdown::render_inline(
+                            case.docs.as_deref().unwrap_or(""),
+                        ))
                 })
         });
     }
@@ -304,7 +306,9 @@ fn render_enum_list(cases: &[crate::wit_doc::EnumCaseDoc]) -> Division {
                 })
                 .table_cell(|td| {
                     td.class("py-2 text-fg-secondary")
-                        .text(case.docs.clone().unwrap_or_default())
+                        .text(crate::markdown::render_inline(
+                            case.docs.as_deref().unwrap_or(""),
+                        ))
                 })
         });
     }
@@ -335,7 +339,9 @@ fn render_flags_list(flags: &[crate::wit_doc::FlagDoc]) -> Division {
                 })
                 .table_cell(|td| {
                     td.class("py-2 text-fg-secondary")
-                        .text(flag.docs.clone().unwrap_or_default())
+                        .text(crate::markdown::render_inline(
+                            flag.docs.as_deref().unwrap_or(""),
+                        ))
                 })
         });
     }

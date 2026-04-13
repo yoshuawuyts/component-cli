@@ -40,10 +40,10 @@ pub(crate) fn render(
     });
 
     if let Some(desc) = pkg.description.as_deref() {
-        main_col.paragraph(|p| {
-            p.class("text-fg leading-relaxed mb-8 max-w-[65ch]")
-                .text(desc.to_owned())
-        });
+        main_col.text(crate::markdown::render_block(
+            desc,
+            crate::markdown::DOC_CLASS,
+        ));
     }
 
     if let Some(detail) = version_detail {
@@ -61,7 +61,7 @@ pub(crate) fn render(
         importers,
         exporters,
     };
-    package_shell::render_page(&shell_ctx, &display_name, &main_col.build())
+    package_shell::render_page(&shell_ctx, &display_name, &main_col.build().to_string())
 }
 
 /// Render the WIT content section for a package version.
@@ -160,7 +160,7 @@ fn render_interface_row(iface: &crate::wit_doc::InterfaceDoc) -> ListItem {
         li.division(|right| {
             right
                 .class("text-sm leading-relaxed text-fg-secondary min-w-0")
-                .text(first_sentence(docs))
+                .text(crate::markdown::render_inline(&first_sentence(docs)))
         });
     }
 
@@ -203,7 +203,7 @@ fn render_world_row(world: &crate::wit_doc::WorldDoc) -> ListItem {
         li.division(|right| {
             right
                 .class("text-sm leading-relaxed text-fg-secondary min-w-0")
-                .text(first_sentence(docs))
+                .text(crate::markdown::render_inline(&first_sentence(docs)))
         });
     }
 
@@ -240,8 +240,10 @@ fn render_world_summaries(detail: &PackageVersion) -> Division {
             });
 
             if let Some(desc) = &world.description {
-                world_div
-                    .paragraph(|p| p.class("text-fg-secondary text-sm mb-3").text(desc.clone()));
+                world_div.paragraph(|p| {
+                    p.class("text-fg-secondary text-sm mb-3")
+                        .text(crate::markdown::render_inline(desc))
+                });
             }
 
             if !world.imports.is_empty() {

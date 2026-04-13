@@ -27,11 +27,7 @@ pub(crate) struct SidebarContext<'a> {
 /// Render the shared page shell: two-column layout with sidebar,
 /// wrapped in the HTML document layout.
 #[must_use]
-pub(crate) fn render_page(
-    ctx: &SidebarContext<'_>,
-    title: &str,
-    body_content: &Division,
-) -> String {
+pub(crate) fn render_page(ctx: &SidebarContext<'_>, title: &str, body_content: &str) -> String {
     render_page_inner(ctx, title, body_content, &[])
 }
 
@@ -40,7 +36,7 @@ pub(crate) fn render_page(
 pub(crate) fn render_page_with_crumbs(
     ctx: &SidebarContext<'_>,
     title: &str,
-    body_content: &Division,
+    body_content: &str,
     extra_crumbs: &[crate::nav::Crumb],
 ) -> String {
     render_page_inner(ctx, title, body_content, extra_crumbs)
@@ -54,7 +50,7 @@ pub(crate) fn render_page_with_crumbs(
 fn render_page_inner(
     ctx: &SidebarContext<'_>,
     title: &str,
-    body_content: &Division,
+    body_content: &str,
     extra_crumbs: &[crate::nav::Crumb],
 ) -> String {
     let pkg = ctx.pkg;
@@ -68,7 +64,7 @@ fn render_page_inner(
     let sidebar_meta = render_sidebar(ctx, &display_name).to_string();
 
     // Build main content
-    let content = body_content.to_string();
+    let content = body_content;
 
     // Top navbar with bunny, breadcrumbs, and links
     // Golden layout below: sidebar left, content right
@@ -110,16 +106,22 @@ fn render_page_inner(
       display: block;
     }}
   }}
+  .sidebar-scroll {{
+    scrollbar-width: none;
+  }}
+  .sidebar-scroll::-webkit-scrollbar {{
+    display: none;
+  }}
 </style>
-<div class="page-grid px-3 sm:px-4 pt-3 xl:pt-6">
-  <aside class="space-y-5" style="grid-area:sidebar;position:sticky;top:1.5rem;align-self:start;display:flex;flex-direction:column;height:calc(100vh - 3rem)">
+<div class="page-grid pt-3 xl:pt-6">
+  <aside class="space-y-5 sidebar-scroll" style="grid-area:sidebar;position:sticky;top:1.5rem;align-self:start;display:flex;flex-direction:column;height:calc(100vh - 3rem);overflow-y:auto;padding-right:0.75rem;padding-left:0.75rem">
     <div class="space-y-5 flex-1">
     <a href="/" id="bunny" aria-label="Home" role="link" class="text-lg font-medium text-fg hover:text-accent transition-colors shrink-0 inline-block text-left mb-4" style="cursor:pointer;min-width:10ch">(๑╹ᆺ╹)</a>
     {sidebar_meta}
     </div>
-    <p class="text-sm text-fg-faint pb-6">Made by Yosh Wuyts</p>
+    <p class="text-sm text-fg-faint pb-6">Made by <a href="https://yosh.is" class="hover:text-fg transition-colors">Yosh Wuyts</a><br>Intended to be donated to the <a href="https://bytecodealliance.org" class="hover:text-fg transition-colors">Bytecode Alliance</a></p>
   </aside>
-  <div class="topbar flex items-center justify-end gap-4 pb-2" style="grid-area:topbar">
+  <div class="topbar flex items-center justify-end gap-4 pb-2 pr-4" style="grid-area:topbar">
     <a href="/docs" class="text-sm text-fg-muted hover:text-fg transition-colors">Docs</a>
     <a href="/downloads" class="text-sm text-fg-muted hover:text-fg transition-colors">Downloads</a>
     <form action="/search" method="get" class="relative flex">
@@ -127,13 +129,13 @@ fn render_page_inner(
       <span class="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-mono pointer-events-none opacity-30" aria-hidden="true">[ / ]</span>
     </form>
   </div>
-  <div style="grid-area:main;min-width:0;max-width:48rem">
+  <div style="grid-area:main;min-width:0" class="pr-4">
     <div class="flex flex-wrap items-baseline text-2xl font-light tracking-display mb-6">
       {pkg_name_html}{breadcrumb_html}
     </div>
     {content}
   </div>
-  <aside class="rightbar hidden" style="grid-area:rightbar;position:sticky;top:1.5rem;align-self:start">
+  <aside class="rightbar hidden pr-4" style="grid-area:rightbar;position:sticky;top:1.5rem;align-self:start">
     <div class="flex items-center gap-4">
       <a href="/docs" class="text-sm text-fg-muted hover:text-fg transition-colors">Docs</a>
       <a href="/downloads" class="text-sm text-fg-muted hover:text-fg transition-colors">Downloads</a>
@@ -225,7 +227,7 @@ fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
     sidebar.division(|wrapper| {
         wrapper.class("").division(|label| {
             label
-                .class("text-sm font-medium text-fg-muted border-2 border-b-0 border-fg px-3 py-1 inline-block")
+                .class("text-sm font-medium text-fg-muted mb-1")
                 .text("Metadata")
         });
         let mut meta = Division::builder();
@@ -269,7 +271,7 @@ fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
     if !pkg.dependencies.is_empty() {
         sidebar.division(|wrapper| {
             wrapper.class("").heading_3(|h3| {
-                h3.class("text-sm font-medium text-fg-muted border-2 border-b-0 border-fg px-3 py-1 inline-block")
+                h3.class("text-sm font-medium text-fg-muted mb-1")
                     .text("Dependencies")
             });
             wrapper.division(|div| {
@@ -309,7 +311,7 @@ fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
     if total_dependents > 0 {
         sidebar.division(|wrapper| {
             wrapper.class("").heading_3(|h3| {
-                h3.class("text-sm font-medium text-fg-muted border-2 border-b-0 border-fg px-3 py-1 inline-block")
+                h3.class("text-sm font-medium text-fg-muted mb-1")
                     .text(format!("Dependents ({total_dependents})"))
             });
             wrapper.division(|div| {

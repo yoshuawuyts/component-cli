@@ -187,7 +187,7 @@ fn row_spans(
             .build(),
         Span::builder()
             .class("text-sm text-fg-muted truncate")
-            .text(description.to_owned())
+            .text(crate::markdown::render_inline(description))
             .build(),
     ]
 }

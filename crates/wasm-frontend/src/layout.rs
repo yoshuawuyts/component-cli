@@ -39,7 +39,7 @@ pub(crate) fn document_full_width(title: &str, body_content: &str) -> String {
 }
 
 const MAIN_CLASS_CENTERED: &str = "flex-1 w-full max-w-6xl mx-auto px-6 sm:px-8 pb-12";
-const MAIN_CLASS_FULL: &str = "flex-1 w-full px-6 sm:px-8 pb-12";
+const MAIN_CLASS_FULL: &str = "flex-1 w-full";
 
 /// Inner document renderer.
 fn document_inner(
@@ -197,6 +197,40 @@ fn document_inner(
     .card-lift {{
       transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
       transform-origin: center center;
+    }}
+    /* Prose styling for rendered markdown documentation */
+    .prose-doc p {{
+      margin-bottom: 0.75em;
+    }}
+    .prose-doc p:last-child {{
+      margin-bottom: 0;
+    }}
+    .prose-doc code {{
+      background: var(--color-surface);
+      padding: 0.1em 0.3em;
+      font-size: 0.9em;
+    }}
+    .prose-doc a {{
+      color: var(--color-accent);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }}
+    .prose-doc a:hover {{
+      color: var(--color-accent-hover);
+    }}
+    .prose-doc ul, .prose-doc ol {{
+      margin: 0.5em 0;
+      padding-left: 1.5em;
+    }}
+    .prose-doc li {{
+      margin-bottom: 0.25em;
+    }}
+    .prose-doc pre {{
+      background: var(--color-surface);
+      padding: 0.75em 1em;
+      overflow-x: auto;
+      margin: 0.75em 0;
+      font-size: 0.875em;
     }}
     .card-lift:hover {{
       transform: scale(1.03);

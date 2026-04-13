@@ -116,7 +116,7 @@ fn render_row(pkg: &KnownPackage) -> Division {
                     })
                     .span(|s| {
                         s.class("text-sm text-fg-muted truncate")
-                            .text(description.to_owned())
+                            .text(crate::markdown::render_inline(description))
                     })
             })
             .build(),
@@ -132,7 +132,7 @@ fn render_row(pkg: &KnownPackage) -> Division {
             })
             .span(|s| {
                 s.class("text-sm text-fg-muted truncate")
-                    .text(description.to_owned())
+                    .text(crate::markdown::render_inline(description))
             })
             .build(),
     }
