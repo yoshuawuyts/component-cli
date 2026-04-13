@@ -61,7 +61,7 @@ pub(crate) fn render(
         importers,
         exporters,
     };
-    package_shell::render_page(&shell_ctx, &display_name, main_col.build())
+    package_shell::render_page(&shell_ctx, &display_name, &main_col.build())
 }
 
 /// Render the WIT content section for a package version.

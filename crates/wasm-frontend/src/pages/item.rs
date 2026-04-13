@@ -70,7 +70,7 @@ pub(crate) fn render_type(
             href: Some(iface_url),
         },
     ];
-    package_shell::render_page_with_crumbs(&ctx, &title, outer.build(), extra)
+    package_shell::render_page_with_crumbs(&ctx, &title, &outer.build(), extra)
 }
 
 /// Render the item detail page for a freestanding function.
@@ -132,7 +132,7 @@ pub(crate) fn render_function(
             href: Some(iface_url),
         },
     ];
-    package_shell::render_page_with_crumbs(&ctx, &title, outer.build(), extra)
+    package_shell::render_page_with_crumbs(&ctx, &title, &outer.build(), extra)
 }
 
 /// Get the display label for a type kind.

@@ -106,7 +106,7 @@ pub(crate) fn render(
         label: pkg_label.to_owned(),
         href: Some(pkg_url),
     }];
-    package_shell::render_page_with_crumbs(&ctx, &title, outer.build(), extra)
+    package_shell::render_page_with_crumbs(&ctx, &title, &outer.build(), extra)
 }
 
 /// Render a section of types grouped by kind.

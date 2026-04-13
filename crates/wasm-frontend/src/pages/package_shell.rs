@@ -27,7 +27,11 @@ pub(crate) struct SidebarContext<'a> {
 /// Render the shared page shell: two-column layout with sidebar,
 /// wrapped in the HTML document layout.
 #[must_use]
-pub(crate) fn render_page(ctx: &SidebarContext<'_>, title: &str, body_content: Division) -> String {
+pub(crate) fn render_page(
+    ctx: &SidebarContext<'_>,
+    title: &str,
+    body_content: &Division,
+) -> String {
     render_page_inner(ctx, title, body_content, vec![])
 }
 
@@ -36,45 +40,117 @@ pub(crate) fn render_page(ctx: &SidebarContext<'_>, title: &str, body_content: D
 pub(crate) fn render_page_with_crumbs(
     ctx: &SidebarContext<'_>,
     title: &str,
-    body_content: Division,
+    body_content: &Division,
     extra_crumbs: Vec<crate::nav::Crumb>,
 ) -> String {
     render_page_inner(ctx, title, body_content, extra_crumbs)
 }
 
 /// Inner page shell renderer.
+///
+/// Uses a "golden layout": left sidebar with navigation and metadata,
+/// right column for main content. The top nav bar is replaced by the
+/// sidebar's own logo, breadcrumbs, and search.
 fn render_page_inner(
     ctx: &SidebarContext<'_>,
     title: &str,
-    body_content: Division,
+    body_content: &Division,
     extra_crumbs: Vec<crate::nav::Crumb>,
 ) -> String {
     let pkg = ctx.pkg;
     let display_name = display_name_for(pkg);
 
-    let mut body = Division::builder();
-    body.class("pt-6");
-
-    // Two-column grid: content + sidebar
-    let mut grid = Division::builder();
-    grid.class("grid grid-cols-1 md:grid-cols-[1fr_280px] gap-8 items-start");
-
-    // Left: main content (pages handle their own heading + description)
-    grid.push(body_content);
-
-    // Right: sidebar (always starts at top)
-    grid.push(render_sidebar(ctx, &display_name));
-
-    body.push(grid.build());
-
-    // Breadcrumbs — only namespace (package name is in the page heading)
+    // Build breadcrumbs
     let ns_crumb = pkg.wit_namespace.as_ref().map(|ns| crate::nav::Crumb {
         label: ns.clone(),
         href: Some(format!("/{ns}")),
     });
     let crumbs: Vec<crate::nav::Crumb> = ns_crumb.into_iter().chain(extra_crumbs).collect();
+    let breadcrumb_html = render_breadcrumb_path(&crumbs);
 
-    layout::document_with_breadcrumbs(title, &body.build().to_string(), &crumbs)
+    // Build sidebar metadata
+    let sidebar_meta = render_sidebar(ctx, &display_name).to_string();
+
+    // Build main content
+    let content = body_content.to_string();
+
+    // Golden layout: sidebar left, content right
+    let body = format!(
+        r#"<div class="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-x-10 gap-y-6 items-start pt-6">
+  <aside class="space-y-4">
+    <a href="/" id="bunny" class="text-lg font-medium text-fg hover:text-accent transition-colors inline-block" style="cursor:pointer;min-width:10ch">(๑╹ᆺ╹)</a>
+    <form action="/search" method="get">
+      <input type="search" name="q" placeholder="Search…" aria-label="Search" class="w-full px-3 py-1.5 text-sm border-2 border-fg bg-page text-fg-muted focus:text-fg focus:outline-none" id="search-input">
+    </form>
+    <nav class="text-sm leading-relaxed" aria-label="Breadcrumb">{breadcrumb_html}</nav>
+    <div class="flex flex-col gap-1 text-sm">
+      <a href="/docs" class="text-fg-muted hover:text-fg transition-colors">Docs</a>
+      <a href="/downloads" class="text-fg-muted hover:text-fg transition-colors">Downloads</a>
+    </div>
+    <div class="border-t-2 border-fg pt-4">
+      {sidebar_meta}
+    </div>
+    <script>
+    (function(){{
+      var b=document.getElementById('bunny');
+      if(!b)return;
+      var anims=[
+        ['(๑╹ᆺ╹)','(๑°ᆺ°)!','(๑◉ᆺ◉)!!'],
+        ['(๑╹ᆺ╹)','(๑°ᆺ°)♪','ヽ(๑≧ᆺ≦)ノ'],
+        ['(๑╹ᆺ╹)','(๑╹ᆺ╹)>','(๑°ᆺ°)>>']
+      ];
+      var seq=anims[Math.floor(Math.random()*anims.length)];
+      var timer=null;
+      b.addEventListener('mouseenter',function(){{
+        if(timer)return;
+        b.textContent=seq[1];
+        timer=setTimeout(function(){{
+          b.textContent=seq[2];
+        }},80);
+      }});
+      b.addEventListener('mouseleave',function(){{
+        if(timer){{clearTimeout(timer);timer=null;}}
+        b.textContent=seq[0];
+      }});
+    }})();
+    </script>
+  </aside>
+  <div>
+    {content}
+  </div>
+</div>"#
+    );
+
+    layout::document_full_width(title, &body)
+}
+
+/// Render breadcrumb segments as inline HTML.
+fn render_breadcrumb_path(crumbs: &[crate::nav::Crumb]) -> String {
+    use std::fmt::Write;
+    let mut html = String::new();
+    for (i, crumb) in crumbs.iter().enumerate() {
+        if i == 1 {
+            html.push_str(r#" <span class="text-fg-faint mx-0.5">:</span> "#);
+        } else if i > 1 {
+            html.push_str(r#" <span class="text-fg-faint mx-0.5">/</span> "#);
+        }
+        if let Some(href) = &crumb.href {
+            write!(
+                html,
+                r#"<a href="{href}" class="text-fg-muted hover:text-fg transition-colors">{label}</a>"#,
+                label = crumb.label
+            )
+            .unwrap();
+        } else {
+            write!(
+                html,
+                r#"<span class="text-fg">{label}</span>"#,
+                label = crumb.label
+            )
+            .unwrap();
+        }
+    }
+    html
 }
 
 /// Render the right sidebar with all package metadata.
