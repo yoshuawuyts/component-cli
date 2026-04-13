@@ -18,29 +18,48 @@ pub(crate) fn render(
     let display_name = package_shell::display_name_for(pkg);
     let title = format!("{display_name} — {}", iface.name);
 
-    // Interface content — built as raw HTML to support markdown docs
-    let heading = {
-        let mut h = Division::builder();
-        h.heading_2(|h2| {
-            h2.class("text-4xl font-light tracking-display mb-6")
-                .span(|s| s.class("text-fg-muted").text("Interface "))
-                .span(|s| s.class("text-wit-iface").text(iface.name.clone()))
-        });
-        h.build().to_string()
-    };
-
-    let docs_html = iface
+    // Interface content — heading + docs in a two-column row
+    let docs_md = iface
         .docs
         .as_deref()
-        .map(|docs| {
-            let md = crate::markdown::render_block(docs, crate::markdown::DOC_CLASS);
-            format!(r#"<div class="flex gap-6 max-w-3xl"><div class="shrink-0 w-52"></div><div class="min-w-0">{md}</div></div>"#)
-        })
+        .map(|docs| crate::markdown::render_block(docs, crate::markdown::DOC_CLASS))
         .unwrap_or_default();
+
+    let fqn = format!("{display_name}/{}", iface.name);
+
+    let copy_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>";
+    let check_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>";
+
+    let header_row = format!(
+        r#"<div class="flex gap-6 max-w-3xl mb-6">
+  <div class="shrink-0 w-52">
+    <h2 class="text-3xl font-light tracking-display flex items-baseline gap-2 group">
+      <span class="text-wit-iface">{iface_name}</span>
+      <button id="copy-fqn-btn" class="text-fg-faint hover:text-fg transition-opacity cursor-pointer opacity-0 group-hover:opacity-100" style="font-size:0.5em;vertical-align:middle" title="Copy item path to clipboard">{copy_icon}</button>
+    </h2>
+    <span class="text-sm text-fg-muted mt-2 block">Interface</span>
+  </div>
+  <div class="min-w-0 pt-1">{docs_md}</div>
+</div>
+<script>
+(function(){{
+  var btn=document.getElementById('copy-fqn-btn');
+  var copyIcon="{copy_icon}";
+  var checkIcon="{check_icon}";
+  btn.addEventListener('click',function(){{
+    navigator.clipboard.writeText('{fqn}').then(function(){{
+      btn.innerHTML=checkIcon;
+      setTimeout(function(){{btn.innerHTML=copyIcon}},2000);
+    }});
+  }});
+}})();
+</script>"#,
+        iface_name = iface.name,
+    );
 
     // Grouped type and function sections
     let mut content = Division::builder();
-    content.class("space-y-8 max-w-3xl");
+    content.class("space-y-6 max-w-3xl");
     let resources: Vec<&TypeDoc> = iface
         .types
         .iter()
@@ -94,7 +113,7 @@ pub(crate) fn render(
         content.push(render_function_section(&iface.functions));
     }
 
-    let body_html = format!("{heading}{docs_html}{}", content.build());
+    let body_html = format!("{header_row}{}", content.build());
 
     let ctx = package_shell::SidebarContext {
         pkg,
@@ -116,7 +135,6 @@ fn render_type_section(heading: &str, types: &[&TypeDoc]) -> Division {
     });
 
     let mut ul = UnorderedList::builder();
-    ul.class("space-y-0.5");
     for ty in types {
         ul.push(render_type_row(ty));
     }
@@ -129,7 +147,7 @@ fn render_type_row(ty: &TypeDoc) -> ListItem {
     let color_class = kind_color_class(&ty.kind);
 
     let mut li = ListItem::builder();
-    li.class("py-3 flex gap-6");
+    li.class("py-1 flex gap-6");
 
     // Left: kind-colored name
     li.division(|left| {
@@ -146,7 +164,7 @@ fn render_type_row(ty: &TypeDoc) -> ListItem {
     if let Some(docs) = &ty.docs {
         li.division(|right| {
             right
-                .class("text-sm leading-relaxed text-fg-secondary line-clamp-2 min-w-0")
+                .class("text-sm leading-snug text-fg-secondary line-clamp-2 min-w-0")
                 .text(crate::markdown::render_inline(&first_sentence(docs)))
         });
     }
@@ -164,7 +182,6 @@ fn render_function_section(functions: &[FunctionDoc]) -> Division {
     });
 
     let mut ul = UnorderedList::builder();
-    ul.class("space-y-0.5");
     for func in functions {
         ul.push(render_function_row(func));
     }
@@ -178,7 +195,7 @@ fn render_function_row(func: &FunctionDoc) -> ListItem {
     let color_class = "text-wit-func";
 
     let mut li = ListItem::builder();
-    li.class("py-3 flex gap-6");
+    li.class("py-1 flex gap-6");
 
     // Left: function name
     li.division(|left| {
@@ -195,7 +212,7 @@ fn render_function_row(func: &FunctionDoc) -> ListItem {
     if let Some(docs) = &func.docs {
         li.division(|right| {
             right
-                .class("text-sm leading-relaxed text-fg-secondary line-clamp-2 min-w-0")
+                .class("text-sm leading-snug text-fg-secondary line-clamp-2 min-w-0")
                 .text(crate::markdown::render_inline(&first_sentence(docs)))
         });
     }

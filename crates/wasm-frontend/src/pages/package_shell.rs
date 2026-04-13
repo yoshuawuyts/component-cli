@@ -116,7 +116,7 @@ fn render_page_inner(
 <div class="page-grid pt-3 xl:pt-6">
   <aside class="space-y-5 sidebar-scroll" style="grid-area:sidebar;position:sticky;top:1.5rem;align-self:start;display:flex;flex-direction:column;height:calc(100vh - 3rem);overflow-y:auto;padding-right:0.75rem;padding-left:0.75rem">
     <div class="space-y-5 flex-1">
-    <a href="/" id="bunny" aria-label="Home" role="link" class="text-lg font-medium text-fg hover:text-accent transition-colors shrink-0 inline-block text-left mb-4" style="cursor:pointer;min-width:10ch">(๑╹ᆺ╹)</a>
+    <div class="flex justify-center mb-4"><a href="/" id="bunny" aria-label="Home" role="link" class="text-lg font-medium text-fg hover:text-accent transition-colors" style="cursor:pointer;display:inline-block;width:12ch;text-align:left">(๑╹ᆺ╹)</a></div>
     {sidebar_meta}
     </div>
     <p class="text-sm text-fg-faint pb-6">Made by <a href="https://yosh.is" class="hover:text-fg transition-colors">Yosh Wuyts</a><br>Intended to be donated to the <a href="https://bytecodealliance.org" class="hover:text-fg transition-colors">Bytecode Alliance</a></p>
@@ -130,8 +130,8 @@ fn render_page_inner(
     </form>
   </div>
   <div style="grid-area:main;min-width:0" class="pr-4">
-    <div class="flex flex-wrap items-baseline text-2xl font-light tracking-display mb-6">
-      {pkg_name_html}{breadcrumb_html}
+    <div class="flex flex-wrap items-baseline text-lg font-light tracking-display mb-2">
+      {pkg_name_html}{breadcrumb_html} <span class="text-fg-faint mx-0.5">/</span>
     </div>
     {content}
   </div>
