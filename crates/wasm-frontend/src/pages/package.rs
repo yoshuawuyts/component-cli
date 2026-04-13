@@ -22,10 +22,6 @@ pub(crate) fn render(
     let url_base = package_shell::url_base_for(pkg, version);
     let wit_doc = version_detail.and_then(|d| try_parse_wit(d, &url_base));
 
-    // Main content: WIT documentation
-    let mut main_col = Division::builder();
-    main_col.class("space-y-10");
-
     // Package heading
     let kind_label = match pkg.kind {
         Some(wasm_meta_registry_client::PackageKind::Interface) => "Interface Types",
@@ -33,26 +29,49 @@ pub(crate) fn render(
         _ => "Package",
     };
     let pkg_name = pkg.wit_name.as_deref().unwrap_or(&display_name);
-    main_col.heading_2(|h2| {
-        h2.class("text-4xl font-light tracking-display mb-6")
-            .span(|s| s.class("text-fg-muted").text(format!("{kind_label} ")))
-            .span(|s| s.class("text-accent").text(pkg_name.to_owned()))
-    });
 
-    if let Some(desc) = pkg.description.as_deref() {
-        main_col.text(crate::markdown::render_block(
-            desc,
-            crate::markdown::DOC_CLASS,
-        ));
-    }
+    let docs_md = pkg
+        .description
+        .as_deref()
+        .map(|desc| crate::markdown::render_block(desc, crate::markdown::DOC_CLASS))
+        .unwrap_or_default();
 
-    if let Some(detail) = version_detail {
-        main_col.push(render_wit_content_with_doc(
-            detail,
-            &url_base,
-            wit_doc.as_ref(),
-        ));
-    }
+    let copy_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>";
+    let check_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>";
+
+    let header = format!(
+        r#"<div class="flex gap-6 max-w-3xl mb-6">
+  <div class="shrink-0 w-52">
+    <h2 class="text-3xl font-light tracking-display flex items-baseline gap-2 group">
+      <span class="text-accent">{pkg_name}</span>
+      <button id="copy-fqn-btn" class="text-fg-faint hover:text-fg transition-opacity cursor-pointer opacity-0 group-hover:opacity-100" style="font-size:0.5em;vertical-align:middle" title="Copy item path to clipboard">{copy_icon}</button>
+    </h2>
+    <span class="text-sm text-fg-muted mt-2 block">{kind_label}</span>
+  </div>
+  <div class="min-w-0 pt-1">{docs_md}</div>
+</div>
+<script>
+(function(){{
+  var btn=document.getElementById('copy-fqn-btn');
+  var copyIcon="{copy_icon}";
+  var checkIcon="{check_icon}";
+  btn.addEventListener('click',function(){{
+    navigator.clipboard.writeText('{display_name}').then(function(){{
+      btn.innerHTML=checkIcon;
+      setTimeout(function(){{btn.innerHTML=copyIcon}},2000);
+    }});
+  }});
+}})();
+</script>"#,
+    );
+
+    let wit_content = if let Some(detail) = version_detail {
+        render_wit_content_with_doc(detail, &url_base, wit_doc.as_ref()).to_string()
+    } else {
+        String::new()
+    };
+
+    let body_html = format!("{header}<div class=\"space-y-10 max-w-3xl\">{wit_content}</div>");
 
     let shell_ctx = package_shell::SidebarContext {
         pkg,
@@ -61,7 +80,7 @@ pub(crate) fn render(
         importers,
         exporters,
     };
-    package_shell::render_page(&shell_ctx, &display_name, &main_col.build().to_string())
+    package_shell::render_page(&shell_ctx, &display_name, &body_html)
 }
 
 /// Render the WIT content section for a package version.

@@ -19,33 +19,59 @@ pub(crate) fn render_type(
 ) -> String {
     let display_name = package_shell::display_name_for(pkg);
     let title = format!("{display_name} \u{2014} {iface_name}::{}", ty.name);
+    let fqn = format!("{display_name}/{iface_name}");
 
-    let mut outer = Division::builder();
+    let kind_label = type_kind_label(&ty.kind);
 
-    // Item heading: "record datetime" style
-    let kind_color = type_kind_color(&ty.kind);
-    outer.heading_2(|h2| {
-        h2.class("text-4xl font-light tracking-display mb-6")
-            .span(|s| {
-                s.class("text-fg-muted")
-                    .text(format!("{} ", type_kind_label(&ty.kind)))
-            })
-            .span(|s| s.class(kind_color).text(ty.name.clone()))
-    });
+    // Code block
+    let code_block = render_type_definition(ty).to_string();
 
-    // WIT definition block
-    outer.push(render_type_definition(ty));
+    // Description
+    let docs_html = ty
+        .docs
+        .as_deref()
+        .map(|docs| crate::markdown::render_block(docs, crate::markdown::DOC_CLASS))
+        .unwrap_or_default();
 
-    // Description after code
-    if let Some(docs) = &ty.docs {
-        outer.text(crate::markdown::render_block(
-            docs,
-            crate::markdown::DOC_CLASS,
-        ));
-    }
+    let copy_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>";
+    let check_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>";
 
-    // Type body content
-    outer.push(render_type_body(&ty.kind));
+    // Header row: name on left, docs on right
+    let header = format!(
+        r#"<div class="flex gap-6 max-w-3xl mb-6">
+  <div class="shrink-0 w-52">
+    <h2 class="text-3xl font-light tracking-display flex items-baseline gap-2 group">
+      <span class="{kind_color}">{name}</span>
+      <button id="copy-fqn-btn" class="text-fg-faint hover:text-fg transition-opacity cursor-pointer opacity-0 group-hover:opacity-100" style="font-size:0.5em;vertical-align:middle" title="Copy item path to clipboard">{copy_icon}</button>
+    </h2>
+    <span class="text-sm text-fg-muted mt-2 block">{kind_label}</span>
+  </div>
+  <div class="min-w-0 pt-1">
+    {code_block}
+    {docs_html}
+  </div>
+</div>
+<script>
+(function(){{
+  var btn=document.getElementById('copy-fqn-btn');
+  var copyIcon="{copy_icon}";
+  var checkIcon="{check_icon}";
+  btn.addEventListener('click',function(){{
+    navigator.clipboard.writeText('{fqn}').then(function(){{
+      btn.innerHTML=checkIcon;
+      setTimeout(function(){{btn.innerHTML=copyIcon}},2000);
+    }});
+  }});
+}})();
+</script>"#,
+        kind_color = type_kind_color(&ty.kind),
+        name = ty.name,
+    );
+
+    // Type body content (fields, variants, etc.)
+    let body = render_type_body(&ty.kind).to_string();
+
+    let content = format!("{header}<div class=\"max-w-3xl\">{body}</div>");
 
     let ctx = package_shell::SidebarContext {
         pkg,
@@ -62,7 +88,7 @@ pub(crate) fn render_type(
         label: iface_name.to_owned(),
         href: Some(iface_url),
     }];
-    package_shell::render_page_with_crumbs(&ctx, &title, &outer.build().to_string(), &extra)
+    package_shell::render_page_with_crumbs(&ctx, &title, &content, &extra)
 }
 
 /// Render the item detail page for a freestanding function.
@@ -77,29 +103,53 @@ pub(crate) fn render_function(
 ) -> String {
     let display_name = package_shell::display_name_for(pkg);
     let title = format!("{display_name} \u{2014} {iface_name}::{}", func.name);
+    let fqn = format!("{display_name}/{iface_name}");
 
-    let mut outer = Division::builder();
+    // Code block
+    let code_block = render_function_definition(func).to_string();
 
-    // Item heading
-    outer.heading_2(|h2| {
-        h2.class("text-4xl font-light tracking-display mb-6")
-            .span(|s| s.class("text-fg-muted").text("Function "))
-            .span(|s| s.class("text-wit-func").text(func.name.clone()))
-    });
+    // Description
+    let docs_html = func
+        .docs
+        .as_deref()
+        .map(|docs| crate::markdown::render_block(docs, crate::markdown::DOC_CLASS))
+        .unwrap_or_default();
 
-    // WIT definition block
-    outer.push(render_function_definition(func));
+    let copy_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>";
+    let check_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>";
 
-    // Description after code
-    if let Some(docs) = &func.docs {
-        outer.text(crate::markdown::render_block(
-            docs,
-            crate::markdown::DOC_CLASS,
-        ));
-    }
+    // Header row: name on left, docs on right
+    let header = format!(
+        r#"<div class="flex gap-6 max-w-3xl mb-6">
+  <div class="shrink-0 w-52">
+    <h2 class="text-3xl font-light tracking-display flex items-baseline gap-2 group">
+      <span class="text-wit-func">{name}</span>
+      <button id="copy-fqn-btn" class="text-fg-faint hover:text-fg transition-opacity cursor-pointer opacity-0 group-hover:opacity-100" style="font-size:0.5em;vertical-align:middle" title="Copy item path to clipboard">{copy_icon}</button>
+    </h2>
+    <span class="text-sm text-fg-muted mt-2 block">Function</span>
+  </div>
+  <div class="min-w-0 pt-1">
+    {code_block}
+    {docs_html}
+  </div>
+</div>
+<script>
+(function(){{
+  var btn=document.getElementById('copy-fqn-btn');
+  var copyIcon="{copy_icon}";
+  var checkIcon="{check_icon}";
+  btn.addEventListener('click',function(){{
+    navigator.clipboard.writeText('{fqn}').then(function(){{
+      btn.innerHTML=checkIcon;
+      setTimeout(function(){{btn.innerHTML=copyIcon}},2000);
+    }});
+  }});
+}})();
+</script>"#,
+        name = func.name,
+    );
 
-    // Function detail content
-    outer.push(render_function_detail(func));
+    let content = header;
 
     let ctx = package_shell::SidebarContext {
         pkg,
@@ -116,7 +166,7 @@ pub(crate) fn render_function(
         label: iface_name.to_owned(),
         href: Some(iface_url),
     }];
-    package_shell::render_page_with_crumbs(&ctx, &title, &outer.build().to_string(), &extra)
+    package_shell::render_page_with_crumbs(&ctx, &title, &content, &extra)
 }
 
 /// Get the display label for a type kind.
@@ -146,7 +196,7 @@ fn render_type_definition(ty: &TypeDoc) -> Division {
     use super::wit_render::{self, CODE_BLOCK_CLASS};
 
     Division::builder()
-        .class("mb-6")
+        .class("mb-4")
         .push(
             html::text_content::PreformattedText::builder()
                 .class(CODE_BLOCK_CLASS)
@@ -164,10 +214,28 @@ fn render_function_definition(func: &FunctionDoc) -> Division {
     use super::wit_render::{self, CODE_BLOCK_CLASS};
 
     Division::builder()
-        .class("mb-6")
+        .class("mb-4")
         .push(
             html::text_content::PreformattedText::builder()
                 .class(CODE_BLOCK_CLASS)
+                .code(|c| {
+                    wit_render::render_func_in_code(c, func, "");
+                    c
+                })
+                .build(),
+        )
+        .build()
+}
+
+/// Render a function signature inline (no border/box), like docs.rs style.
+fn render_function_signature(func: &FunctionDoc) -> Division {
+    use super::wit_render;
+
+    Division::builder()
+        .class("mb-2")
+        .push(
+            html::text_content::PreformattedText::builder()
+                .class("text-sm font-mono text-fg overflow-x-auto")
                 .code(|c| {
                     wit_render::render_func_in_code(c, func, "");
                     c
@@ -364,7 +432,14 @@ fn render_resource_body(
                 h2.class("text-sm font-medium text-fg-muted uppercase tracking-wide mb-3")
                     .text("Constructor")
             })
-            .push(render_function_detail(ctor))
+            .push(render_function_signature(ctor));
+            if let Some(docs) = &ctor.docs {
+                d.paragraph(|p| {
+                    p.class("text-sm text-fg-muted mb-1 leading-snug")
+                        .text(crate::markdown::render_inline(docs))
+                });
+            }
+            d
         });
     }
     if !methods.is_empty() {
@@ -374,7 +449,17 @@ fn render_resource_body(
                     .text("Methods")
             });
             for func in methods {
-                d.push(render_function_detail(func));
+                d.division(|m| {
+                    m.class("py-3 border-b border-border-light");
+                    m.push(render_function_signature(func));
+                    if let Some(docs) = &func.docs {
+                        m.paragraph(|p| {
+                            p.class("text-sm text-fg-muted mb-1 leading-snug")
+                                .text(crate::markdown::render_inline(docs))
+                        });
+                    }
+                    m
+                });
             }
             d
         });
@@ -386,7 +471,17 @@ fn render_resource_body(
                     .text("Static Functions")
             });
             for func in statics {
-                d.push(render_function_detail(func));
+                d.division(|m| {
+                    m.class("py-3 border-b border-border-light");
+                    m.push(render_function_signature(func));
+                    if let Some(docs) = &func.docs {
+                        m.paragraph(|p| {
+                            p.class("text-sm text-fg-muted mb-1 leading-snug")
+                                .text(crate::markdown::render_inline(docs))
+                        });
+                    }
+                    m
+                });
             }
             d
         });
@@ -407,50 +502,4 @@ fn render_alias(type_ref: &TypeRef) -> Division {
                 .push(super::wit_render::render_type_ref(type_ref))
         })
         .build()
-}
-
-/// Render function detail: signature + param table.
-fn render_function_detail(func: &FunctionDoc) -> Division {
-    let mut div = Division::builder();
-    div.class("mb-6");
-
-    // Param table (skip `self`)
-    let visible_params: Vec<_> = func.params.iter().filter(|p| p.name != "self").collect();
-    if !visible_params.is_empty() {
-        let mut table = Table::builder();
-        table.class("w-full text-sm mt-3");
-        table.table_row(|tr| {
-            tr.class("border-b-2 border-fg text-left text-fg-muted")
-                .table_header(|th| th.class("py-2 pr-4 font-medium").text("Parameter"))
-                .table_header(|th| th.class("py-2 font-medium").text("Type"))
-        });
-        for param in &visible_params {
-            table.table_row(|tr| {
-                tr.class("border-b-2 border-fg/50")
-                    .table_cell(|td| {
-                        td.class("py-2 pr-4 font-mono text-accent")
-                            .text(param.name.clone())
-                    })
-                    .table_cell(|td| {
-                        td.class("py-2 font-mono text-fg")
-                            .push(super::wit_render::render_type_ref(&param.ty))
-                    })
-            });
-        }
-        div.push(table.build());
-    }
-
-    // Return type
-    if let Some(ret) = &func.result {
-        div.division(|d| {
-            d.class("mt-3 text-sm")
-                .span(|s| s.class("text-fg-muted").text("Returns: "))
-                .span(|s| {
-                    s.class("font-mono text-fg")
-                        .push(super::wit_render::render_type_ref(ret))
-                })
-        });
-    }
-
-    div.build()
 }

@@ -28,7 +28,7 @@ pub(crate) struct SidebarContext<'a> {
 /// wrapped in the HTML document layout.
 #[must_use]
 pub(crate) fn render_page(ctx: &SidebarContext<'_>, title: &str, body_content: &str) -> String {
-    render_page_inner(ctx, title, body_content, &[])
+    render_page_inner(ctx, title, body_content, &[], true)
 }
 
 /// Render the page shell with extra breadcrumb segments after the package name.
@@ -39,7 +39,7 @@ pub(crate) fn render_page_with_crumbs(
     body_content: &str,
     extra_crumbs: &[crate::nav::Crumb],
 ) -> String {
-    render_page_inner(ctx, title, body_content, extra_crumbs)
+    render_page_inner(ctx, title, body_content, extra_crumbs, false)
 }
 
 /// Inner page shell renderer.
@@ -52,6 +52,7 @@ fn render_page_inner(
     title: &str,
     body_content: &str,
     extra_crumbs: &[crate::nav::Crumb],
+    is_root: bool,
 ) -> String {
     let pkg = ctx.pkg;
     let version = ctx.version;
@@ -59,6 +60,11 @@ fn render_page_inner(
 
     // Build breadcrumbs (extra crumbs only — package name is in the navbar)
     let breadcrumb_html = render_breadcrumb_path(extra_crumbs);
+    let trailing_slash = if is_root {
+        ""
+    } else {
+        r#" <span class="text-fg-faint mx-0.5">/</span>"#
+    };
 
     // Build sidebar metadata
     let sidebar_meta = render_sidebar(ctx, &display_name).to_string();
@@ -70,9 +76,14 @@ fn render_page_inner(
     // Golden layout below: sidebar left, content right
     let pkg_url = url_base_for(pkg, version);
     let pkg_name_html = match (&pkg.wit_namespace, &pkg.wit_name) {
-        (Some(ns), Some(name)) => {
+        (Some(ns), Some(name)) if !is_root => {
             format!(
                 r#"<a href="/{ns}" class="text-fg-muted hover:text-fg transition-colors">{ns}</a><span class="text-fg-faint">:</span><a href="{pkg_url}" class="text-fg-muted hover:text-fg transition-colors">{name}</a>"#
+            )
+        }
+        (Some(ns), Some(_)) => {
+            format!(
+                r#"<a href="/{ns}" class="text-fg-muted hover:text-fg transition-colors">{ns}</a><span class="text-fg-faint">:</span>"#
             )
         }
         _ => {
@@ -86,6 +97,7 @@ fn render_page_inner(
   .page-grid {{
     display: grid;
     grid-template-columns: 260px 1fr;
+    grid-template-rows: auto 1fr;
     grid-template-areas:
       "sidebar topbar"
       "sidebar main";
@@ -121,7 +133,7 @@ fn render_page_inner(
     </div>
     <p class="text-sm text-fg-faint pb-6">Made by <a href="https://yosh.is" class="hover:text-fg transition-colors">Yosh Wuyts</a><br>Intended to be donated to the <a href="https://bytecodealliance.org" class="hover:text-fg transition-colors">Bytecode Alliance</a></p>
   </aside>
-  <div class="topbar flex items-center justify-end gap-4 pb-2 pr-4" style="grid-area:topbar">
+  <div class="topbar flex items-center justify-end gap-4 pb-2 pr-4" style="grid-area:topbar;align-self:start">
     <a href="/docs" class="text-sm text-fg-muted hover:text-fg transition-colors">Docs</a>
     <a href="/downloads" class="text-sm text-fg-muted hover:text-fg transition-colors">Downloads</a>
     <form action="/search" method="get" class="relative flex">
@@ -131,7 +143,7 @@ fn render_page_inner(
   </div>
   <div style="grid-area:main;min-width:0" class="pr-4">
     <div class="flex flex-wrap items-baseline text-lg font-light tracking-display mb-2">
-      {pkg_name_html}{breadcrumb_html} <span class="text-fg-faint mx-0.5">/</span>
+      {pkg_name_html}{breadcrumb_html}{trailing_slash}
     </div>
     {content}
   </div>
