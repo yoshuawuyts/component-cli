@@ -6,17 +6,13 @@
 // r[impl frontend.rendering.html-crate]
 // r[impl frontend.styling.tailwind]
 // r[impl frontend.styling.light-theme]
-// r[impl frontend.styling.dark-mode]
 // r[impl frontend.styling.accent-color]
 // r[impl frontend.styling.responsive]
 
 use crate::footer;
-use crate::nav;
 
 /// Accent color used throughout the UI.
-///
-/// Wasm logo purple in OKLCH: L=0.49, C=0.257, H=280.
-pub(crate) const ACCENT_COLOR: &str = "oklch(0.49 0.257 280)";
+pub(crate) const ACCENT_COLOR: &str = "#232cf4";
 
 /// Render a complete HTML document with the given title and body content.
 ///
@@ -24,25 +20,50 @@ pub(crate) const ACCENT_COLOR: &str = "oklch(0.49 0.257 280)";
 /// color CSS variables, and footer.
 #[must_use]
 pub(crate) fn document(title: &str, body_content: &str) -> String {
+    document_inner(title, body_content, "", MAIN_CLASS_CENTERED, true)
+}
+
+/// Render a complete HTML document with nav bar, title, and body content.
+#[must_use]
+pub(crate) fn document_with_nav(title: &str, body_content: &str) -> String {
+    let nav = crate::nav::render(&[]);
+    document_inner(title, body_content, &nav, MAIN_CLASS_CENTERED, true)
+}
+
+/// Render a full-width document (no centered max-width, no top nav, no footer).
+///
+/// Used by the golden-layout pages where the sidebar is flush left.
+#[must_use]
+pub(crate) fn document_full_width(title: &str, body_content: &str) -> String {
+    document_inner(title, body_content, "", MAIN_CLASS_FULL, false)
+}
+
+const MAIN_CLASS_CENTERED: &str = "flex-1 w-full max-w-6xl mx-auto px-6 sm:px-8 pb-12";
+const MAIN_CLASS_FULL: &str = "flex-1 w-full";
+
+/// Inner document renderer.
+fn document_inner(
+    title: &str,
+    body_content: &str,
+    nav: &str,
+    main_class: &str,
+    show_footer: bool,
+) -> String {
     let escaped_title = escape_html_text(title);
-    let current_path = match title {
-        "Home" => "/",
-        "All Packages" => "/all",
-        "About" => "/about",
-        "Docs" => "/docs",
-        "Search" => "/search",
-        _ => "",
-    };
 
     format!(
         r#"<!DOCTYPE html>
-<html lang="en" style="view-transition-name:root">
+<html lang="en" style="view-transition-name:root;background:#d9d9d9">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light dark">
   <meta name="description" content="Browse and discover WebAssembly components and WIT interfaces published to OCI registries.">
   <title>{escaped_title} — wasm registry</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="preload" href="/fonts/iosevka-regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/iosevka-semibold.woff2" as="font" type="font/woff2" crossorigin>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {{
@@ -75,65 +96,81 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
               func:     'var(--color-wit-func)',
               world:    'var(--color-wit-world)',
               iface:    'var(--color-wit-iface)',
+              import:   'var(--color-wit-import)',
             }},
           }},
           fontFamily: {{
-            mono: ['ui-monospace', 'Cascadia Code', 'Source Code Pro', 'Menlo', 'Consolas', 'DejaVu Sans Mono', 'monospace'],
+            sans: ['"Source Serif 4"', 'Georgia', 'serif'],
+            mono: ['"Iosevka Web"', 'Iosevka', '"SF Mono"', '"Fira Code"', '"Cascadia Code"', 'Consolas', 'monospace'],
+            display: ['"Iosevka Web"', 'Iosevka', '"SF Mono"', 'monospace'],
+          }},
+          letterSpacing: {{
+            display: '-0.06em',
+          }},
+          fontSize: {{
+            sm: ['0.875rem', {{ lineHeight: '1.375rem' }}],
+            lg: ['1.125rem', {{ lineHeight: '1.625rem' }}],
           }},
         }}
       }}
     }}
   </script>
   <style>
-    /* Color system: OKLCH, rooted in Wasm logo purple (hue 280).
-       Neutrals use hue 290 for a violet tint. All text tokens
-       pass WCAG AA (4.5:1) against bg. */
+    /* Self-hosted Iosevka webfont */
+    @font-face {{
+      font-family: 'Iosevka Web';
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: url('/fonts/iosevka-regular.woff2') format('woff2');
+    }}
+    @font-face {{
+      font-family: 'Iosevka Web';
+      font-style: normal;
+      font-weight: 500;
+      font-display: swap;
+      src: url('/fonts/iosevka-medium.woff2') format('woff2');
+    }}
+    @font-face {{
+      font-family: 'Iosevka Web';
+      font-style: normal;
+      font-weight: 600;
+      font-display: swap;
+      src: url('/fonts/iosevka-semibold.woff2') format('woff2');
+    }}
+    @font-face {{
+      font-family: 'Iosevka Web';
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+      src: url('/fonts/iosevka-bold.woff2') format('woff2');
+    }}
+    /* Color system: two-tone, inspired by charcuterie.elastiq.ch.
+       Warm off-white background, vivid blue foreground. */
     :root {{
-      color-scheme: light dark;
-      --color-bg: oklch(1 0 290);
+      --color-bg: #d9d9d9;
       --color-accent: {ACCENT_COLOR};
-      --color-accent-hover: oklch(0.42 0.257 280);
-      --color-surface: oklch(0.975 0.006 290);
-      --color-surface-muted: oklch(0.955 0.01 290);
-      --color-border: oklch(0.91 0.018 290);
-      --color-border-light: oklch(0.94 0.014 290);
-      --color-fg: oklch(0.20 0.03 290);
-      --color-fg-secondary: oklch(0.40 0.03 290);
-      --color-fg-muted: oklch(0.54 0.025 290);
-      --color-fg-faint: oklch(0.56 0.02 290);
+      --color-accent-hover: #1a22c0;
+      --color-surface: #cfcfcf;
+      --color-surface-muted: #c8c8c8;
+      --color-border: rgba(35, 44, 244, 0.25);
+      --color-border-light: rgba(35, 44, 244, 0.12);
+      --color-fg: {ACCENT_COLOR};
+      --color-fg-secondary: rgba(35, 44, 244, 0.85);
+      --color-fg-muted: rgba(35, 44, 244, 0.70);
+      --color-fg-faint: rgba(35, 44, 244, 0.4);
       /* WIT item kind colors */
-      --color-wit-struct: oklch(0.45 0.2 260);
-      --color-wit-enum: oklch(0.45 0.14 180);
-      --color-wit-resource: oklch(0.50 0.16 70);
-      --color-wit-func: oklch(0.42 0.2 240);
-      --color-wit-world: oklch(0.48 0.18 330);
-      --color-wit-iface: oklch(0.45 0.16 210);
+      --color-wit-struct: #4338ca;
+      --color-wit-enum: #0d7377;
+      --color-wit-resource: #b45309;
+      --color-wit-func: #15803d;
+      --color-wit-world: #9333ea;
+      --color-wit-iface: #0369a1;
+      --color-wit-import: #b91c1c;
     }}
     html, body {{
       background-color: var(--color-bg);
       color: var(--color-fg);
-    }}
-    @media (prefers-color-scheme: dark) {{
-      :root {{
-        --color-bg: oklch(0.185 0.025 290);
-        --color-accent: oklch(0.70 0.16 280);
-        --color-accent-hover: oklch(0.76 0.13 280);
-        --color-surface: oklch(0.23 0.03 290);
-        --color-surface-muted: oklch(0.26 0.035 290);
-        --color-border: oklch(0.32 0.04 290);
-        --color-border-light: oklch(0.29 0.038 290);
-        --color-fg: oklch(0.94 0.01 290);
-        --color-fg-secondary: oklch(0.78 0.025 290);
-        --color-fg-muted: oklch(0.66 0.03 290);
-        --color-fg-faint: oklch(0.62 0.025 290);
-        /* WIT item kind colors (dark) */
-        --color-wit-struct: oklch(0.72 0.15 260);
-        --color-wit-enum: oklch(0.72 0.12 180);
-        --color-wit-resource: oklch(0.75 0.14 70);
-        --color-wit-func: oklch(0.70 0.15 240);
-        --color-wit-world: oklch(0.75 0.14 330);
-        --color-wit-iface: oklch(0.72 0.13 210);
-      }}
     }}
     /* Consistent focus ring for keyboard navigation */
     :focus-visible {{
@@ -147,9 +184,11 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
     @view-transition {{
       navigation: auto;
     }}
-    ::view-transition-old(root),
+    ::view-transition-old(root) {{
+      animation: none;
+    }}
     ::view-transition-new(root) {{
-      animation-duration: 0s;
+      animation: none;
     }}
     @media (prefers-reduced-motion: reduce) {{
       ::view-transition-old(root),
@@ -157,19 +196,348 @@ pub(crate) fn document(title: &str, body_content: &str) -> String {
         animation: none;
       }}
     }}
+    /* Card hover — pop out with scale, shadow, and strong border */
+    .card-lift {{
+      transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
+      transform-origin: center center;
+    }}
+    /* Prose styling for rendered markdown documentation */
+    .prose-doc p {{
+      margin-bottom: 0.75em;
+    }}
+    .prose-doc p:last-child {{
+      margin-bottom: 0;
+    }}
+    .prose-doc code {{
+      background: var(--color-surface);
+      padding: 0.1em 0.3em;
+      font-size: 0.9em;
+    }}
+    .prose-doc a {{
+      color: var(--color-accent);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }}
+    .prose-doc a:hover {{
+      color: var(--color-accent-hover);
+    }}
+    .prose-doc ul, .prose-doc ol {{
+      margin: 0.5em 0;
+      padding-left: 1.5em;
+    }}
+    .prose-doc li {{
+      margin-bottom: 0.25em;
+    }}
+    .prose-doc pre {{
+      background: var(--color-surface);
+      padding: 0.75em 1em;
+      overflow-x: auto;
+      margin: 0.75em 0;
+      font-size: 0.875em;
+    }}
+    .card-lift:hover {{
+      transform: scale(1.03);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+      z-index: 1;
+      position: relative;
+      outline: 2px solid var(--color-fg);
+      outline-offset: -2px;
+    }}
+    @media (prefers-reduced-motion: reduce) {{
+      .card-lift {{ transition: none; }}
+      .card-lift:hover {{ transform: none; box-shadow: none; }}
+    }}
+    /* Card kind variants — thin left border for categorization */
+    .card-interface {{
+      border-left: 2px solid var(--color-wit-iface);
+    }}
+    .card-component {{
+      border-left: 2px solid var(--color-accent);
+    }}
+    /* Copy hint */
+    .copy-hint {{
+      cursor: pointer;
+      position: relative;
+    }}
+    .copy-hint::after {{
+      content: 'click to copy';
+      position: absolute;
+      right: -0.25rem;
+      top: 50%;
+      transform: translateX(100%) translateY(-50%);
+      font-size: 0.65rem;
+      color: var(--color-fg-faint);
+      opacity: 0;
+      transition: opacity 0.15s;
+      white-space: nowrap;
+      pointer-events: none;
+    }}
+    .copy-hint:hover::after {{
+      opacity: 1;
+    }}
+    .copy-hint.copied::after {{
+      content: 'copied!';
+      color: var(--color-accent);
+      opacity: 1;
+    }}
+    @media (prefers-reduced-motion: reduce) {{
+      .copy-hint::after {{ transition: none; }}
+    }}
+    /* Keyboard shortcut badge — inside search input, Linear-style */
+    .search-kbd {{
+      position: absolute;
+      right: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.5rem;
+      height: 1.5rem;
+      border: 2px solid var(--color-border);
+      border-radius: 0;
+      font-size: 0.8125rem;
+      font-family: inherit;
+      color: var(--color-fg-muted);
+      background: var(--color-surface-muted);
+      line-height: 1;
+      pointer-events: none;
+      transition: opacity 0.1s;
+    }}
+    .search-form:focus-within .search-kbd {{
+      opacity: 0;
+      pointer-events: none;
+    }}
+    /* Search carousel placeholder */
+    .search-carousel {{
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1rem;
+      color: var(--color-fg-faint);
+      pointer-events: none;
+      white-space: nowrap;
+      overflow: hidden;
+      transition: opacity 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    }}
+    .carousel-word {{
+      display: inline;
+    }}
+    @media (prefers-reduced-motion: reduce) {{
+      .carousel-word {{
+        transition: none;
+      }}
+    }}
+    /* Tab buttons — square, bordered, Charcuterie style */
+    .tab-btn {{
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      color: var(--color-fg);
+      background: var(--color-bg);
+      border: 2px solid var(--color-fg);
+      border-bottom: none;
+      margin-left: -2px;
+      cursor: pointer;
+      transition: color 0.15s, background-color 0.15s;
+      flex: 1;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }}
+    .tab-btn:first-child {{
+      margin-left: 0;
+    }}
+    .tab-btn:hover {{
+      background: var(--color-fg);
+      color: var(--color-bg);
+    }}
+    .tab-btn:hover > * {{
+      opacity: 1;
+    }}
+    .tab-btn[aria-selected="true"] {{
+      background: var(--color-fg);
+      color: var(--color-bg);
+    }}
+    .tab-btn[aria-selected="true"] > * {{
+      opacity: 1;
+    }}
+    @media (prefers-reduced-motion: reduce) {{
+      .tab-btn {{ transition: none; }}
+    }}
   </style>
 </head>
-<body class="bg-page text-fg min-h-screen flex flex-col leading-relaxed">
+<body class="bg-page text-fg min-h-screen flex flex-col leading-relaxed font-sans">
   {nav}
-  <main class="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 pb-10">
+  <main class="{main_class}">
     {body_content}
   </main>
   {footer}
+  <script>
+    // Focus search on / key (developer convention)
+    document.addEventListener('keydown', function(e) {{
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {{
+        var el = document.activeElement;
+        var tag = el && el.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el && el.isContentEditable)) return;
+        var search = document.getElementById('search-input');
+        if (search && search.offsetParent === null) search = document.getElementById('search-input-lg');
+        if (search) {{ e.preventDefault(); search.focus(); }}
+      }}
+    }});
+    // Click-to-copy for install hint
+    document.addEventListener('click', function(e) {{
+      var el = e.target.closest('.copy-hint');
+      if (!el) return;
+      var text = el.textContent || '';
+      if (navigator.clipboard) {{
+        navigator.clipboard.writeText(text).then(function() {{
+          el.classList.add('copied');
+          setTimeout(function() {{ el.classList.remove('copied'); }}, 1200);
+        }});
+      }}
+    }});
+    // Tab switching
+    document.addEventListener('click', function(e) {{
+      var btn = e.target.closest('.tab-btn');
+      if (!btn) return;
+      var group = btn.closest('.tab-group');
+      if (!group) return;
+      var tab = btn.getAttribute('data-tab');
+      // Update tab buttons
+      group.querySelectorAll('.tab-btn').forEach(function(b) {{
+        b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
+      }});
+      // Show/hide panels
+      group.querySelectorAll('.tab-panel').forEach(function(p) {{
+        if (p.id === 'panel-' + tab) {{
+          p.style.display = '';
+        }} else {{
+          p.style.display = 'none';
+        }}
+      }});
+    }});
+    // Search placeholder carousel
+    (function() {{
+      var words = [
+        'components\u2026',
+        'interfaces\u2026',
+        'libraries\u2026',
+        'plugins\u2026',
+        'servers\u2026',
+        'tools\u2026',
+        'apps\u2026',
+        'extensions\u2026',
+        'handlers\u2026',
+        'services\u2026',
+        'applets\u2026',
+        'clients\u2026',
+        'addons\u2026',
+        'modules\u2026',
+        'packages\u2026',
+        'widgets\u2026',
+        'expansions\u2026',
+        'augmentations\u2026',
+        'supplements\u2026',
+        'accessories\u2026',
+        'middleware\u2026',
+        'hooks\u2026',
+        'mods\u2026',
+        'bundles\u2026',
+        'toolkits\u2026',
+        'SDKs\u2026',
+        'adapters\u2026',
+        'drivers\u2026',
+        'providers\u2026',
+        'connectors\u2026',
+        'shims\u2026',
+        'polyfills\u2026',
+      ];
+      var el = document.getElementById('carousel-word');
+      var overlay = document.getElementById('search-carousel');
+      var input = document.getElementById('search-input');
+      if (!el || !overlay || !input) return;
+      var idx = 0;
+      var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      function updateVisibility() {{
+        var hasValue = input.value.length > 0;
+        overlay.style.opacity = hasValue ? '0' : '';
+      }}
+      input.addEventListener('input', updateVisibility);
+      input.addEventListener('focus', updateVisibility);
+      input.addEventListener('blur', updateVisibility);
+      updateVisibility();
+
+      var currentWord = words[idx];
+      el.textContent = currentWord;
+      var typing = false;
+
+      function jitter() {{
+        return 50 + Math.random() * 90;
+      }}
+
+      function deleteWord(cb) {{
+        var text = el.textContent;
+        if (text.length === 0) {{ cb(); return; }}
+        typing = true;
+        var first = true;
+        function step() {{
+          text = text.slice(0, -1);
+          el.textContent = text;
+          if (text.length > 0) {{
+            if (first) {{
+              first = false;
+              setTimeout(step, 300);
+            }} else {{
+              setTimeout(step, 20 + Math.random() * 25);
+            }}
+          }} else {{
+            typing = false;
+            cb();
+          }}
+        }}
+        setTimeout(step, 20);
+      }}
+
+      function typeWord(word, cb) {{
+        var i = 0;
+        typing = true;
+        function step() {{
+          i++;
+          el.textContent = word.slice(0, i);
+          if (i < word.length) {{
+            setTimeout(step, jitter());
+          }} else {{
+            typing = false;
+            if (cb) cb();
+          }}
+        }}
+        setTimeout(step, jitter());
+      }}
+
+      function cycle() {{
+        if (input.value || typing) return;
+        deleteWord(function() {{
+          setTimeout(function() {{
+            var next = idx;
+            while (next === idx) next = Math.floor(Math.random() * words.length);
+            idx = next;
+            typeWord(words[idx]);
+          }}, reducedMotion ? 0 : 200);
+        }});
+      }}
+
+      setInterval(cycle, 5000);
+    }})();
+  </script>
 </body>
 </html>"#,
         escaped_title = escaped_title,
-        nav = nav::render(current_path),
-        footer = footer::render(),
+        footer = if show_footer {
+            footer::render()
+        } else {
+            String::new()
+        },
         body_content = body_content,
     )
 }
@@ -197,7 +565,6 @@ mod tests {
     // r[verify frontend.rendering.html-crate]
     // r[verify frontend.styling.tailwind]
     // r[verify frontend.styling.light-theme]
-    // r[verify frontend.styling.dark-mode]
     // r[verify frontend.styling.accent-color]
     // r[verify frontend.styling.responsive]
     #[test]
@@ -207,11 +574,9 @@ mod tests {
         assert!(html.contains("https://cdn.tailwindcss.com"));
         assert!(html.contains(ACCENT_COLOR));
         assert!(html.contains("<meta name=\"viewport\""));
-        assert!(html.contains("<meta name=\"color-scheme\" content=\"light dark\">"));
         assert!(html.contains("bg-page text-fg"));
         assert!(html.contains("html, body"));
         assert!(html.contains("background-color: var(--color-bg);"));
         assert!(html.contains("color: var(--color-fg);"));
-        assert!(html.contains("prefers-color-scheme: dark"));
     }
 }

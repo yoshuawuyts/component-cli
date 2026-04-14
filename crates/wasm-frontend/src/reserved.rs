@@ -7,8 +7,24 @@
 
 /// Namespaces reserved for application routes.
 const RESERVED_NAMESPACES: &[&str] = &[
-    "about", "admin", "all", "api", "assets", "docs", "explore", "health", "login", "logout",
-    "new", "register", "search", "settings", "signup", "static",
+    "about",
+    "admin",
+    "all",
+    "api",
+    "assets",
+    "docs",
+    "downloads",
+    "explore",
+    "health",
+    "login",
+    "logout",
+    "new",
+    "register",
+    "search",
+    "settings",
+    "signup",
+    "static",
+    "fonts",
 ];
 
 /// Returns `true` if the given string is a reserved namespace.

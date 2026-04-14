@@ -12,7 +12,7 @@ pub(crate) fn render() -> String {
     let body = Division::builder()
         .class("pt-16 pb-20 max-w-lg")
         .heading_1(|h1| {
-            h1.class("text-4xl font-bold tracking-tight text-accent")
+            h1.class("text-4xl font-light tracking-display font-display text-accent")
                 .text("Page not found")
         })
         .paragraph(|p| {
@@ -28,7 +28,7 @@ pub(crate) fn render() -> String {
                 .anchor(|a| {
                     a.href("/")
                         .class(
-                            "px-4 py-2 bg-accent text-white rounded-md \
+                            "px-4 py-2 bg-accent text-white \
                              font-medium hover:bg-accent-hover transition-colors",
                         )
                         .text("Browse packages")
@@ -36,7 +36,7 @@ pub(crate) fn render() -> String {
                 .anchor(|a| {
                     a.href("/search")
                         .class(
-                            "px-4 py-2 border border-border rounded-md \
+                            "px-4 py-2 border-2 border-fg \
                              text-fg hover:border-accent/50 transition-colors",
                         )
                         .text("Search")
@@ -44,5 +44,5 @@ pub(crate) fn render() -> String {
         })
         .build();
 
-    layout::document("Not Found", &body.to_string())
+    layout::document_with_nav("Not Found", &body.to_string())
 }

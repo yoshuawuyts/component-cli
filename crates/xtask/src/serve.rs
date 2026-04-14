@@ -5,14 +5,18 @@
 //! 2. Start `wasm-meta-registry` in the background.
 //! 3. Start `wasmtime serve` for the frontend component.
 //!
+//! Watches `crates/wasm-frontend/src/` for changes and automatically rebuilds
+//! and restarts only the frontend (wasmtime) — the registry stays running.
 //! On Ctrl-C both child processes are killed so no ports are left open.
 
 use std::io::BufRead;
 use std::process::{Child, Command};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
+use notify::{RecursiveMode, Watcher};
 
 use crate::workspace_root;
 
@@ -57,26 +61,46 @@ pub(crate) fn run_serve() -> Result<()> {
         }
     });
 
-    eprintln!(":: Press Enter to rebuild and reload, Ctrl-C to quit.");
+    // Watch frontend source for changes.
+    let fs_reload = Arc::clone(&reload);
+    let watch_path = root.join("crates/wasm-frontend/src");
+    let mut watcher =
+        notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
+            if let Ok(event) = res
+                && (event.kind.is_modify() || event.kind.is_create() || event.kind.is_remove())
+            {
+                fs_reload.store(true, Ordering::SeqCst);
+            }
+        })
+        .context("failed to create file watcher")?;
+    watcher
+        .watch(&watch_path, RecursiveMode::Recursive)
+        .context("failed to watch frontend source directory")?;
 
-    // Wait for either process to exit, Ctrl-C, or Enter.
+    eprintln!(":: Watching crates/wasm-frontend/src/ for changes.");
+    eprintln!(":: Press Enter to rebuild, Ctrl-C to quit.");
+
+    // Debounce: wait a short period after a change before rebuilding.
+    let mut last_rebuild = Instant::now();
+
+    // Wait for either process to exit, Ctrl-C, or file change.
     loop {
         if shutdown.load(Ordering::SeqCst) {
             eprintln!("\n:: Shutting down…");
             break;
         }
 
-        // Reload on Enter.
-        if reload.swap(false, Ordering::SeqCst) {
-            eprintln!("\n:: Rebuilding…");
+        // Reload on Enter or file change (with debounce).
+        if reload.load(Ordering::SeqCst) && last_rebuild.elapsed() > Duration::from_millis(500) {
+            reload.store(false, Ordering::SeqCst);
+            eprintln!("\n:: Rebuilding frontend…");
             if build_frontend(&root).is_ok() {
                 kill_child(&mut wasmtime_child, "wasmtime serve");
-                kill_child(&mut registry_child, "meta-registry");
-                registry_child = start_registry(&registry_dir)?;
                 wasmtime_child = start_wasmtime(&wasm_path)?;
-                eprintln!(":: Press Enter to rebuild and reload, Ctrl-C to quit.");
+                last_rebuild = Instant::now();
+                eprintln!(":: Watching for changes. Press Enter to rebuild, Ctrl-C to quit.");
             } else {
-                eprintln!(":: Build failed, keeping current servers running.");
+                eprintln!(":: Build failed, keeping current server running.");
             }
             continue;
         }
@@ -99,7 +123,7 @@ pub(crate) fn run_serve() -> Result<()> {
             break;
         }
 
-        std::thread::sleep(std::time::Duration::from_millis(200));
+        std::thread::sleep(Duration::from_millis(200));
     }
 
     kill_child(&mut wasmtime_child, "wasmtime serve");

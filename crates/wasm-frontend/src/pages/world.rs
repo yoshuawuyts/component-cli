@@ -1,209 +1,154 @@
 //! World detail page.
 
 use crate::wit_doc::{WitDocument, WorldDoc, WorldItemDoc};
-use html::content::Navigation;
 use html::text_content::{Division, ListItem, UnorderedList};
+use wasm_meta_registry_client::{KnownPackage, PackageVersion};
 
-use super::sidebar::{SidebarActive, SidebarContext, render_sidebar};
-use crate::layout;
+use super::package_shell;
 
 /// Render the world detail page.
 #[must_use]
 pub(crate) fn render(
-    display_name: &str,
+    pkg: &KnownPackage,
     version: &str,
+    version_detail: Option<&PackageVersion>,
     world: &WorldDoc,
-    doc: &WitDocument,
+    _doc: &WitDocument,
 ) -> String {
-    let title = format!("{display_name} — {}", world.name);
-    let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
+    let display_name = package_shell::display_name_for(pkg);
+    let title = format!("{display_name} \u{2014} {}", world.name);
 
-    let mut body = Division::builder();
-    body.class("pt-8");
+    let docs_md = world
+        .docs
+        .as_deref()
+        .map(|d| crate::markdown::render_block(d, crate::markdown::DOC_CLASS))
+        .unwrap_or_default();
 
-    body.push(render_breadcrumb(display_name, &pkg_url, &world.name));
+    let fqn = format!("{display_name}/{}", world.name);
+    let copy_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>";
+    let check_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>";
 
-    // Header
-    body.division(|div| {
-        div.class("mb-6").heading_1(|h1| {
-            h1.class("text-3xl font-bold tracking-tight font-mono")
-                .span(|s| s.class("text-fg-muted").text(format!("{display_name} / ")))
-                .span(|s| s.class("text-fg-muted").text("world "))
-                .span(|s| s.class("text-accent").text(world.name.clone()))
-        });
-        if let Some(docs) = &world.docs {
-            div.paragraph(|p| p.class("text-lg text-fg-secondary mt-2").text(docs.clone()));
-        }
-        div
-    });
-
-    // Grid: main content + sidebar
-    let mut grid = Division::builder();
-    grid.class("grid grid-cols-1 md:grid-cols-3 gap-12");
+    let header = format!(
+        r#"<div class="max-w-3xl mb-6">
+  <h2 class="text-3xl font-light tracking-display font-display flex items-baseline gap-2 group">
+    <span class="text-wit-world">{world_name}</span>
+    <button id="copy-fqn-btn" class="text-fg-faint hover:text-fg transition-opacity cursor-pointer opacity-0 group-hover:opacity-100" style="font-size:0.5em;vertical-align:middle" title="Copy item path to clipboard">{copy_icon}</button>
+  </h2>
+  <span class="text-sm text-fg-muted mt-1 block">World</span>
+  <div class="mt-4">{docs_md}</div>
+</div>
+<script>
+(function(){{
+  var btn=document.getElementById('copy-fqn-btn');
+  var copyIcon="{copy_icon}";
+  var checkIcon="{check_icon}";
+  btn.addEventListener('click',function(){{
+    navigator.clipboard.writeText('{fqn}').then(function(){{
+      btn.innerHTML=checkIcon;
+      setTimeout(function(){{btn.innerHTML=copyIcon}},2000);
+    }});
+  }});
+}})();
+</script>"#,
+        world_name = world.name,
+    );
 
     let mut content = Division::builder();
-    content.class("md:col-span-2 space-y-8");
+    content.class("space-y-10 max-w-3xl");
 
     if !world.imports.is_empty() {
-        content.push(render_item_section("Imports", &world.imports));
+        content.push(render_item_section("Imports", &world.imports, true));
     }
     if !world.exports.is_empty() {
-        content.push(render_item_section("Exports", &world.exports));
+        content.push(render_item_section("Exports", &world.exports, false));
     }
 
-    grid.push(content.build());
+    let body_html = format!("{header}{}", content.build());
 
-    // Sidebar
-    let sidebar_ctx = SidebarContext {
-        display_name,
+    let ctx = package_shell::SidebarContext {
+        pkg,
         version,
-        doc,
-        active: SidebarActive::World(&world.name),
+        version_detail,
+        importers: &[],
+        exporters: &[],
     };
-    grid.push(render_sidebar(&sidebar_ctx));
-
-    body.push(grid.build());
-
-    layout::document(&title, &body.build().to_string())
-}
-
-/// Breadcrumb: Home / package / world
-fn render_breadcrumb(display_name: &str, pkg_url: &str, world_name: &str) -> Navigation {
-    Navigation::builder()
-        .class("text-sm text-fg-muted mb-4")
-        .anchor(|a| {
-            a.href("/")
-                .class("hover:text-accent transition-colors")
-                .text("Home")
-        })
-        .span(|s| s.class("mx-1").text("/"))
-        .anchor(|a| {
-            a.href(pkg_url.to_owned())
-                .class("hover:text-accent transition-colors")
-                .text(display_name.to_owned())
-        })
-        .span(|s| s.class("mx-1").text("/"))
-        .span(|s| s.class("text-fg font-medium").text(world_name.to_owned()))
-        .build()
+    package_shell::render_page_with_crumbs(&ctx, &title, &body_html, &[])
 }
 
 /// Render an imports or exports section, grouped by package namespace.
-fn render_item_section(heading: &str, items: &[WorldItemDoc]) -> Division {
+fn render_item_section(heading: &str, items: &[WorldItemDoc], is_import: bool) -> Division {
     let mut div = Division::builder();
     div.heading_2(|h2| {
-        h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3")
+        h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
             .text(heading.to_owned())
     });
 
-    // Separate interface items (groupable) from non-interface items.
-    let mut groups: Vec<(&str, Vec<&WorldItemDoc>)> = Vec::new();
-    let mut other_items: Vec<&WorldItemDoc> = Vec::new();
+    let link_color = if is_import {
+        "block font-mono text-wit-import hover:underline text-base"
+    } else {
+        "block font-mono text-accent hover:underline text-base"
+    };
 
+    let mut ul = UnorderedList::builder();
     for item in items {
-        match item {
-            WorldItemDoc::Interface { name, .. } => {
-                let pkg = extract_package_name(name);
-                if let Some(group) = groups.iter_mut().find(|(key, _)| *key == pkg) {
-                    group.1.push(item);
-                } else {
-                    groups.push((pkg, vec![item]));
-                }
-            }
-            _ => other_items.push(item),
-        }
+        ul.push(render_world_item_row(item, link_color));
     }
 
-    // Render grouped interfaces.
-    let mut container = Division::builder();
-    container.class("space-y-4");
-
-    for (pkg_name, group_items) in &groups {
-        container.division(|group_div| {
-            // Only show group heading if there are multiple groups.
-            if groups.len() > 1 {
-                group_div.division(|label| {
-                    label
-                        .class("text-xs font-medium text-fg-muted font-mono mb-1.5")
-                        .text((*pkg_name).to_owned())
-                });
-            }
-            let mut ul = UnorderedList::builder();
-            ul.class("space-y-1");
-            for item in group_items {
-                ul.push(render_world_item_row(item));
-            }
-            group_div.push(ul.build());
-            group_div
-        });
-    }
-
-    // Render non-interface items (functions, types) if any.
-    if !other_items.is_empty() {
-        let mut ul = UnorderedList::builder();
-        ul.class("space-y-1");
-        for item in &other_items {
-            ul.push(render_world_item_row(item));
-        }
-        container.push(ul.build());
-    }
-
-    div.push(container.build());
+    div.push(ul.build());
     div.build()
 }
 
-/// Extract the package name from a qualified interface name.
+/// Strip version suffix from a qualified name.
 ///
-/// `"wasi:cli/environment@0.2.11"` → `"wasi:cli"`
-/// `"wasi:io/streams@0.2.11"` → `"wasi:io"`
-fn extract_package_name(qualified: &str) -> &str {
-    // Strip the version suffix first: "wasi:cli/env@0.2.11" → "wasi:cli/env"
-    let without_version = qualified.split('@').next().unwrap_or(qualified);
-    // Take up to the slash: "wasi:cli/env" → "wasi:cli"
-    without_version.split('/').next().unwrap_or(without_version)
+/// `"wasi:cli/environment@0.2.11"` → `"wasi:cli/environment"`
+fn strip_version(name: &str) -> &str {
+    name.split('@').next().unwrap_or(name)
 }
 
 /// Render a single world item row.
-fn render_world_item_row(item: &WorldItemDoc) -> ListItem {
+fn render_world_item_row(item: &WorldItemDoc, link_color: &str) -> ListItem {
     let mut li = ListItem::builder();
-    li.class("px-2 py-1.5 rounded hover:bg-surface-muted transition-colors");
+    li.class("py-1");
 
     match item {
         WorldItemDoc::Interface {
             name,
             url: Some(url),
         } => {
+            let display = strip_version(name);
             li.anchor(|a| {
                 a.href(url.clone())
-                    .class("block font-mono text-accent hover:underline text-sm")
-                    .text(name.clone())
+                    .class(link_color.to_owned())
+                    .text(display.to_owned())
             });
         }
         WorldItemDoc::Interface { name, url: None } => {
+            let display = strip_version(name);
             li.span(|s| {
-                s.class("block font-mono text-fg text-sm")
-                    .text(name.clone())
+                s.class("block font-mono text-fg text-base")
+                    .text(display.to_owned())
             });
         }
         WorldItemDoc::Function(func) => {
             let sig = format_function_signature(func);
-            li.code(|c| c.class("block font-mono text-sm text-accent").text(sig));
+            li.code(|c| c.class("block font-mono text-base text-accent").text(sig));
             if let Some(docs) = &func.docs {
                 li.paragraph(|p| {
-                    p.class("text-sm text-fg-secondary mt-1")
-                        .text(first_sentence(docs))
+                    p.class("text-base text-fg-secondary mt-1")
+                        .text(crate::markdown::render_inline(&first_sentence(docs)))
                 });
             }
         }
         WorldItemDoc::Type(ty) => {
             li.span(|s| {
-                s.class("block font-mono text-sm")
+                s.class("block font-mono text-base")
                     .span(|s2| s2.class("text-fg-muted").text("type "))
                     .span(|s2| s2.class("text-accent").text(ty.name.clone()))
             });
             if let Some(docs) = &ty.docs {
                 li.paragraph(|p| {
-                    p.class("text-sm text-fg-secondary mt-1")
-                        .text(first_sentence(docs))
+                    p.class("text-base text-fg-secondary mt-1")
+                        .text(crate::markdown::render_inline(&first_sentence(docs)))
                 });
             }
         }
@@ -273,6 +218,8 @@ fn format_type_ref_short(ty: &crate::wit_doc::TypeRef) -> String {
 
 /// Extract the first sentence from a doc comment.
 fn first_sentence(text: &str) -> String {
-    text.split_once(". ")
-        .map_or_else(|| text.to_owned(), |(first, _)| format!("{first}."))
+    text.split_once("\n\n").map_or_else(
+        || text.trim().to_owned(),
+        |(first, _)| first.trim().to_owned(),
+    )
 }

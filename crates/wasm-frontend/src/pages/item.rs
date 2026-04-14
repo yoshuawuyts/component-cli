@@ -1,290 +1,240 @@
 //! Item detail page (type or function within an interface).
 
-use crate::wit_doc::{FunctionDoc, HandleKind, TypeDoc, TypeKind, TypeRef, WitDocument};
-use html::content::Navigation;
+use crate::wit_doc::{FunctionDoc, TypeDoc, TypeKind, TypeRef, WitDocument};
 use html::tables::{Table, TableRow};
 use html::text_content::Division;
+use wasm_meta_registry_client::{KnownPackage, PackageVersion};
 
-use super::sidebar::{SidebarActive, SidebarContext, render_sidebar};
-use crate::layout;
+use super::package_shell;
 
 /// Render the item detail page for a type.
 #[must_use]
 pub(crate) fn render_type(
-    display_name: &str,
+    pkg: &KnownPackage,
     version: &str,
+    version_detail: Option<&PackageVersion>,
     iface_name: &str,
     ty: &TypeDoc,
-    doc: &WitDocument,
+    _doc: &WitDocument,
 ) -> String {
-    let title = format!("{display_name} — {iface_name}::{}", ty.name);
-    let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
-    let iface_url = format!("{pkg_url}/interface/{iface_name}");
+    let display_name = package_shell::display_name_for(pkg);
+    let title = format!("{display_name} \u{2014} {iface_name}::{}", ty.name);
+    let fqn = format!("{display_name}/{iface_name}/{}", ty.name);
 
-    let mut body = Division::builder();
-    body.class("pt-8");
+    let kind_label = type_kind_label(&ty.kind);
 
-    body.push(render_breadcrumb(
-        display_name,
-        &pkg_url,
-        iface_name,
-        &iface_url,
-        &ty.name,
-    ));
+    // Code block
+    let code_block = render_type_definition(ty).to_string();
 
-    // Header
-    body.division(|div| {
-        div.class("mb-6").heading_1(|h1| {
-            h1.class("text-3xl font-bold tracking-tight font-mono")
-                .span(|s| s.class("text-fg-muted").text(kind_label(&ty.kind)))
-                .text(" ")
-                .span(|s| s.class("text-accent").text(ty.name.clone()))
-        });
-        if let Some(docs) = &ty.docs {
-            div.paragraph(|p| p.class("text-lg text-fg-secondary mt-2").text(docs.clone()));
-        }
-        div
-    });
+    // Description
+    let docs_html = ty
+        .docs
+        .as_deref()
+        .map(|docs| crate::markdown::render_block(docs, crate::markdown::DOC_CLASS))
+        .unwrap_or_default();
 
-    // WIT definition block
-    body.push(render_type_definition(ty));
+    let copy_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>";
+    let check_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>";
 
-    // Grid: main content + sidebar
-    let mut grid = Division::builder();
-    grid.class("grid grid-cols-1 md:grid-cols-3 gap-12");
+    // Header row: name on left, docs on right
+    let header = format!(
+        r#"<div class="max-w-3xl mb-6">
+  <h2 class="text-3xl font-light tracking-display font-display flex items-baseline gap-2 group">
+    <span class="{kind_color}">{name}</span>
+    <button id="copy-fqn-btn" class="text-fg-faint hover:text-fg transition-opacity cursor-pointer opacity-0 group-hover:opacity-100" style="font-size:0.5em;vertical-align:middle" title="Copy item path to clipboard">{copy_icon}</button>
+  </h2>
+  <span class="text-sm text-fg-muted mt-1 block">{kind_label}</span>
+  <div class="mt-4">
+    {code_block}
+    {docs_html}
+  </div>
+</div>
+<script>
+(function(){{
+  var btn=document.getElementById('copy-fqn-btn');
+  var copyIcon="{copy_icon}";
+  var checkIcon="{check_icon}";
+  btn.addEventListener('click',function(){{
+    navigator.clipboard.writeText('{fqn}').then(function(){{
+      btn.innerHTML=checkIcon;
+      setTimeout(function(){{btn.innerHTML=copyIcon}},2000);
+    }});
+  }});
+}})();
+</script>"#,
+        kind_color = type_kind_color(&ty.kind),
+        name = ty.name,
+    );
 
-    let mut content = Division::builder();
-    content.class("md:col-span-2 space-y-8");
-    content.push(render_type_body(&ty.kind));
-    grid.push(content.build());
+    // Type body content (fields, variants, etc.)
+    let body = render_type_body(&ty.kind).to_string();
 
-    let sidebar_ctx = SidebarContext {
-        display_name,
+    let content = format!("{header}<div class=\"max-w-3xl\">{body}</div>");
+
+    let ctx = package_shell::SidebarContext {
+        pkg,
         version,
-        doc,
-        active: SidebarActive::Item(iface_name, &ty.name),
+        version_detail,
+        importers: &[],
+        exporters: &[],
     };
-    grid.push(render_sidebar(&sidebar_ctx));
-
-    body.push(grid.build());
-
-    layout::document(&title, &body.build().to_string())
+    let iface_url = format!(
+        "/{}/{version}/interface/{iface_name}",
+        display_name.replace(':', "/")
+    );
+    let extra = vec![crate::nav::Crumb {
+        label: iface_name.to_owned(),
+        href: Some(iface_url),
+    }];
+    package_shell::render_page_with_crumbs(&ctx, &title, &content, &extra)
 }
 
 /// Render the item detail page for a freestanding function.
 #[must_use]
 pub(crate) fn render_function(
-    display_name: &str,
+    pkg: &KnownPackage,
     version: &str,
+    version_detail: Option<&PackageVersion>,
     iface_name: &str,
     func: &FunctionDoc,
-    doc: &WitDocument,
+    _doc: &WitDocument,
 ) -> String {
-    let title = format!("{display_name} — {iface_name}::{}", func.name);
-    let pkg_url = format!("/{}/{version}", display_name.replace(':', "/"));
-    let iface_url = format!("{pkg_url}/interface/{iface_name}");
+    let display_name = package_shell::display_name_for(pkg);
+    let title = format!("{display_name} \u{2014} {iface_name}::{}", func.name);
+    let fqn = format!("{display_name}/{iface_name}/{}", func.name);
 
-    let mut body = Division::builder();
-    body.class("pt-8");
+    // Code block
+    let code_block = render_function_definition(func).to_string();
 
-    body.push(render_breadcrumb(
-        display_name,
-        &pkg_url,
-        iface_name,
-        &iface_url,
-        &func.name,
-    ));
+    // Description
+    let docs_html = func
+        .docs
+        .as_deref()
+        .map(|docs| crate::markdown::render_block(docs, crate::markdown::DOC_CLASS))
+        .unwrap_or_default();
 
-    body.division(|div| {
-        div.class("mb-6").heading_1(|h1| {
-            h1.class("text-3xl font-bold tracking-tight font-mono")
-                .span(|s| s.class("text-fg-muted").text("function "))
-                .span(|s| s.class("text-accent").text(func.name.clone()))
-        });
-        if let Some(docs) = &func.docs {
-            div.paragraph(|p| p.class("text-lg text-fg-secondary mt-2").text(docs.clone()));
-        }
-        div
-    });
+    let copy_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>";
+    let check_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>";
 
-    // WIT definition block
-    body.push(render_function_definition(func));
+    // Header row: name on left, docs on right
+    let header = format!(
+        r#"<div class="max-w-3xl mb-6">
+  <h2 class="text-3xl font-light tracking-display font-display flex items-baseline gap-2 group">
+    <span class="text-wit-func">{name}</span>
+    <button id="copy-fqn-btn" class="text-fg-faint hover:text-fg transition-opacity cursor-pointer opacity-0 group-hover:opacity-100" style="font-size:0.5em;vertical-align:middle" title="Copy item path to clipboard">{copy_icon}</button>
+  </h2>
+  <span class="text-sm text-fg-muted mt-1 block">Function</span>
+  <div class="mt-4">
+    {code_block}
+    {docs_html}
+  </div>
+</div>
+<script>
+(function(){{
+  var btn=document.getElementById('copy-fqn-btn');
+  var copyIcon="{copy_icon}";
+  var checkIcon="{check_icon}";
+  btn.addEventListener('click',function(){{
+    navigator.clipboard.writeText('{fqn}').then(function(){{
+      btn.innerHTML=checkIcon;
+      setTimeout(function(){{btn.innerHTML=copyIcon}},2000);
+    }});
+  }});
+}})();
+</script>"#,
+        name = func.name,
+    );
 
-    // Grid: main content + sidebar
-    let mut grid = Division::builder();
-    grid.class("grid grid-cols-1 md:grid-cols-3 gap-12");
+    let content = header;
 
-    let mut content = Division::builder();
-    content.class("md:col-span-2 space-y-8");
-    content.push(render_function_detail(func));
-    grid.push(content.build());
-
-    let sidebar_ctx = SidebarContext {
-        display_name,
+    let ctx = package_shell::SidebarContext {
+        pkg,
         version,
-        doc,
-        active: SidebarActive::Item(iface_name, &func.name),
+        version_detail,
+        importers: &[],
+        exporters: &[],
     };
-    grid.push(render_sidebar(&sidebar_ctx));
-
-    body.push(grid.build());
-
-    layout::document(&title, &body.build().to_string())
+    let iface_url = format!(
+        "/{}/{version}/interface/{iface_name}",
+        display_name.replace(':', "/")
+    );
+    let extra = vec![crate::nav::Crumb {
+        label: iface_name.to_owned(),
+        href: Some(iface_url),
+    }];
+    package_shell::render_page_with_crumbs(&ctx, &title, &content, &extra)
 }
 
-/// Breadcrumb: Home / package / interface / item
-fn render_breadcrumb(
-    display_name: &str,
-    pkg_url: &str,
-    iface_name: &str,
-    iface_url: &str,
-    item_name: &str,
-) -> Navigation {
-    Navigation::builder()
-        .class("text-sm text-fg-muted mb-4")
-        .anchor(|a| {
-            a.href("/")
-                .class("hover:text-accent transition-colors")
-                .text("Home")
-        })
-        .span(|s| s.class("mx-1").text("/"))
-        .anchor(|a| {
-            a.href(pkg_url.to_owned())
-                .class("hover:text-accent transition-colors")
-                .text(display_name.to_owned())
-        })
-        .span(|s| s.class("mx-1").text("/"))
-        .anchor(|a| {
-            a.href(iface_url.to_owned())
-                .class("hover:text-accent transition-colors")
-                .text(iface_name.to_owned())
-        })
-        .span(|s| s.class("mx-1").text("/"))
-        .span(|s| s.class("text-fg font-medium").text(item_name.to_owned()))
-        .build()
+/// Get the display label for a type kind.
+fn type_kind_label(kind: &TypeKind) -> &'static str {
+    match kind {
+        TypeKind::Record { .. } => "Record",
+        TypeKind::Variant { .. } => "Variant",
+        TypeKind::Enum { .. } => "Enum",
+        TypeKind::Flags { .. } => "Flags",
+        TypeKind::Resource { .. } => "Resource",
+        TypeKind::Alias(_) => "Type",
+    }
+}
+
+/// Get the CSS color class for a type kind heading.
+fn type_kind_color(kind: &TypeKind) -> &'static str {
+    match kind {
+        TypeKind::Record { .. } | TypeKind::Variant { .. } => "text-wit-struct",
+        TypeKind::Enum { .. } | TypeKind::Flags { .. } => "text-wit-enum",
+        TypeKind::Resource { .. } => "text-wit-resource",
+        TypeKind::Alias(_) => "text-accent",
+    }
 }
 
 /// Render the WIT definition code block for a type, with linked type refs.
 fn render_type_definition(ty: &TypeDoc) -> Division {
-    let pre_class = "bg-surface-muted border border-border rounded-lg px-4 py-3 text-sm font-mono text-fg overflow-x-auto";
+    use super::wit_render::{self, CODE_BLOCK_CLASS};
 
     Division::builder()
-        .class("mb-6")
-        .push(match &ty.kind {
-            TypeKind::Record { fields } => {
-                let mut pre = html::text_content::PreformattedText::builder();
-                pre.class(pre_class);
-                pre.code(|c| {
-                    c.span(|s| s.class("text-fg-muted").text("record "))
-                        .span(|s| s.class("font-semibold").text(ty.name.clone()))
-                        .text(" {\n".to_owned());
-                    for f in fields {
-                        c.text("    ".to_owned())
-                            .text(format!("{}: ", f.name))
-                            .push(render_type_ref(&f.ty))
-                            .text(",\n".to_owned());
-                    }
-                    c.text("}".to_owned())
-                });
-                pre.build()
-            }
-            TypeKind::Variant { cases } => {
-                let mut pre = html::text_content::PreformattedText::builder();
-                pre.class(pre_class);
-                pre.code(|c| {
-                    c.span(|s| s.class("text-fg-muted").text("variant "))
-                        .span(|s| s.class("font-semibold").text(ty.name.clone()))
-                        .text(" {\n".to_owned());
-                    for case in cases {
-                        c.text(format!("    {}", case.name));
-                        if let Some(t) = &case.ty {
-                            c.text("(".to_owned())
-                                .push(render_type_ref(t))
-                                .text(")".to_owned());
-                        }
-                        c.text(",\n".to_owned());
-                    }
-                    c.text("}".to_owned())
-                });
-                pre.build()
-            }
-            TypeKind::Enum { cases } => {
-                let mut pre = html::text_content::PreformattedText::builder();
-                pre.class(pre_class);
-                pre.code(|c| {
-                    c.span(|s| s.class("text-fg-muted").text("enum "))
-                        .span(|s| s.class("font-semibold").text(ty.name.clone()))
-                        .text(" {\n".to_owned());
-                    for case in cases {
-                        c.text(format!("    {},\n", case.name));
-                    }
-                    c.text("}".to_owned())
-                });
-                pre.build()
-            }
-            TypeKind::Flags { flags } => {
-                let mut pre = html::text_content::PreformattedText::builder();
-                pre.class(pre_class);
-                pre.code(|c| {
-                    c.span(|s| s.class("text-fg-muted").text("flags "))
-                        .span(|s| s.class("font-semibold").text(ty.name.clone()))
-                        .text(" {\n".to_owned());
-                    for f in flags {
-                        c.text(format!("    {},\n", f.name));
-                    }
-                    c.text("}".to_owned())
-                });
-                pre.build()
-            }
-            TypeKind::Resource { .. } => html::text_content::PreformattedText::builder()
-                .class(pre_class)
+        .class("mb-4")
+        .push(
+            html::text_content::PreformattedText::builder()
+                .class(CODE_BLOCK_CLASS)
                 .code(|c| {
-                    c.span(|s| s.class("text-fg-muted").text("resource "))
-                        .span(|s| s.class("font-semibold").text(ty.name.clone()))
-                        .text(";".to_owned())
+                    wit_render::render_type_in_code(c, ty, "");
+                    c
                 })
                 .build(),
-            TypeKind::Alias(type_ref) => html::text_content::PreformattedText::builder()
-                .class(pre_class)
-                .code(|c| {
-                    c.span(|s| s.class("text-fg-muted").text("type "))
-                        .span(|s| s.class("font-semibold").text(ty.name.clone()))
-                        .text(" = ".to_owned())
-                        .push(render_type_ref(type_ref))
-                        .text(";".to_owned())
-                })
-                .build(),
-        })
+        )
         .build()
 }
 
 /// Render the WIT definition code block for a function, with linked type refs.
 fn render_function_definition(func: &FunctionDoc) -> Division {
-    let pre_class = "bg-surface-muted border border-border rounded-lg px-4 py-3 text-sm font-mono text-fg overflow-x-auto";
+    use super::wit_render::{self, CODE_BLOCK_CLASS};
 
     Division::builder()
-        .class("mb-6")
+        .class("mb-4")
         .push(
             html::text_content::PreformattedText::builder()
-                .class(pre_class)
+                .class(CODE_BLOCK_CLASS)
                 .code(|c| {
-                    c.span(|s| s.class("font-semibold").text(func.name.clone()))
-                        .text(": ".to_owned())
-                        .span(|s| s.class("text-fg-muted").text("func"))
-                        .text("(".to_owned());
-                    let visible_params: Vec<_> =
-                        func.params.iter().filter(|p| p.name != "self").collect();
-                    for (i, p) in visible_params.iter().enumerate() {
-                        if i > 0 {
-                            c.text(", ".to_owned());
-                        }
-                        c.text(format!("{}: ", p.name)).push(render_type_ref(&p.ty));
-                    }
-                    c.text(")".to_owned());
-                    if let Some(ret) = &func.result {
-                        c.text(" -> ".to_owned()).push(render_type_ref(ret));
-                    }
-                    c.text(";".to_owned())
+                    wit_render::render_func_in_code(c, func, "");
+                    c
+                })
+                .build(),
+        )
+        .build()
+}
+
+/// Render a function signature inline (no border/box), like docs.rs style.
+fn render_function_signature(func: &FunctionDoc) -> Division {
+    use super::wit_render;
+
+    Division::builder()
+        .class("mb-2 bg-surface px-3 py-2")
+        .push(
+            html::text_content::PreformattedText::builder()
+                .class("text-base font-mono text-fg overflow-x-auto")
+                .code(|c| {
+                    wit_render::render_func_in_code(c, func, "");
+                    c
                 })
                 .build(),
         )
@@ -311,14 +261,14 @@ fn render_type_body(kind: &TypeKind) -> Division {
 fn render_field_table(heading: &str, fields: &[crate::wit_doc::FieldDoc]) -> Division {
     let mut div = Division::builder();
     div.heading_2(|h2| {
-        h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3")
+        h2.class("text-lg font-medium text-fg-muted mb-3")
             .text(heading.to_owned())
     });
 
     let mut table = Table::builder();
     table.class("w-full text-sm");
     table.table_row(|tr| {
-        tr.class("border-b border-border text-left text-fg-muted")
+        tr.class("border-b-2 border-fg text-left text-fg-muted")
             .table_header(|th| th.class("py-2 pr-4 font-medium").text("Name"))
             .table_header(|th| th.class("py-2 pr-4 font-medium").text("Type"))
             .table_header(|th| th.class("py-2 font-medium").text("Description"))
@@ -337,18 +287,18 @@ fn render_field_table(heading: &str, fields: &[crate::wit_doc::FieldDoc]) -> Div
 /// Render a single field/param row.
 fn render_field_row(name: &str, ty: &TypeRef, docs: Option<&str>) -> TableRow {
     TableRow::builder()
-        .class("border-b border-border/50")
+        .class("border-b-2 border-fg/50")
         .table_cell(|td| {
             td.class("py-2 pr-4 font-mono text-accent")
                 .text(name.to_owned())
         })
         .table_cell(|td| {
             td.class("py-2 pr-4 font-mono text-fg")
-                .push(render_type_ref(ty))
+                .push(super::wit_render::render_type_ref(ty))
         })
         .table_cell(|td| {
             td.class("py-2 text-fg-secondary")
-                .text(docs.unwrap_or("").to_owned())
+                .text(crate::markdown::render_inline(docs.unwrap_or("")))
         })
         .build()
 }
@@ -357,33 +307,39 @@ fn render_field_row(name: &str, ty: &TypeRef, docs: Option<&str>) -> TableRow {
 fn render_variant_table(cases: &[crate::wit_doc::CaseDoc]) -> Division {
     let mut div = Division::builder();
     div.heading_2(|h2| {
-        h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3")
+        h2.class("text-lg font-medium text-fg-muted mb-3")
             .text("Cases")
     });
 
     let mut table = Table::builder();
     table.class("w-full text-sm");
     table.table_row(|tr| {
-        tr.class("border-b border-border text-left text-fg-muted")
+        tr.class("border-b-2 border-fg text-left text-fg-muted")
             .table_header(|th| th.class("py-2 pr-4 font-medium").text("Case"))
             .table_header(|th| th.class("py-2 pr-4 font-medium").text("Payload"))
             .table_header(|th| th.class("py-2 font-medium").text("Description"))
     });
     for case in cases {
-        let payload = case
-            .ty
-            .as_ref()
-            .map_or_else(|| "—".to_owned(), format_type_ref_short);
         table.table_row(|tr| {
-            tr.class("border-b border-border/50")
+            tr.class("border-b-2 border-fg/50")
                 .table_cell(|td| {
                     td.class("py-2 pr-4 font-mono text-accent")
                         .text(case.name.clone())
                 })
-                .table_cell(|td| td.class("py-2 pr-4 font-mono text-fg").text(payload))
+                .table_cell(|td| {
+                    td.class("py-2 pr-4 font-mono text-fg");
+                    if let Some(t) = &case.ty {
+                        td.push(super::wit_render::render_type_ref(t));
+                    } else {
+                        td.text("\u{2014}".to_owned());
+                    }
+                    td
+                })
                 .table_cell(|td| {
                     td.class("py-2 text-fg-secondary")
-                        .text(case.docs.clone().unwrap_or_default())
+                        .text(crate::markdown::render_inline(
+                            case.docs.as_deref().unwrap_or(""),
+                        ))
                 })
         });
     }
@@ -395,26 +351,28 @@ fn render_variant_table(cases: &[crate::wit_doc::CaseDoc]) -> Division {
 fn render_enum_list(cases: &[crate::wit_doc::EnumCaseDoc]) -> Division {
     let mut div = Division::builder();
     div.heading_2(|h2| {
-        h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3")
+        h2.class("text-lg font-medium text-fg-muted mb-3")
             .text("Cases")
     });
     let mut table = Table::builder();
     table.class("w-full text-sm");
     table.table_row(|tr| {
-        tr.class("border-b border-border text-left text-fg-muted")
+        tr.class("border-b-2 border-fg text-left text-fg-muted")
             .table_header(|th| th.class("py-2 pr-4 font-medium").text("Case"))
             .table_header(|th| th.class("py-2 font-medium").text("Description"))
     });
     for case in cases {
         table.table_row(|tr| {
-            tr.class("border-b border-border/50")
+            tr.class("border-b-2 border-fg/50")
                 .table_cell(|td| {
                     td.class("py-2 pr-4 font-mono text-accent")
                         .text(case.name.clone())
                 })
                 .table_cell(|td| {
                     td.class("py-2 text-fg-secondary")
-                        .text(case.docs.clone().unwrap_or_default())
+                        .text(crate::markdown::render_inline(
+                            case.docs.as_deref().unwrap_or(""),
+                        ))
                 })
         });
     }
@@ -426,26 +384,28 @@ fn render_enum_list(cases: &[crate::wit_doc::EnumCaseDoc]) -> Division {
 fn render_flags_list(flags: &[crate::wit_doc::FlagDoc]) -> Division {
     let mut div = Division::builder();
     div.heading_2(|h2| {
-        h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3")
+        h2.class("text-lg font-medium text-fg-muted mb-3")
             .text("Flags")
     });
     let mut table = Table::builder();
     table.class("w-full text-sm");
     table.table_row(|tr| {
-        tr.class("border-b border-border text-left text-fg-muted")
+        tr.class("border-b-2 border-fg text-left text-fg-muted")
             .table_header(|th| th.class("py-2 pr-4 font-medium").text("Flag"))
             .table_header(|th| th.class("py-2 font-medium").text("Description"))
     });
     for flag in flags {
         table.table_row(|tr| {
-            tr.class("border-b border-border/50")
+            tr.class("border-b-2 border-fg/50")
                 .table_cell(|td| {
                     td.class("py-2 pr-4 font-mono text-accent")
                         .text(flag.name.clone())
                 })
                 .table_cell(|td| {
                     td.class("py-2 text-fg-secondary")
-                        .text(flag.docs.clone().unwrap_or_default())
+                        .text(crate::markdown::render_inline(
+                            flag.docs.as_deref().unwrap_or(""),
+                        ))
                 })
         });
     }
@@ -465,20 +425,37 @@ fn render_resource_body(
     if let Some(ctor) = constructor {
         div.division(|d| {
             d.heading_2(|h2| {
-                h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3")
+                h2.class("text-lg font-medium text-fg-muted mb-3")
                     .text("Constructor")
             })
-            .push(render_function_detail(ctor))
+            .push(render_function_signature(ctor));
+            if let Some(docs) = &ctor.docs {
+                d.text(crate::markdown::render_block(
+                    docs,
+                    "text-sm text-fg-secondary leading-relaxed prose-doc",
+                ));
+            }
+            d
         });
     }
     if !methods.is_empty() {
         div.division(|d| {
             d.heading_2(|h2| {
-                h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3")
+                h2.class("text-lg font-medium text-fg-muted mb-3")
                     .text("Methods")
             });
             for func in methods {
-                d.push(render_function_detail(func));
+                d.division(|m| {
+                    m.class("py-3 border-b border-border-light");
+                    m.push(render_function_signature(func));
+                    if let Some(docs) = &func.docs {
+                        m.text(crate::markdown::render_block(
+                            docs,
+                            "text-sm text-fg-secondary leading-relaxed prose-doc",
+                        ));
+                    }
+                    m
+                });
             }
             d
         });
@@ -486,11 +463,21 @@ fn render_resource_body(
     if !statics.is_empty() {
         div.division(|d| {
             d.heading_2(|h2| {
-                h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3")
+                h2.class("text-lg font-medium text-fg-muted mb-3")
                     .text("Static Functions")
             });
             for func in statics {
-                d.push(render_function_detail(func));
+                d.division(|m| {
+                    m.class("py-3 border-b border-border-light");
+                    m.push(render_function_signature(func));
+                    if let Some(docs) = &func.docs {
+                        m.text(crate::markdown::render_block(
+                            docs,
+                            "text-sm text-fg-secondary leading-relaxed prose-doc",
+                        ));
+                    }
+                    m
+                });
             }
             d
         });
@@ -503,212 +490,12 @@ fn render_resource_body(
 fn render_alias(type_ref: &TypeRef) -> Division {
     Division::builder()
         .heading_2(|h2| {
-            h2.class("text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3")
+            h2.class("text-lg font-medium text-fg-muted mb-3")
                 .text("Definition")
         })
-        .paragraph(|p| p.class("font-mono text-fg").push(render_type_ref(type_ref)))
+        .paragraph(|p| {
+            p.class("font-mono text-fg")
+                .push(super::wit_render::render_type_ref(type_ref))
+        })
         .build()
-}
-
-/// Render function detail: signature + param table.
-fn render_function_detail(func: &FunctionDoc) -> Division {
-    let mut div = Division::builder();
-    div.class("mb-6");
-
-    // Param table (skip `self`)
-    let visible_params: Vec<_> = func.params.iter().filter(|p| p.name != "self").collect();
-    if !visible_params.is_empty() {
-        let mut table = Table::builder();
-        table.class("w-full text-sm mt-3");
-        table.table_row(|tr| {
-            tr.class("border-b border-border text-left text-fg-muted")
-                .table_header(|th| th.class("py-2 pr-4 font-medium").text("Parameter"))
-                .table_header(|th| th.class("py-2 font-medium").text("Type"))
-        });
-        for param in &visible_params {
-            table.table_row(|tr| {
-                tr.class("border-b border-border/50")
-                    .table_cell(|td| {
-                        td.class("py-2 pr-4 font-mono text-accent")
-                            .text(param.name.clone())
-                    })
-                    .table_cell(|td| {
-                        td.class("py-2 font-mono text-fg")
-                            .push(render_type_ref(&param.ty))
-                    })
-            });
-        }
-        div.push(table.build());
-    }
-
-    // Return type
-    if let Some(ret) = &func.result {
-        div.division(|d| {
-            d.class("mt-3 text-sm")
-                .span(|s| s.class("text-fg-muted").text("Returns: "))
-                .span(|s| s.class("font-mono text-fg").push(render_type_ref(ret)))
-        });
-    }
-
-    div.build()
-}
-
-/// Render a `TypeRef` as an inline HTML span with links.
-fn render_type_ref(ty: &TypeRef) -> html::inline_text::Span {
-    let mut span = html::inline_text::Span::builder();
-    match ty {
-        TypeRef::Primitive { name } => {
-            span.class("text-fg-muted").text(name.clone());
-        }
-        TypeRef::Named {
-            name,
-            url: Some(url),
-        } => {
-            span.anchor(|a| {
-                a.href(url.clone())
-                    .class("text-accent hover:underline")
-                    .text(name.clone())
-            });
-        }
-        TypeRef::Named { name, url: None } => {
-            span.text(name.clone());
-        }
-        TypeRef::List { ty } => {
-            span.text("list\u{200b}<".to_owned())
-                .push(render_type_ref(ty))
-                .text(">".to_owned());
-        }
-        TypeRef::Option { ty } => {
-            span.text("option\u{200b}<".to_owned())
-                .push(render_type_ref(ty))
-                .text(">".to_owned());
-        }
-        TypeRef::Result { ok, err } => {
-            span.text("result\u{200b}<".to_owned());
-            if let Some(ok) = ok {
-                span.push(render_type_ref(ok));
-            } else {
-                span.text("_".to_owned());
-            }
-            span.text(", ".to_owned());
-            if let Some(err) = err {
-                span.push(render_type_ref(err));
-            } else {
-                span.text("_".to_owned());
-            }
-            span.text(">".to_owned());
-        }
-        TypeRef::Tuple { types } => {
-            span.text("tuple\u{200b}<".to_owned());
-            for (i, t) in types.iter().enumerate() {
-                if i > 0 {
-                    span.text(", ".to_owned());
-                }
-                span.push(render_type_ref(t));
-            }
-            span.text(">".to_owned());
-        }
-        TypeRef::Handle {
-            handle_kind,
-            resource_name,
-            resource_url,
-        } => match handle_kind {
-            HandleKind::Own => {
-                if let Some(url) = resource_url {
-                    span.anchor(|a| {
-                        a.href(url.clone())
-                            .class("text-accent hover:underline")
-                            .text(resource_name.clone())
-                    });
-                } else {
-                    span.text(resource_name.clone());
-                }
-            }
-            HandleKind::Borrow => {
-                span.text("borrow\u{200b}<".to_owned());
-                if let Some(url) = resource_url {
-                    span.anchor(|a| {
-                        a.href(url.clone())
-                            .class("text-accent hover:underline")
-                            .text(resource_name.clone())
-                    });
-                } else {
-                    span.text(resource_name.clone());
-                }
-                span.text(">".to_owned());
-            }
-        },
-        TypeRef::Future { ty } => match ty {
-            Some(t) => {
-                span.text("future\u{200b}<".to_owned())
-                    .push(render_type_ref(t))
-                    .text(">".to_owned());
-            }
-            None => {
-                span.text("future".to_owned());
-            }
-        },
-        TypeRef::Stream { ty } => match ty {
-            Some(t) => {
-                span.text("stream\u{200b}<".to_owned())
-                    .push(render_type_ref(t))
-                    .text(">".to_owned());
-            }
-            None => {
-                span.text("stream".to_owned());
-            }
-        },
-    }
-    span.build()
-}
-
-/// Get the keyword label for a type kind.
-fn kind_label(kind: &TypeKind) -> String {
-    match kind {
-        TypeKind::Record { .. } => "record",
-        TypeKind::Variant { .. } => "variant",
-        TypeKind::Enum { .. } => "enum",
-        TypeKind::Flags { .. } => "flags",
-        TypeKind::Resource { .. } => "resource",
-        TypeKind::Alias(_) => "type",
-    }
-    .to_owned()
-}
-
-/// Format a `TypeRef` as a short inline string (no links).
-fn format_type_ref_short(ty: &TypeRef) -> String {
-    match ty {
-        TypeRef::Primitive { name } | TypeRef::Named { name, .. } => name.clone(),
-        TypeRef::List { ty } => format!("list<{}>", format_type_ref_short(ty)),
-        TypeRef::Option { ty } => format!("option<{}>", format_type_ref_short(ty)),
-        TypeRef::Result { ok, err } => {
-            let ok_s = ok
-                .as_ref()
-                .map_or_else(|| "_".to_owned(), |t| format_type_ref_short(t));
-            let err_s = err
-                .as_ref()
-                .map_or_else(|| "_".to_owned(), |t| format_type_ref_short(t));
-            format!("result<{ok_s}, {err_s}>")
-        }
-        TypeRef::Tuple { types } => {
-            let inner: Vec<String> = types.iter().map(format_type_ref_short).collect();
-            format!("tuple<{}>", inner.join(", "))
-        }
-        TypeRef::Handle {
-            handle_kind,
-            resource_name,
-            ..
-        } => match handle_kind {
-            HandleKind::Own => resource_name.clone(),
-            HandleKind::Borrow => format!("borrow<{resource_name}>"),
-        },
-        TypeRef::Future { ty } => match ty {
-            Some(t) => format!("future<{}>", format_type_ref_short(t)),
-            None => "future".to_owned(),
-        },
-        TypeRef::Stream { ty } => match ty {
-            Some(t) => format!("stream<{}>", format_type_ref_short(t)),
-            None => "stream".to_owned(),
-        },
-    }
 }

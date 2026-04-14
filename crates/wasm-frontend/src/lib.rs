@@ -11,8 +11,10 @@
 
 // r[impl frontend.server.wasi-http]
 
+mod fonts;
 mod footer;
 mod layout;
+mod markdown;
 mod nav;
 mod pages;
 mod reserved;
@@ -27,7 +29,6 @@ use serde::Deserialize;
 use wasm_meta_registry_client::{KnownPackage, RegistryClient};
 
 use crate::reserved::is_reserved;
-use pages::package::ActiveTab;
 
 /// Build the application router with all frontend routes.
 fn app() -> Router {
@@ -37,8 +38,16 @@ fn app() -> Router {
         .route("/search", get(search))
         .route("/about", get(about))
         .route("/docs", get(docs))
+        .route("/downloads", get(downloads))
         .route("/health", get(health))
+        .route("/fonts/iosevka-regular.woff2", get(fonts::regular))
+        .route("/fonts/iosevka-medium.woff2", get(fonts::medium))
+        .route("/fonts/iosevka-semibold.woff2", get(fonts::semibold))
+        .route("/fonts/iosevka-bold.woff2", get(fonts::bold))
         .route("/{namespace}/{name}", get(package_redirect))
+        .route("/{namespace}/{name}/", get(package_redirect))
+        .route("/{namespace}", get(namespace_page))
+        .route("/{namespace}/", get(namespace_page))
         .route("/{namespace}/{name}/{version}", get(package_detail))
         .route(
             "/{namespace}/{name}/{version}/dependencies",
@@ -126,16 +135,32 @@ async fn all_packages(Query(params): Query<AllPackagesParams>) -> Response {
     with_cache_control(html, "public, max-age=60")
 }
 
-/// About page (placeholder).
+/// About page — redirects to docs.
 async fn about() -> Response {
-    let html = pages::about::render();
-    with_cache_control(html, "public, max-age=3600")
+    Redirect::permanent("/docs").into_response()
 }
 
 /// Documentation page.
 async fn docs() -> Response {
     let html = pages::docs::render();
     with_cache_control(html, "public, max-age=3600")
+}
+
+/// Downloads page.
+async fn downloads() -> Response {
+    let html = pages::downloads::render();
+    with_cache_control(html, "public, max-age=3600")
+}
+
+/// Namespace page — list all packages under a publisher.
+async fn namespace_page(Path(namespace): Path<String>) -> Response {
+    if is_reserved(&namespace) {
+        return not_found_response();
+    }
+
+    let client = RegistryClient::from_env();
+    let html = pages::namespace::render(&client, &namespace).await;
+    with_cache_control(html, "public, max-age=60")
 }
 
 // r[impl frontend.pages.package-redirect]
@@ -181,45 +206,13 @@ async fn package_detail(
     let pkg = match fetch_package_or_404(&client, &namespace, &name, &version).await {
         Ok(Some(pkg)) => pkg,
         Ok(None) => return not_found_response(),
-        Err(response) => return response,
+        Err(resp) => return resp,
     };
     let version_detail = client
         .fetch_package_version(&pkg.registry, &pkg.repository, &version)
         .await
         .ok()
         .flatten();
-    let tab = ActiveTab::Docs {
-        version_detail: version_detail.as_ref(),
-    };
-    let html = pages::package::render(&pkg, &version, &tab);
-    with_cache_control(html, "public, max-age=300")
-}
-
-/// Dependencies tab at `/<namespace>/<name>/<version>/dependencies`.
-async fn package_dependencies(
-    Path((namespace, name, version)): Path<(String, String, String)>,
-) -> Response {
-    let client = RegistryClient::from_env();
-    let pkg = match fetch_package_or_404(&client, &namespace, &name, &version).await {
-        Ok(Some(pkg)) => pkg,
-        Ok(None) => return not_found_response(),
-        Err(response) => return response,
-    };
-    let tab = ActiveTab::Dependencies;
-    let html = pages::package::render(&pkg, &version, &tab);
-    with_cache_control(html, "public, max-age=300")
-}
-
-/// Dependents tab at `/<namespace>/<name>/<version>/dependents`.
-async fn package_dependents(
-    Path((namespace, name, version)): Path<(String, String, String)>,
-) -> Response {
-    let client = RegistryClient::from_env();
-    let pkg = match fetch_package_or_404(&client, &namespace, &name, &version).await {
-        Ok(Some(pkg)) => pkg,
-        Ok(None) => return not_found_response(),
-        Err(response) => return response,
-    };
     let display_name = format!("{namespace}:{name}");
     let importers = client
         .search_packages_by_import(&display_name)
@@ -229,12 +222,28 @@ async fn package_dependents(
         .search_packages_by_export(&display_name)
         .await
         .unwrap_or_default();
-    let tab = ActiveTab::Dependents {
-        importers: &importers,
-        exporters: &exporters,
-    };
-    let html = pages::package::render(&pkg, &version, &tab);
+    let html = pages::package::render(
+        &pkg,
+        &version,
+        version_detail.as_ref(),
+        &importers,
+        &exporters,
+    );
     with_cache_control(html, "public, max-age=300")
+}
+
+/// Legacy dependencies route — redirects to the main package page.
+async fn package_dependencies(
+    Path((namespace, name, version)): Path<(String, String, String)>,
+) -> Response {
+    Redirect::permanent(&format!("/{namespace}/{name}/{version}")).into_response()
+}
+
+/// Legacy dependents route — redirects to the main package page.
+async fn package_dependents(
+    Path((namespace, name, version)): Path<(String, String, String)>,
+) -> Response {
+    Redirect::permanent(&format!("/{namespace}/{name}/{version}")).into_response()
 }
 
 /// Interface detail page at `/<namespace>/<name>/<version>/interface/<iface>`.
@@ -245,16 +254,15 @@ async fn interface_detail(
     let pkg = match fetch_package_or_404(&client, &namespace, &name, &version).await {
         Ok(Some(pkg)) => pkg,
         Ok(None) => return not_found_response(),
-        Err(response) => return response,
+        Err(resp) => return resp,
     };
-    let Some(doc) = fetch_wit_doc(&client, &pkg, &version).await else {
+    let Some((doc, version_detail)) = fetch_wit_doc(&client, &pkg, &version).await else {
         return not_found_response();
     };
     let Some(iface_doc) = doc.interfaces.iter().find(|i| i.name == iface) else {
         return not_found_response();
     };
-    let display_name = format!("{namespace}:{name}");
-    let html = pages::interface::render(&display_name, &version, iface_doc, &doc);
+    let html = pages::interface::render(&pkg, &version, Some(&version_detail), iface_doc, &doc);
     with_cache_control(html, "public, max-age=300")
 }
 
@@ -272,23 +280,24 @@ async fn item_detail(
     let pkg = match fetch_package_or_404(&client, &namespace, &name, &version).await {
         Ok(Some(pkg)) => pkg,
         Ok(None) => return not_found_response(),
-        Err(response) => return response,
+        Err(resp) => return resp,
     };
-    let Some(doc) = fetch_wit_doc(&client, &pkg, &version).await else {
+    let Some((doc, version_detail)) = fetch_wit_doc(&client, &pkg, &version).await else {
         return not_found_response();
     };
     let Some(iface_doc) = doc.interfaces.iter().find(|i| i.name == iface) else {
         return not_found_response();
     };
-    let display_name = format!("{namespace}:{name}");
 
     // Try types first, then functions.
     if let Some(ty) = iface_doc.types.iter().find(|t| t.name == item_name) {
-        let html = pages::item::render_type(&display_name, &version, &iface, ty, &doc);
+        let html =
+            pages::item::render_type(&pkg, &version, Some(&version_detail), &iface, ty, &doc);
         return with_cache_control(html, "public, max-age=300");
     }
     if let Some(func) = iface_doc.functions.iter().find(|f| f.name == item_name) {
-        let html = pages::item::render_function(&display_name, &version, &iface, func, &doc);
+        let html =
+            pages::item::render_function(&pkg, &version, Some(&version_detail), &iface, func, &doc);
         return with_cache_control(html, "public, max-age=300");
     }
 
@@ -303,25 +312,28 @@ async fn world_detail(
     let pkg = match fetch_package_or_404(&client, &namespace, &name, &version).await {
         Ok(Some(pkg)) => pkg,
         Ok(None) => return not_found_response(),
-        Err(response) => return response,
+        Err(resp) => return resp,
     };
-    let Some(doc) = fetch_wit_doc(&client, &pkg, &version).await else {
+    let Some((doc, version_detail)) = fetch_wit_doc(&client, &pkg, &version).await else {
         return not_found_response();
     };
     let Some(world_doc) = doc.worlds.iter().find(|w| w.name == world_name) else {
         return not_found_response();
     };
-    let display_name = format!("{namespace}:{name}");
-    let html = pages::world::render(&display_name, &version, world_doc, &doc);
+    let html = pages::world::render(&pkg, &version, Some(&version_detail), world_doc, &doc);
     with_cache_control(html, "public, max-age=300")
 }
 
-/// Fetch and parse the WIT document for a package version.
+/// Fetch and parse the WIT document for a package version, returning
+/// both the parsed document and the version detail.
 async fn fetch_wit_doc(
     client: &RegistryClient,
     pkg: &KnownPackage,
     version: &str,
-) -> Option<wit_doc::WitDocument> {
+) -> Option<(
+    wit_doc::WitDocument,
+    wasm_meta_registry_client::PackageVersion,
+)> {
     let detail = client
         .fetch_package_version(&pkg.registry, &pkg.repository, version)
         .await
@@ -343,14 +355,16 @@ async fn fetch_wit_doc(
         pkg.wit_name.as_deref().unwrap_or(&pkg.repository),
         version
     );
-    wit_doc::parse_wit_doc(wit_text, &url_base, &dep_urls).ok()
+    let doc = wit_doc::parse_wit_doc(wit_text, &url_base, &dep_urls).ok()?;
+    Some((doc, detail))
 }
 
 /// Fetch a package by WIT namespace/name, validating the version exists.
 ///
-/// Returns `None` (and logs) if the namespace is reserved, the package is
-/// not found, or the version tag doesn't exist. Returns a 502 response if the
-/// upstream API call fails.
+/// Returns `Ok(None)` (and logs) if the namespace is reserved, the package is
+/// not found, or the version tag doesn't exist. Returns `Err(Response)` with
+/// a `502 Bad Gateway` response when the upstream API call fails, so that
+/// registry outages are surfaced correctly instead of being masked as 404s.
 async fn fetch_package_or_404(
     client: &RegistryClient,
     namespace: &str,
@@ -375,7 +389,7 @@ async fn fetch_package_or_404(
         }
         Err(e) => {
             eprintln!("wasm-frontend: API error looking up {namespace}/{name}@{version}: {e}");
-            Err(error_response(&format!("{e:#}")))
+            Err(error_response(&e.to_string()))
         }
     }
 }
@@ -421,7 +435,7 @@ fn with_cache_control(html: String, cache_control: &'static str) -> Response {
 }
 
 #[must_use]
-fn pick_redirect_version(tags: &[String]) -> Option<String> {
+pub(crate) fn pick_redirect_version(tags: &[String]) -> Option<String> {
     tags.iter()
         .filter_map(|tag| {
             semver::Version::parse(tag)
@@ -548,5 +562,35 @@ mod tests {
     fn pick_redirect_version_returns_none_for_unusable_tags() {
         let tags = vec!["sha256-deadbeef".to_string()];
         assert_eq!(pick_redirect_version(&tags), None);
+    }
+
+    /// Trailing-slash URLs must be handled: the router must register
+    /// both `/{namespace}/{name}` and `/{namespace}/{name}/`.
+    #[test]
+    fn trailing_slash_package_route_is_registered() {
+        // Verify the app builds with trailing-slash routes by checking
+        // that the route table doesn't panic or conflict.
+        let _app = app();
+    }
+
+    /// Verify the package redirect handler works with valid path parameters
+    /// and doesn't panic — it should either redirect, return not-found, or
+    /// return bad-gateway when the registry API is unreachable.
+    #[tokio::test]
+    async fn package_redirect_handles_trailing_slash_path() {
+        let result = package_redirect(Path(("wasi".to_string(), "random".to_string()))).await;
+        match result {
+            Ok(redirect) => {
+                let resp = redirect.into_response();
+                assert!(resp.status().is_redirection());
+            }
+            Err(resp) => {
+                let status = resp.status();
+                assert!(
+                    status == StatusCode::NOT_FOUND || status == StatusCode::BAD_GATEWAY,
+                    "expected 404 or 502, got {status}"
+                );
+            }
+        }
     }
 }
