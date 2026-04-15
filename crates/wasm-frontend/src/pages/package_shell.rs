@@ -294,10 +294,18 @@ fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
     if let Some(detail) = ctx.version_detail {
         let (imports, exports) = collect_imports_exports(detail, pkg);
         if !imports.is_empty() {
-            sidebar.push(build_iface_sidebar_section("Imports", &imports));
+            sidebar.push(build_iface_sidebar_section(
+                "Imports",
+                &imports,
+                ctx.version,
+            ));
         }
         if !exports.is_empty() {
-            sidebar.push(build_iface_sidebar_section("Exports", &exports));
+            sidebar.push(build_iface_sidebar_section(
+                "Exports",
+                &exports,
+                ctx.version,
+            ));
         }
     }
 
@@ -358,31 +366,59 @@ fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
     sidebar.build()
 }
 
-/// Collect deduplicated import and export package refs from all worlds.
+/// Collect deduplicated import and export refs from all worlds.
+///
+/// Internal interfaces (belonging to the same package) are listed with
+/// their full path (e.g. `wasi:clocks/wall-clock`) and no version.
+/// External packages are grouped by package name with version
+/// (e.g. `wasi:io@0.2.11`). Internal items are sorted first.
 fn collect_imports_exports(
     detail: &PackageVersion,
     pkg: &KnownPackage,
 ) -> (Vec<String>, Vec<String>) {
     let display_name = display_name_for(pkg);
-    let mut imports = std::collections::BTreeSet::new();
-    let mut exports = std::collections::BTreeSet::new();
+    let mut internal_imports = std::collections::BTreeSet::new();
+    let mut external_imports = std::collections::BTreeSet::new();
+    let mut internal_exports = std::collections::BTreeSet::new();
+    let mut external_exports = std::collections::BTreeSet::new();
 
     for world in &detail.worlds {
         for iface in &world.imports {
-            if iface.package != display_name {
-                let label = format_iface_label(iface);
-                imports.insert(label);
+            if iface.package == display_name {
+                internal_imports.insert(format_internal_label(iface));
+            } else {
+                external_imports.insert(format_iface_label(iface));
             }
         }
         for iface in &world.exports {
-            if iface.package != display_name {
-                let label = format_iface_label(iface);
-                exports.insert(label);
+            if iface.package == display_name {
+                internal_exports.insert(format_internal_label(iface));
+            } else {
+                external_exports.insert(format_iface_label(iface));
             }
         }
     }
 
-    (imports.into_iter().collect(), exports.into_iter().collect())
+    let imports: Vec<String> = internal_imports
+        .into_iter()
+        .chain(external_imports)
+        .collect();
+    let exports: Vec<String> = internal_exports
+        .into_iter()
+        .chain(external_exports)
+        .collect();
+
+    (imports, exports)
+}
+
+/// Format an internal interface ref as "package/interface" (no version).
+fn format_internal_label(iface: &wasm_meta_registry_client::WitInterfaceRef) -> String {
+    let mut s = iface.package.clone();
+    if let Some(name) = &iface.interface {
+        s.push('/');
+        s.push_str(name);
+    }
+    s
 }
 
 /// Format an interface ref as "package@version" (grouped by package, no sub-interface).
@@ -396,8 +432,9 @@ fn format_iface_label(iface: &wasm_meta_registry_client::WitInterfaceRef) -> Str
 }
 
 /// Build a sidebar section listing interface refs (imports or exports).
-fn build_iface_sidebar_section(heading: &str, items: &[String]) -> Division {
+fn build_iface_sidebar_section(heading: &str, items: &[String], version: &str) -> Division {
     let heading = heading.to_string();
+    let version = version.to_string();
     let mut wrapper = Division::builder();
     wrapper.class("").heading_3(|h3| {
         h3.class("text-sm font-medium text-fg-muted mb-1")
@@ -410,17 +447,26 @@ fn build_iface_sidebar_section(heading: &str, items: &[String]) -> Division {
         for label in items {
             ul.list_item(|li| {
                 li.class("font-mono text-sm");
-                let (pkg_part, version) = match label.split_once('@') {
+                let (pkg_part, ver_suffix) = match label.split_once('@') {
                     Some((p, v)) => (p, Some(v)),
                     None => (label.as_str(), None),
                 };
                 match pkg_part.split_once(':') {
                     Some((ns, name)) => {
+                        // Internal refs contain '/' (e.g. "wasi:clocks/wall-clock")
+                        // and link to the interface page; external refs link to
+                        // the package page.
+                        let href = if let Some((pkg_name, iface)) = name.split_once('/') {
+                            format!("/{ns}/{pkg_name}/{version}/interface/{iface}")
+                        } else if let Some(v) = ver_suffix {
+                            format!("/{ns}/{name}/{v}")
+                        } else {
+                            format!("/{ns}/{name}")
+                        };
                         li.anchor(|a| {
-                            a.href(format!("/{ns}/{name}"))
-                                .class("text-accent hover:underline");
+                            a.href(href).class("text-accent hover:underline");
                             a.span(|s| s.text(pkg_part.to_string()));
-                            if let Some(v) = version {
+                            if let Some(v) = ver_suffix {
                                 a.span(|s| s.class("text-fg-faint ml-1").text(format!("@{v}")));
                             }
                             a
@@ -428,7 +474,7 @@ fn build_iface_sidebar_section(heading: &str, items: &[String]) -> Division {
                     }
                     None => {
                         li.span(|s| s.class("text-fg").text(pkg_part.to_string()));
-                        if let Some(v) = version {
+                        if let Some(v) = ver_suffix {
                             li.span(|s| s.class("text-fg-faint ml-1").text(format!("@{v}")));
                         }
                     }
