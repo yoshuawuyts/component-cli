@@ -69,7 +69,7 @@ pub(crate) fn render(
         String::new()
     };
 
-    let body_html = format!("{header}<div class=\"space-y-10 max-w-3xl pt-4\">{wit_content}</div>");
+    let body_html = format!("{header}<div class=\"space-y-10 max-w-3xl pt-4 pb-12\">{wit_content}</div>");
 
     let shell_ctx = package_shell::SidebarContext {
         pkg,
@@ -121,6 +121,11 @@ fn render_wit_content_with_doc(
         if !comp.producers.is_empty() || !comp.children.is_empty() {
             section.push(render_component_metadata(comp));
         }
+    }
+
+    // OCI layout (layers).
+    if !detail.layers.is_empty() {
+        section.push(render_oci_layers(&detail.layers));
     }
 
     section.build()
@@ -452,6 +457,51 @@ fn first_sentence(text: &str) -> String {
         |(first, _)| first.trim().to_owned(),
     )
 }
+/// Render the OCI layers table.
+fn render_oci_layers(layers: &[wasm_meta_registry_client::LayerInfo]) -> Division {
+    use html::tables::Table;
+
+    let mut div = Division::builder();
+    div.heading_2(|h2| {
+        h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
+            .text("OCI Layers")
+    });
+
+    let mut table = Table::builder();
+    table.class("w-full text-sm");
+    table.table_row(|tr| {
+        tr.class("border-b-2 border-fg text-left text-fg-muted")
+            .table_header(|th| th.class("py-2 pr-4 font-medium").text("Media Type"))
+            .table_header(|th| th.class("py-2 pr-4 font-medium").text("Size"))
+            .table_header(|th| th.class("py-2 font-medium").text("Digest"))
+    });
+    for layer in layers {
+        let media = layer.media_type.as_deref().unwrap_or("unknown").to_owned();
+        let size = layer.size_bytes.map_or_else(
+            || "\u{2014}".to_owned(),
+            |b| format_size(u64::try_from(b).unwrap_or(0)),
+        );
+        let digest_short = if layer.digest.len() > 19 {
+            format!("{}…", &layer.digest[..19])
+        } else {
+            layer.digest.clone()
+        };
+        table.push(
+            html::tables::TableRow::builder()
+                .class("border-b border-border-light")
+                .table_cell(|td| td.class("py-2 pr-4 font-mono text-fg").text(media))
+                .table_cell(|td| td.class("py-2 pr-4 text-fg").text(size))
+                .table_cell(|td| {
+                    td.class("py-2 font-mono text-fg-muted text-xs")
+                        .text(digest_short)
+                })
+                .build(),
+        );
+    }
+    div.push(table.build());
+    div.build()
+}
+
 /// Detect whether WIT text is the lossy hand-rolled format rather than
 /// genuine parseable WIT.  The lossy format contains debug patterns like
 /// `type foo: "type"` and `interface-Id { idx: 0 }`.

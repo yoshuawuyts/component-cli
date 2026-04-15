@@ -300,9 +300,39 @@ pub struct PackageVersion {
     /// Referrers (signatures, SBOMs, attestations) for this version.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub referrers: Vec<ReferrerSummary>,
+    /// OCI layers in this manifest.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub layers: Vec<LayerInfo>,
     /// The WIT source text, if available.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wit_text: Option<String>,
+}
+
+/// Metadata for a single OCI layer.
+///
+/// # Example
+///
+/// ```rust
+/// use wasm_meta_registry_types::LayerInfo;
+///
+/// let layer = LayerInfo {
+///     digest: "sha256:abc123".into(),
+///     media_type: Some("application/wasm".into()),
+///     size_bytes: Some(1024),
+/// };
+///
+/// assert_eq!(layer.media_type.as_deref(), Some("application/wasm"));
+/// ```
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LayerInfo {
+    /// Content-addressable digest (e.g. `"sha256:fedcba…"`).
+    pub digest: String,
+    /// MIME type (e.g. `"application/wasm"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub media_type: Option<String>,
+    /// Size of this layer in bytes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<i64>,
 }
 
 /// A WIT world with its declared imports and exports.

@@ -1237,6 +1237,7 @@ impl Store {
             let components = self.get_components_for_manifest(m.id)?;
             let dependencies = self.get_dependencies_for_manifest(m.id)?;
             let referrers = self.get_referrers_for_manifest(m.id)?;
+            let layers = self.get_layers_for_manifest(m.id)?;
             let wit_text = self.get_wit_text_for_manifest(m.id)?;
 
             versions.push(PackageVersion {
@@ -1250,6 +1251,7 @@ impl Store {
                 components,
                 dependencies,
                 referrers,
+                layers,
                 wit_text,
             });
         }
@@ -1369,6 +1371,7 @@ impl Store {
         let components = self.get_components_for_manifest(m.id)?;
         let dependencies = self.get_dependencies_for_manifest(m.id)?;
         let referrers = self.get_referrers_for_manifest(m.id)?;
+        let layers = self.get_layers_for_manifest(m.id)?;
         let wit_text = self.get_wit_text_for_manifest(m.id)?;
 
         Ok(Some(PackageVersion {
@@ -1382,6 +1385,7 @@ impl Store {
             components,
             dependencies,
             referrers,
+            layers,
             wit_text,
         }))
     }
@@ -1525,6 +1529,60 @@ impl Store {
         for row in rows {
             result.push(row?);
         }
+        Ok(result)
+    }
+
+    /// Return the full OCI layout for a manifest: manifest descriptor,
+    /// config descriptor, and content layers.
+    fn get_layers_for_manifest(
+        &self,
+        manifest_id: i64,
+    ) -> anyhow::Result<Vec<wasm_meta_registry_types::LayerInfo>> {
+        use wasm_meta_registry_types::LayerInfo;
+
+        let mut result = Vec::new();
+
+        // Manifest descriptor.
+        if let Ok((digest, media_type, size)) = self.conn.query_row(
+            "SELECT digest, media_type, size_bytes FROM oci_manifest WHERE id = ?1",
+            [manifest_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, Option<i64>>(2)?,
+                ))
+            },
+        ) {
+            result.push(LayerInfo {
+                digest,
+                media_type,
+                size_bytes: size,
+            });
+        }
+
+        // Config descriptor.
+        if let Ok((config_digest, config_media_type)) = self.conn.query_row(
+            "SELECT config_digest, config_media_type FROM oci_manifest
+             WHERE id = ?1 AND config_digest IS NOT NULL",
+            [manifest_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)),
+        ) {
+            result.push(LayerInfo {
+                digest: config_digest,
+                media_type: config_media_type,
+                size_bytes: None,
+            });
+        }
+
+        // Content layers.
+        let layers = OciLayer::list_by_manifest(&self.conn, manifest_id)?;
+        result.extend(layers.into_iter().map(|l| LayerInfo {
+            digest: l.digest,
+            media_type: l.media_type,
+            size_bytes: l.size_bytes,
+        }));
+
         Ok(result)
     }
 
