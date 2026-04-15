@@ -30,6 +30,11 @@ const MIGRATIONS: &[MigrationDef] = &[
         name: "add_kind_to_oci_repository",
         sql: include_str!("../migrations/04_add_kind_to_oci_repository.sql"),
     },
+    MigrationDef {
+        version: 5,
+        name: "add_producers_json",
+        sql: include_str!("../migrations/05_add_producers_json.sql"),
+    },
 ];
 
 /// Information about the current migration state.

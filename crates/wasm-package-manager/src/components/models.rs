@@ -17,6 +17,8 @@ pub struct WasmComponent {
     pub name: Option<String>,
     /// Optional description.
     pub description: Option<String>,
+    /// JSON-serialized producer toolchain entries.
+    pub producers_json: Option<String>,
     /// When this row was created.
     pub created_at: String,
 }
@@ -39,13 +41,24 @@ impl WasmComponent {
         oci_layer_id: Option<i64>,
         name: Option<&str>,
         description: Option<&str>,
+        producers_json: Option<&str>,
     ) -> anyhow::Result<i64> {
         conn.execute(
             "INSERT INTO wasm_component
-                 (oci_manifest_id, oci_layer_id, name, description)
-             VALUES (?1, ?2, ?3, ?4)
-             ON CONFLICT DO NOTHING",
-            rusqlite::params![oci_manifest_id, oci_layer_id, name, description],
+                 (oci_manifest_id, oci_layer_id, name, description, producers_json)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT (oci_manifest_id, COALESCE(oci_layer_id, -1))
+             DO UPDATE SET
+                 name = COALESCE(excluded.name, wasm_component.name),
+                 description = COALESCE(excluded.description, wasm_component.description),
+                 producers_json = COALESCE(excluded.producers_json, wasm_component.producers_json)",
+            rusqlite::params![
+                oci_manifest_id,
+                oci_layer_id,
+                name,
+                description,
+                producers_json
+            ],
         )?;
 
         let id: i64 = conn.query_row(
@@ -66,7 +79,7 @@ impl WasmComponent {
         oci_manifest_id: i64,
     ) -> anyhow::Result<Option<Self>> {
         let result = conn.query_row(
-            "SELECT id, oci_manifest_id, oci_layer_id, name, description, created_at
+            "SELECT id, oci_manifest_id, oci_layer_id, name, description, producers_json, created_at
              FROM wasm_component
              WHERE oci_manifest_id = ?1",
             [oci_manifest_id],
@@ -84,7 +97,7 @@ impl WasmComponent {
     #[allow(dead_code)]
     pub(crate) fn list_all(conn: &Connection) -> anyhow::Result<Vec<Self>> {
         let mut stmt = conn.prepare(
-            "SELECT id, oci_manifest_id, oci_layer_id, name, description, created_at
+            "SELECT id, oci_manifest_id, oci_layer_id, name, description, producers_json, created_at
              FROM wasm_component
              ORDER BY name ASC, created_at ASC",
         )?;
@@ -106,7 +119,8 @@ impl WasmComponent {
             oci_layer_id: row.get(2)?,
             name: row.get(3)?,
             description: row.get(4)?,
-            created_at: row.get(5)?,
+            producers_json: row.get(5)?,
+            created_at: row.get(6)?,
         })
     }
 }
@@ -252,8 +266,15 @@ mod tests {
         let conn = setup_test_db();
         let mid = insert_test_manifest(&conn);
 
-        let id = WasmComponent::insert(&conn, mid, None, Some("my-comp"), Some("A test component"))
-            .unwrap();
+        let id = WasmComponent::insert(
+            &conn,
+            mid,
+            None,
+            Some("my-comp"),
+            Some("A test component"),
+            None,
+        )
+        .unwrap();
         assert!(id > 0);
 
         let comp = WasmComponent::find_by_manifest(&conn, mid)
@@ -270,8 +291,8 @@ mod tests {
         let conn = setup_test_db();
         let mid = insert_test_manifest(&conn);
 
-        let id1 = WasmComponent::insert(&conn, mid, None, Some("comp"), None).unwrap();
-        let id2 = WasmComponent::insert(&conn, mid, None, Some("comp"), None).unwrap();
+        let id1 = WasmComponent::insert(&conn, mid, None, Some("comp"), None, None).unwrap();
+        let id2 = WasmComponent::insert(&conn, mid, None, Some("comp"), None, None).unwrap();
         assert_eq!(id1, id2);
     }
 
@@ -291,7 +312,7 @@ mod tests {
         assert!(empty.is_empty());
 
         let mid = insert_test_manifest(&conn);
-        WasmComponent::insert(&conn, mid, None, Some("beta"), None).unwrap();
+        WasmComponent::insert(&conn, mid, None, Some("beta"), None, None).unwrap();
 
         let repo_id = OciRepository::upsert(&conn, "ghcr.io", "other/repo").unwrap();
         let (mid2, _) = OciManifest::upsert(
@@ -307,7 +328,7 @@ mod tests {
             &HashMap::new(),
         )
         .unwrap();
-        WasmComponent::insert(&conn, mid2, None, Some("alpha"), None).unwrap();
+        WasmComponent::insert(&conn, mid2, None, Some("alpha"), None, None).unwrap();
 
         let all = WasmComponent::list_all(&conn).unwrap();
         assert_eq!(all.len(), 2);
@@ -320,7 +341,7 @@ mod tests {
     fn test_component_target_insert_and_list() {
         let conn = setup_test_db();
         let mid = insert_test_manifest(&conn);
-        let comp_id = WasmComponent::insert(&conn, mid, None, Some("comp"), None).unwrap();
+        let comp_id = WasmComponent::insert(&conn, mid, None, Some("comp"), None, None).unwrap();
 
         let tid =
             ComponentTarget::insert(&conn, comp_id, "wasi:http", "proxy", Some("0.2.0"), None)
@@ -343,7 +364,7 @@ mod tests {
     fn test_component_target_insert_idempotent() {
         let conn = setup_test_db();
         let mid = insert_test_manifest(&conn);
-        let comp_id = WasmComponent::insert(&conn, mid, None, Some("comp"), None).unwrap();
+        let comp_id = WasmComponent::insert(&conn, mid, None, Some("comp"), None, None).unwrap();
 
         let id1 =
             ComponentTarget::insert(&conn, comp_id, "wasi:http", "proxy", Some("0.2.0"), None)

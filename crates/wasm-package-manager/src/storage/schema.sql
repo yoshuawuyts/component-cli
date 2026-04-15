@@ -564,6 +564,10 @@ CREATE TABLE wasm_component (
     -- Human-readable description extracted from the component's
     -- embedded metadata.  NULL if none is present.
     description TEXT,
+    -- JSON array of producer toolchain entries extracted from the
+    -- component's producers section.  Each entry has "field",
+    -- "name", and "version" keys.  NULL if no producers section.
+    producers_json TEXT,
     -- ISO 8601 timestamp of when this component was first recorded.
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (oci_manifest_id) REFERENCES oci_manifest(id)

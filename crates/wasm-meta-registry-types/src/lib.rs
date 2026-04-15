@@ -375,6 +375,11 @@ pub struct WitInterfaceRef {
 ///     name: Some("my-handler".into()),
 ///     description: None,
 ///     targets: vec![],
+///     producers: vec![],
+///     kind: Some("component".into()),
+///     size_bytes: None,
+///     languages: vec![],
+///     children: vec![],
 /// };
 ///
 /// assert_eq!(component.name.as_deref(), Some("my-handler"));
@@ -390,6 +395,46 @@ pub struct ComponentSummary {
     /// WIT worlds this component targets.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub targets: Vec<ComponentTargetRef>,
+    /// Producer toolchain entries (e.g. language, SDK, processed-by).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub producers: Vec<ProducerEntry>,
+    /// Whether this is a "component" or "module".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    /// Total size in bytes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<u64>,
+    /// Languages used (extracted from producers).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub languages: Vec<String>,
+    /// Nested child components or modules.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub children: Vec<ComponentSummary>,
+}
+
+/// A single producer toolchain entry (e.g. `language = "Rust" [1.82.0]`).
+///
+/// # Example
+///
+/// ```rust
+/// use wasm_meta_registry_types::ProducerEntry;
+///
+/// let entry = ProducerEntry {
+///     field: "language".into(),
+///     name: "Rust".into(),
+///     version: "1.82.0".into(),
+/// };
+///
+/// assert_eq!(entry.field, "language");
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ProducerEntry {
+    /// Producer field name (e.g. `"language"`, `"processed-by"`, `"sdk"`).
+    pub field: String,
+    /// Tool or language name (e.g. `"Rust"`, `"wit-component"`).
+    pub name: String,
+    /// Version string (empty if unknown).
+    pub version: String,
 }
 
 /// Reference to a WIT world that a component targets.

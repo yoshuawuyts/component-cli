@@ -403,10 +403,10 @@ fn collect_imports_exports(
                 let iface_name = iface.interface.as_deref().unwrap_or(&iface.package);
                 let key = iface_name.to_string();
                 if let Some(&idx) = import_idx.get(&key) {
-                    if let Some(item) = imports.get_mut(idx) {
-                        if let Some(we) = &world_entry {
-                            item.worlds.push(we.clone());
-                        }
+                    if let Some(item) = imports.get_mut(idx)
+                        && let Some(we) = &world_entry
+                    {
+                        item.worlds.push(we.clone());
                     }
                 } else {
                     import_idx.insert(key, imports.len());
@@ -445,10 +445,10 @@ fn collect_imports_exports(
                 let iface_name = iface.interface.as_deref().unwrap_or(&iface.package);
                 let key = iface_name.to_string();
                 if let Some(&idx) = export_idx.get(&key) {
-                    if let Some(item) = exports.get_mut(idx) {
-                        if let Some(we) = &world_entry {
-                            item.worlds.push(we.clone());
-                        }
+                    if let Some(item) = exports.get_mut(idx)
+                        && let Some(we) = &world_entry
+                    {
+                        item.worlds.push(we.clone());
                     }
                 } else {
                     export_idx.insert(key, exports.len());

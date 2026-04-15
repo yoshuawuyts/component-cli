@@ -501,14 +501,23 @@ impl Store {
 
         // For compiled components, create wasm_component and component_target rows
         if metadata.is_component {
-            let component_id =
-                match WasmComponent::insert(&self.conn, manifest_id, layer_id, None, None) {
-                    Ok(id) => id,
-                    Err(e) => {
-                        tracing::warn!("Failed to insert WasmComponent: {}", e);
-                        return false;
-                    }
-                };
+            // Extract rich metadata (name, producers) via wasm-metadata
+            let (comp_name, comp_desc, producers_json) = extract_component_metadata(wasm_bytes);
+
+            let component_id = match WasmComponent::insert(
+                &self.conn,
+                manifest_id,
+                layer_id,
+                comp_name.as_deref(),
+                comp_desc.as_deref(),
+                producers_json.as_deref(),
+            ) {
+                Ok(id) => id,
+                Err(e) => {
+                    tracing::warn!("Failed to insert WasmComponent: {}", e);
+                    return false;
+                }
+            };
 
             for world in &metadata.worlds {
                 let wit_world_id = world_ids.get(&world.name).copied();
@@ -1419,32 +1428,49 @@ impl Store {
         use wasm_meta_registry_types::{ComponentSummary, ComponentTargetRef};
 
         let mut stmt = self.conn.prepare(
-            "SELECT id, name, description FROM wasm_component
+            "SELECT id, name, description, producers_json FROM wasm_component
              WHERE oci_manifest_id = ?1
              ORDER BY name ASC",
         )?;
 
-        let components: Vec<(i64, Option<String>, Option<String>)> = stmt
+        let components: Vec<(i64, Option<String>, Option<String>, Option<String>)> = stmt
             .query_map([manifest_id], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
         let mut result = Vec::new();
-        for (comp_id, name, description) in components {
+        for (comp_id, name, description, metadata_json) in components {
             let targets = ComponentTarget::list_by_component(&self.conn, comp_id)?;
-            result.push(ComponentSummary {
-                name,
-                description,
-                targets: targets
-                    .into_iter()
-                    .map(|t| ComponentTargetRef {
-                        package: t.declared_package,
-                        world: t.declared_world,
-                        version: t.declared_version,
-                    })
-                    .collect(),
-            });
+            let target_refs: Vec<ComponentTargetRef> = targets
+                .into_iter()
+                .map(|t| ComponentTargetRef {
+                    package: t.declared_package,
+                    world: t.declared_world,
+                    version: t.declared_version,
+                })
+                .collect();
+
+            // Try to deserialize the full ComponentSummary tree from JSON.
+            // If available, merge in the DB-stored targets. Otherwise
+            // fall back to a basic summary.
+            let mut summary: ComponentSummary = metadata_json
+                .as_deref()
+                .and_then(|json| serde_json::from_str(json).ok())
+                .unwrap_or_else(|| ComponentSummary {
+                    name: name.clone(),
+                    description: description.clone(),
+                    targets: vec![],
+                    producers: vec![],
+                    kind: None,
+                    size_bytes: None,
+                    languages: vec![],
+                    children: vec![],
+                });
+
+            summary.targets = target_refs;
+
+            result.push(summary);
         }
 
         Ok(result)
@@ -1746,6 +1772,81 @@ fn split_package_version(raw: &str) -> (&str, Option<&str>) {
     }
 }
 
+/// Extract component-level metadata using `wasm-metadata`.
+///
+/// Returns `(name, description, metadata_json)` where `metadata_json` is the
+/// full `ComponentSummary` tree serialized as JSON (producers, children, kind,
+/// size, languages). Targets are not included — they come from the DB.
+fn extract_component_metadata(
+    wasm_bytes: &[u8],
+) -> (Option<String>, Option<String>, Option<String>) {
+    let payload = match wasm_metadata::Payload::from_binary(wasm_bytes) {
+        Ok(p) => p,
+        Err(_) => return (None, None, None),
+    };
+
+    let summary = payload_to_summary(&payload);
+    let name = summary.name.clone();
+    let description = summary.description.clone();
+    let json = serde_json::to_string(&summary).unwrap_or_default();
+
+    (name, description, Some(json))
+}
+
+/// Convert a `wasm_metadata::Payload` tree into a `ComponentSummary` tree.
+fn payload_to_summary(
+    payload: &wasm_metadata::Payload,
+) -> wasm_meta_registry_types::ComponentSummary {
+    use wasm_meta_registry_types::{ComponentSummary, ProducerEntry};
+
+    let meta = payload.metadata();
+
+    let (kind, children) = match payload {
+        wasm_metadata::Payload::Component { children, .. } => (
+            "component",
+            children.iter().map(payload_to_summary).collect(),
+        ),
+        wasm_metadata::Payload::Module(_) => ("module", vec![]),
+    };
+
+    let producers: Vec<ProducerEntry> = meta
+        .producers
+        .iter()
+        .flat_map(|p| {
+            p.iter().flat_map(|(field, pairs)| {
+                pairs.iter().map(move |(tool, ver)| ProducerEntry {
+                    field: field.to_string(),
+                    name: tool.to_string(),
+                    version: ver.to_string(),
+                })
+            })
+        })
+        .collect();
+
+    let languages: Vec<String> = producers
+        .iter()
+        .filter(|e| e.field == "language")
+        .map(|e| e.name.clone())
+        .collect();
+
+    let size_bytes = {
+        let r = &meta.range;
+        let size = r.end.saturating_sub(r.start);
+        if size > 0 { Some(size as u64) } else { None }
+    };
+
+    ComponentSummary {
+        name: meta.name.clone(),
+        description: meta.description.as_ref().map(|d| d.to_string()),
+        targets: vec![],
+        producers,
+        kind: Some(kind.to_string()),
+        size_bytes,
+        languages,
+        children,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1913,7 +2014,7 @@ mod tests {
 
         // Insert the component
         let comp_id =
-            WasmComponent::insert(&conn, manifest_id, Some(layer_id), None, None).unwrap();
+            WasmComponent::insert(&conn, manifest_id, Some(layer_id), None, None, None).unwrap();
         assert!(comp_id > 0);
 
         // Insert a target pointing to the world we just created
@@ -2249,7 +2350,8 @@ mod tests {
         let world_id = WitWorld::insert(&conn, iface_id, "proxy", None).unwrap();
 
         // Create a component with a target but NO wit_world_id (cross-package)
-        let comp_id = WasmComponent::insert(&conn, comp_manifest_id, None, None, None).unwrap();
+        let comp_id =
+            WasmComponent::insert(&conn, comp_manifest_id, None, None, None, None).unwrap();
         ComponentTarget::insert(
             &conn,
             comp_id,

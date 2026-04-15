@@ -107,17 +107,17 @@ fn render_item_section(heading: &str, items: &[WorldItemDoc], is_import: bool) -
     };
 
     let mut div = Division::builder();
-    if !iface_entries.is_empty() {
+    if iface_entries.is_empty() {
+        div.heading_2(|h2| {
+            h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
+                .text(heading.to_owned())
+        });
+    } else {
         div.push(package_shell::render_import_export_section(
             heading,
             &iface_entries,
             is_import,
         ));
-    } else {
-        div.heading_2(|h2| {
-            h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
-                .text(heading.to_owned())
-        });
     }
 
     let mut ul = UnorderedList::builder();

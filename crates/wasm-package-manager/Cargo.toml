@@ -46,6 +46,7 @@ wac-parser = { workspace = true, optional = true }
 wac-graph = { workspace = true, optional = true }
 wac-resolver = { workspace = true, optional = true }
 wasmparser = { workspace = true }
+wasm-metadata = { workspace = true }
 wit-component = { workspace = true }
 wit-parser = { workspace = true }
 

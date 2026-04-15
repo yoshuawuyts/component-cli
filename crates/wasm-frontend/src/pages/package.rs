@@ -116,6 +116,13 @@ fn render_wit_content_with_doc(
         }
     }
 
+    // Component metadata (toolchain, children).
+    for comp in &detail.components {
+        if !comp.producers.is_empty() || !comp.children.is_empty() {
+            section.push(render_component_metadata(comp));
+        }
+    }
+
     section.build()
 }
 
@@ -321,6 +328,121 @@ fn build_iface_href(iface: &wasm_meta_registry_client::WitInterfaceRef) -> Optio
         (Some(iface_name), None) => Some(format!("/{ns}/{name}/interface/{iface_name}")),
         (None, None) => Some(format!("/{ns}/{name}")),
     }
+}
+
+/// Render component metadata: summary table + toolchain details.
+fn render_component_metadata(comp: &wasm_meta_registry_client::ComponentSummary) -> Division {
+    use html::tables::Table;
+
+    let mut div = Division::builder();
+    div.class("space-y-8");
+
+    // Component summary table (kind, name, size, languages, children)
+    if !comp.children.is_empty() {
+        div.heading_2(|h2| {
+            h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
+                .text("Component Structure")
+        });
+
+        let mut table = Table::builder();
+        table.class("w-full text-sm");
+        table.table_row(|tr| {
+            tr.class("border-b-2 border-fg text-left text-fg-muted")
+                .table_header(|th| th.class("py-2 pr-4 font-medium").text("Kind"))
+                .table_header(|th| th.class("py-2 pr-4 font-medium").text("Name"))
+                .table_header(|th| th.class("py-2 pr-4 font-medium").text("Size"))
+                .table_header(|th| th.class("py-2 font-medium").text("Languages"))
+        });
+        let all_items = std::iter::once(comp).chain(comp.children.iter());
+        for item in all_items {
+            table.push(build_summary_row(item));
+        }
+        div.push(table.build());
+    }
+
+    // Toolchain details (producers from root + children)
+    if !comp.producers.is_empty() {
+        div.push(render_producers(&comp.producers));
+    }
+
+    div.build()
+}
+
+/// Build a table row for a component/module in the summary table.
+fn build_summary_row(comp: &wasm_meta_registry_client::ComponentSummary) -> html::tables::TableRow {
+    let kind = comp.kind.as_deref().unwrap_or("unknown").to_owned();
+    let name = comp.name.as_deref().unwrap_or("<unnamed>").to_owned();
+    let size = comp
+        .size_bytes
+        .map_or_else(|| "\u{2014}".to_owned(), format_size);
+    let langs = if comp.languages.is_empty() {
+        "\u{2014}".to_owned()
+    } else {
+        comp.languages.join(", ")
+    };
+
+    html::tables::TableRow::builder()
+        .class("border-b border-border-light")
+        .table_cell(|td| td.class("py-2 pr-4 text-fg-muted").text(kind))
+        .table_cell(|td| td.class("py-2 pr-4 font-mono text-fg").text(name))
+        .table_cell(|td| td.class("py-2 pr-4 text-fg").text(size))
+        .table_cell(|td| td.class("py-2 text-fg-secondary").text(langs))
+        .build()
+}
+
+/// Format a byte size into a human-readable string.
+fn format_size(bytes: u64) -> String {
+    const KIB: u64 = 1024;
+    const MIB: u64 = 1024 * KIB;
+    #[allow(clippy::cast_precision_loss)]
+    match bytes {
+        b if b >= MIB => format!("{:.1} MiB", b as f64 / MIB as f64),
+        b if b >= KIB => format!("{:.1} KiB", b as f64 / KIB as f64),
+        b => format!("{b} B"),
+    }
+}
+
+/// Render producer toolchain entries as a table.
+fn render_producers(producers: &[wasm_meta_registry_client::ProducerEntry]) -> Division {
+    use html::tables::Table;
+
+    let mut div = Division::builder();
+    div.heading_2(|h2| {
+        h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
+            .text("Toolchain")
+    });
+
+    let mut table = Table::builder();
+    table.class("w-full text-sm");
+    table.table_row(|tr| {
+        tr.class("border-b-2 border-fg text-left text-fg-muted")
+            .table_header(|th| th.class("py-2 pr-4 font-medium").text("Field"))
+            .table_header(|th| th.class("py-2 pr-4 font-medium").text("Name"))
+            .table_header(|th| th.class("py-2 font-medium").text("Version"))
+    });
+    for entry in producers {
+        table.table_row(|tr| {
+            tr.class("border-b border-border-light")
+                .table_cell(|td| {
+                    td.class("py-2 pr-4 text-fg-muted")
+                        .text(entry.field.clone())
+                })
+                .table_cell(|td| {
+                    td.class("py-2 pr-4 font-mono text-accent")
+                        .text(entry.name.clone())
+                })
+                .table_cell(|td| {
+                    td.class("py-2 font-mono text-fg")
+                        .text(if entry.version.is_empty() {
+                            "\u{2014}".to_owned()
+                        } else {
+                            entry.version.clone()
+                        })
+                })
+        });
+    }
+    div.push(table.build());
+    div.build()
 }
 
 /// Extract the first sentence from a doc comment for summary display.
