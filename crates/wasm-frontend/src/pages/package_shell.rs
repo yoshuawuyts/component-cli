@@ -619,6 +619,38 @@ pub(crate) struct ImportExportEntry {
     pub item_kind: WorldItemKind,
 }
 
+/// Convert a `WitInterfaceRef` to an `ImportExportEntry`.
+pub(crate) fn iface_ref_to_entry(
+    iface: &wasm_meta_registry_client::WitInterfaceRef,
+) -> ImportExportEntry {
+    let mut display = iface.package.clone();
+    if let Some(name) = &iface.interface {
+        display.push('/');
+        display.push_str(name);
+    }
+    if let Some(v) = &iface.version {
+        display.push('@');
+        display.push_str(v);
+    }
+    ImportExportEntry {
+        label: display,
+        url: build_iface_href(iface),
+        docs: iface.docs.clone(),
+        item_kind: WorldItemKind::Interface,
+    }
+}
+
+/// Build a URL for a WIT interface reference.
+fn build_iface_href(iface: &wasm_meta_registry_client::WitInterfaceRef) -> Option<String> {
+    let (ns, name) = iface.package.split_once(':')?;
+    match (&iface.interface, &iface.version) {
+        (Some(iface_name), Some(v)) => Some(format!("/{ns}/{name}/{v}/interface/{iface_name}")),
+        (None, Some(v)) => Some(format!("/{ns}/{name}/{v}")),
+        (Some(iface_name), None) => Some(format!("/{ns}/{name}/interface/{iface_name}")),
+        (None, None) => Some(format!("/{ns}/{name}")),
+    }
+}
+
 /// Render a section heading + list of import/export entries.
 ///
 /// Shared between the world detail page and the component fallback page.

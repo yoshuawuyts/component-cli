@@ -391,40 +391,13 @@ fn render_iface_ref_list(
 ) -> Division {
     let items: Vec<package_shell::ImportExportEntry> = interfaces
         .iter()
-        .map(|iface| {
-            let mut display = iface.package.clone();
-            if let Some(name) = &iface.interface {
-                display.push('/');
-                display.push_str(name);
-            }
-            if let Some(v) = &iface.version {
-                display.push('@');
-                display.push_str(v);
-            }
-            package_shell::ImportExportEntry {
-                label: display,
-                url: build_iface_href(iface),
-                docs: iface.docs.clone(),
-                item_kind: package_shell::WorldItemKind::Interface,
-            }
-        })
+        .map(package_shell::iface_ref_to_entry)
         .collect();
 
     let mut div = Division::builder();
     div.class("mb-4");
     div.push(package_shell::render_import_export_section(label, &items));
     div.build()
-}
-
-/// Build a URL for a WIT interface reference.
-fn build_iface_href(iface: &wasm_meta_registry_client::WitInterfaceRef) -> Option<String> {
-    let (ns, name) = iface.package.split_once(':')?;
-    match (&iface.interface, &iface.version) {
-        (Some(iface_name), Some(v)) => Some(format!("/{ns}/{name}/{v}/interface/{iface_name}")),
-        (None, Some(v)) => Some(format!("/{ns}/{name}/{v}")),
-        (Some(iface_name), None) => Some(format!("/{ns}/{name}/interface/{iface_name}")),
-        (None, None) => Some(format!("/{ns}/{name}")),
-    }
 }
 
 /// Format a byte size into a human-readable string.

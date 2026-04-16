@@ -131,10 +131,10 @@ fn render_item_section(
         match item {
             WorldItemDoc::Interface { name, url, docs } => {
                 // Use WIT-parsed docs first, fall back to API-enriched docs.
-                let display = strip_version(name);
-                let effective_docs = docs.clone().or_else(|| api_docs.get(display).cloned());
+                let name_no_ver = strip_version(name);
+                let effective_docs = docs.clone().or_else(|| api_docs.get(name_no_ver).cloned());
                 iface_entries.push(package_shell::ImportExportEntry {
-                    label: display.to_owned(),
+                    label: name.clone(),
                     url: url.clone(),
                     docs: effective_docs,
                     item_kind: package_shell::WorldItemKind::Interface,
@@ -190,20 +190,18 @@ fn render_world_item_row(item: &WorldItemDoc) -> ListItem {
             url: Some(url),
             ..
         } => {
-            let display = strip_version(name);
             li.anchor(|a| {
                 a.href(url.clone())
                     .class("block font-mono text-wit-iface hover:underline text-base")
-                    .text(display.to_owned())
+                    .text(name.to_owned())
             });
         }
         WorldItemDoc::Interface {
             name, url: None, ..
         } => {
-            let display = strip_version(name);
             li.span(|s| {
                 s.class("block font-mono text-fg text-base")
-                    .text(display.to_owned())
+                    .text(name.to_owned())
             });
         }
         WorldItemDoc::Function(func) => {
