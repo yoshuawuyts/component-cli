@@ -601,6 +601,8 @@ pub(crate) struct ImportExportEntry {
     pub label: String,
     /// Optional link URL.
     pub url: Option<String>,
+    /// Optional doc excerpt for the interface.
+    pub docs: Option<String>,
 }
 
 /// CSS class for import links.
@@ -636,18 +638,29 @@ pub(crate) fn render_import_export_section(
     let mut ul = html::text_content::UnorderedList::builder();
     for item in items {
         ul.list_item(|li| {
-            li.class("py-1");
-            match &item.url {
-                Some(url) => {
-                    li.anchor(|a| {
-                        a.href(url.clone())
-                            .class(link_class.to_owned())
-                            .text(item.label.clone())
-                    });
+            li.class("py-1 flex gap-4");
+            li.division(|left| {
+                left.class("shrink-0 w-64");
+                match &item.url {
+                    Some(url) => {
+                        left.anchor(|a| {
+                            a.href(url.clone())
+                                .class(link_class.to_owned())
+                                .text(item.label.clone())
+                        });
+                    }
+                    None => {
+                        left.span(|s| s.class(PLAIN_ITEM_CLASS).text(item.label.clone()));
+                    }
                 }
-                None => {
-                    li.span(|s| s.class(PLAIN_ITEM_CLASS).text(item.label.clone()));
-                }
+                left
+            });
+            if let Some(docs) = &item.docs {
+                li.division(|right| {
+                    right
+                        .class("text-base leading-relaxed text-fg-secondary min-w-0")
+                        .text(crate::markdown::render_inline(docs))
+                });
             }
             li
         });

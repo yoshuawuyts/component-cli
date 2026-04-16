@@ -105,10 +105,26 @@ fn render_wit_content_with_doc(
             section.push(render_interface_overview(doc));
         }
     } else {
-        // Fallback: show pre-extracted world summaries + raw WIT text.
-        if !detail.worlds.is_empty() {
+        // Fallback: prefer component-level imports/exports (from wasm-metadata,
+        // which include docs) over world summaries (from DB, no docs).
+        let has_component_imports = detail
+            .components
+            .iter()
+            .any(|c| !c.imports.is_empty() || !c.exports.is_empty());
+
+        if has_component_imports {
+            for comp in &detail.components {
+                if !comp.imports.is_empty() {
+                    section.push(render_iface_ref_list("Imports", &comp.imports, true));
+                }
+                if !comp.exports.is_empty() {
+                    section.push(render_iface_ref_list("Exports", &comp.exports, false));
+                }
+            }
+        } else if !detail.worlds.is_empty() {
             section.push(render_world_summaries(detail));
         }
+
         // Only show the raw WIT text if it's genuine WIT (not lossy
         // debug output that contains patterns like `type foo: "type"`
         // or `interface-Id { idx: 0 }`).
@@ -367,7 +383,8 @@ fn render_world_summaries(detail: &PackageVersion) -> Division {
 }
 
 /// Render a list of WIT interface references (fallback), styled like world
-/// imports/exports with clickable links.
+/// imports/exports with clickable links. Includes version to disambiguate
+/// duplicates.
 fn render_iface_ref_list(
     label: &str,
     interfaces: &[wasm_meta_registry_client::WitInterfaceRef],
@@ -375,9 +392,21 @@ fn render_iface_ref_list(
 ) -> Division {
     let items: Vec<package_shell::ImportExportEntry> = interfaces
         .iter()
-        .map(|iface| package_shell::ImportExportEntry {
-            label: format_iface_ref_no_version(iface),
-            url: build_iface_href(iface),
+        .map(|iface| {
+            let mut display = iface.package.clone();
+            if let Some(name) = &iface.interface {
+                display.push('/');
+                display.push_str(name);
+            }
+            if let Some(v) = &iface.version {
+                display.push('@');
+                display.push_str(v);
+            }
+            package_shell::ImportExportEntry {
+                label: display,
+                url: build_iface_href(iface),
+                docs: iface.docs.clone(),
+            }
         })
         .collect();
 
@@ -387,16 +416,6 @@ fn render_iface_ref_list(
         label, &items, is_import,
     ));
     div.build()
-}
-
-/// Format a WIT interface reference without the version suffix.
-fn format_iface_ref_no_version(iface: &wasm_meta_registry_client::WitInterfaceRef) -> String {
-    let mut s = iface.package.clone();
-    if let Some(name) = &iface.interface {
-        s.push('/');
-        s.push_str(name);
-    }
-    s
 }
 
 /// Build a URL for a WIT interface reference.

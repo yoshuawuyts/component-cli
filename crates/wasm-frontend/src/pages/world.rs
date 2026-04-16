@@ -87,6 +87,7 @@ fn render_item_section(heading: &str, items: &[WorldItemDoc], is_import: bool) -
                 iface_entries.push(package_shell::ImportExportEntry {
                     label: strip_version(name).to_owned(),
                     url: url.clone(),
+                    docs: None,
                 });
             }
             _ => other_items.push(item),

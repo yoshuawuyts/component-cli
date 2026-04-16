@@ -658,12 +658,22 @@ impl Store {
             }
 
             // Delete old rows and re-extract with current logic atomically.
+            // Delete both wit_package and wasm_component rows so stale cached
+            // JSON (producers, imports, exports) is fully cleared.
             let replaced = self
                 .conn
                 .execute("DELETE FROM wit_package WHERE id = ?1", [wit_id])
+                .and_then(|_| {
+                    self.conn.execute(
+                        "DELETE FROM wasm_component WHERE oci_manifest_id = ?1",
+                        [manifest_id],
+                    )
+                })
                 .map_or_else(
                     |e| {
-                        tracing::warn!("reindex: failed to delete wit_package {wit_id}: {e}");
+                        tracing::warn!(
+                            "reindex: failed to delete rows for wit_package {wit_id}: {e}"
+                        );
                         false
                     },
                     |_| self.try_extract_wit_package(*manifest_id, Some(*layer_id), &bytes),
@@ -1484,6 +1494,10 @@ impl Store {
 
             summary.targets = target_refs;
 
+            // Enrich imports/exports with docs from stored WIT packages.
+            self.enrich_iface_docs(&mut summary.imports);
+            self.enrich_iface_docs(&mut summary.exports);
+
             result.push(summary);
         }
 
@@ -1540,6 +1554,51 @@ impl Store {
             result.push(row?);
         }
         Ok(result)
+    }
+
+    /// Enrich `WitInterfaceRef` entries with docs from stored WIT packages.
+    ///
+    /// For each import/export that has a package name and version but no docs,
+    /// look up the stored `wit_text` for that WIT package, parse it, and
+    /// extract the interface's doc comment.
+    fn enrich_iface_docs(&self, refs: &mut [wasm_meta_registry_types::WitInterfaceRef]) {
+        for iface_ref in refs.iter_mut() {
+            if iface_ref.docs.is_some() {
+                continue;
+            }
+            let Some(iface_name) = &iface_ref.interface else {
+                continue;
+            };
+
+            // Look up the WIT text for this package+version.
+            let wit_text: Option<String> = self
+                .conn
+                .query_row(
+                    "SELECT wit_text FROM wit_package
+                     WHERE package_name = ?1
+                       AND wit_text IS NOT NULL
+                     ORDER BY (COALESCE(version, '') = COALESCE(?2, '')) DESC, id DESC
+                     LIMIT 1",
+                    rusqlite::params![&iface_ref.package, &iface_ref.version],
+                    |row| row.get(0),
+                )
+                .ok();
+
+            let Some(wit_text) = wit_text else {
+                continue;
+            };
+
+            // Parse the WIT text and find the interface's docs.
+            if let Ok(pkg) = wit_parser::UnresolvedPackageGroup::parse("lookup.wit", &wit_text) {
+                for (_, iface) in pkg.main.interfaces.iter() {
+                    if iface.name.as_deref() == Some(iface_name.as_str()) {
+                        if let Some(doc) = &iface.docs.contents {
+                            iface_ref.docs = Some(first_doc_sentence(doc));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Return the full OCI layout for a manifest: manifest descriptor,
@@ -1655,6 +1714,7 @@ impl Store {
                 package: row.get(0)?,
                 interface: row.get(1)?,
                 version: row.get(2)?,
+                docs: None,
             })
         })?;
 
@@ -1682,6 +1742,7 @@ impl Store {
                 package: row.get(0)?,
                 interface: row.get(1)?,
                 version: row.get(2)?,
+                docs: None,
             })
         })?;
 
@@ -2068,6 +2129,7 @@ fn parse_component_extern_name(name: &str) -> wasm_meta_registry_types::WitInter
             package: name.to_string(),
             interface: None,
             version: None,
+            docs: None,
         };
     }
 
@@ -2085,10 +2147,11 @@ fn parse_component_extern_name(name: &str) -> wasm_meta_registry_types::WitInter
         package,
         interface,
         version,
+        docs: None,
     }
 }
 
-/// Convert a `wit_parser::WorldKey` to a `WitInterfaceRef`.
+/// Convert a `wit_parser::WorldKey` to a `WitInterfaceRef`, including docs.
 fn world_key_to_iface_ref(
     resolve: &wit_parser::Resolve,
     key: &wit_parser::WorldKey,
@@ -2098,18 +2161,29 @@ fn world_key_to_iface_ref(
             package: name.clone(),
             interface: None,
             version: None,
+            docs: None,
         }),
         wit_parser::WorldKey::Interface(id) => {
             let iface = resolve.interfaces.get(*id)?;
             let pkg_id = iface.package?;
             let pkg = resolve.packages.get(pkg_id)?;
+            let docs = iface.docs.contents.as_deref().map(first_doc_sentence);
             Some(wasm_meta_registry_types::WitInterfaceRef {
                 package: format!("{}:{}", pkg.name.namespace, pkg.name.name),
                 interface: iface.name.clone(),
                 version: pkg.name.version.as_ref().map(ToString::to_string),
+                docs,
             })
         }
     }
+}
+
+/// Extract the first sentence from a doc comment.
+fn first_doc_sentence(text: &str) -> String {
+    text.split_once("\n\n").map_or_else(
+        || text.trim().to_owned(),
+        |(first, _)| first.trim().to_owned(),
+    )
 }
 
 #[cfg(test)]

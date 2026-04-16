@@ -392,6 +392,9 @@ pub struct WitInterfaceRef {
     /// Declared version (e.g. `"0.2.2"`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
+    /// First sentence of the interface's documentation, if available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub docs: Option<String>,
 }
 
 /// Summary of a compiled Wasm component found in an OCI manifest.

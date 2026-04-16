@@ -55,6 +55,7 @@ pub(crate) fn render(
             .map(|iface| package_shell::ImportExportEntry {
                 label: format_iface_display(iface),
                 url: build_iface_url(iface),
+                docs: iface.docs.clone(),
             })
             .collect();
         body.push_str(
@@ -70,6 +71,7 @@ pub(crate) fn render(
             .map(|iface| package_shell::ImportExportEntry {
                 label: format_iface_display(iface),
                 url: build_iface_url(iface),
+                docs: iface.docs.clone(),
             })
             .collect();
         body.push_str(
