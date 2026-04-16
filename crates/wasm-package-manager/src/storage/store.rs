@@ -3079,4 +3079,163 @@ mod tests {
         assert!(desc.is_none());
         assert!(json.is_none());
     }
+
+    /// Read the sample-wasi-http-rust component fixture if available.
+    fn read_sample_component() -> Option<Vec<u8>> {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/1-hello-world/vendor/wasm/ghcr-io-bytecodealliance-sample-wasi-http-rust-sample-wasi-http-rust-0.1.6-b33f82f30175.wasm");
+        std::fs::read(path).ok()
+    }
+
+    #[test]
+    fn extract_component_metadata_from_real_binary() {
+        let Some(bytes) = read_sample_component() else {
+            eprintln!("skipping: sample component not found");
+            return;
+        };
+
+        let (name, _desc, json) = super::extract_component_metadata(&bytes);
+
+        // Root component may or may not have an embedded name.
+        let _ = name;
+
+        // JSON should be present and deserializable.
+        let json = json.expect("metadata JSON should be present");
+        let summary: wasm_meta_registry_types::ComponentSummary =
+            serde_json::from_str(&json).expect("JSON should deserialize");
+
+        // Should be a component.
+        assert_eq!(summary.kind.as_deref(), Some("component"));
+
+        // Should have children (modules + possibly inner components).
+        assert!(
+            !summary.children.is_empty(),
+            "root component should have children"
+        );
+
+        // At least one child should be a module.
+        let modules: Vec<_> = summary
+            .children
+            .iter()
+            .filter(|c| c.kind.as_deref() == Some("module"))
+            .collect();
+        assert!(!modules.is_empty(), "should have at least one module child");
+
+        // The main module should have a name.
+        let main_module = modules
+            .iter()
+            .find(|m| m.name.as_deref() == Some("sample_wasi_http_rust.wasm"));
+        assert!(main_module.is_some(), "should have the main Rust module");
+
+        // The main module should report languages.
+        let main = main_module.unwrap();
+        assert!(
+            main.languages.contains(&"Rust".to_string()),
+            "main module should list Rust as a language"
+        );
+
+        // The main module should have producers.
+        assert!(
+            !main.producers.is_empty(),
+            "main module should have producers"
+        );
+        assert!(
+            main.producers.iter().any(|p| p.name == "rustc"),
+            "main module should have rustc as a producer"
+        );
+
+        // Root component should have producers (wit-component, cargo-component).
+        assert!(
+            !summary.producers.is_empty(),
+            "root component should have producers"
+        );
+        assert!(
+            summary.producers.iter().any(|p| p.name == "wit-component"),
+            "root should have wit-component producer"
+        );
+
+        // Root component should have WIT imports.
+        assert!(
+            !summary.imports.is_empty(),
+            "root component should have WIT imports"
+        );
+
+        // Should import wasi:http interfaces.
+        assert!(
+            summary.imports.iter().any(|i| i.package == "wasi:http"),
+            "should import wasi:http"
+        );
+
+        // Should have a size.
+        assert!(summary.size_bytes.is_some(), "should have a size");
+    }
+
+    #[test]
+    fn component_metadata_round_trips_through_store() {
+        let Some(bytes) = read_sample_component() else {
+            eprintln!("skipping: sample component not found");
+            return;
+        };
+
+        let conn = setup_test_db();
+        let manifest_id = insert_test_manifest(&conn);
+
+        // Extract and store metadata (simulating what try_extract_wit_package does).
+        let (comp_name, comp_desc, producers_json) = super::extract_component_metadata(&bytes);
+        WasmComponent::insert(
+            &conn,
+            manifest_id,
+            None,
+            comp_name.as_deref(),
+            comp_desc.as_deref(),
+            producers_json.as_deref(),
+        )
+        .unwrap();
+
+        // Query it back via the store.
+        let store = Store::from_conn(conn);
+        let components = store.get_components_for_manifest(manifest_id).unwrap();
+
+        assert_eq!(components.len(), 1, "should have one component");
+        let comp = &components[0];
+
+        // Should have children.
+        assert!(
+            !comp.children.is_empty(),
+            "queried component should have children"
+        );
+
+        // Should have producers.
+        assert!(
+            !comp.producers.is_empty(),
+            "queried component should have producers"
+        );
+
+        // Should have WIT imports.
+        assert!(
+            !comp.imports.is_empty(),
+            "queried component should have WIT imports"
+        );
+
+        // Children should be preserved.
+        let modules: Vec<_> = comp
+            .children
+            .iter()
+            .filter(|c| c.kind.as_deref() == Some("module"))
+            .collect();
+        assert!(
+            !modules.is_empty(),
+            "queried component should have module children"
+        );
+
+        // Child producers should be preserved.
+        let main = modules
+            .iter()
+            .find(|m| m.name.as_deref() == Some("sample_wasi_http_rust.wasm"));
+        assert!(main.is_some(), "main module should survive round-trip");
+        assert!(
+            !main.unwrap().producers.is_empty(),
+            "child producers should survive round-trip"
+        );
+    }
 }
