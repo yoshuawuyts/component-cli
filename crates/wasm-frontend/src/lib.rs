@@ -69,6 +69,14 @@ fn app() -> Router {
             "/{namespace}/{name}/{version}/world/{world_name}",
             get(world_detail),
         )
+        .route(
+            "/{namespace}/{name}/{version}/module/{child_name}",
+            get(module_detail),
+        )
+        .route(
+            "/{namespace}/{name}/{version}/component/{child_index}",
+            get(child_component_detail),
+        )
         .fallback(not_found)
 }
 
@@ -357,6 +365,74 @@ async fn fetch_wit_doc(
     );
     let doc = wit_doc::parse_wit_doc(wit_text, &url_base, &dep_urls).ok()?;
     Some((doc, detail))
+}
+
+/// Module detail page at `/<namespace>/<name>/<version>/module/<child_name>`.
+async fn module_detail(
+    Path((namespace, name, version, child_name)): Path<(String, String, String, String)>,
+) -> Response {
+    let client = RegistryClient::from_env();
+    let pkg = match fetch_package_or_404(&client, &namespace, &name, &version).await {
+        Ok(Some(pkg)) => pkg,
+        Ok(None) => return not_found_response(),
+        Err(resp) => return resp,
+    };
+    let version_detail = client
+        .fetch_package_version(&pkg.registry, &pkg.repository, &version)
+        .await
+        .ok()
+        .flatten();
+    let child = version_detail.as_ref().and_then(|d| {
+        d.components.iter().flat_map(|c| &c.children).find(|ch| {
+            ch.kind.as_deref() == Some("module") && ch.name.as_deref() == Some(child_name.as_str())
+        })
+    });
+    let Some(child) = child else {
+        return not_found_response();
+    };
+    let html =
+        pages::child_component::render(&pkg, &version, version_detail.as_ref(), child, &child_name);
+    with_cache_control(html, "public, max-age=300")
+}
+
+/// Child component detail page at `/<namespace>/<name>/<version>/component/<index>`.
+async fn child_component_detail(
+    Path((namespace, name, version, child_index)): Path<(String, String, String, String)>,
+) -> Response {
+    let client = RegistryClient::from_env();
+    let pkg = match fetch_package_or_404(&client, &namespace, &name, &version).await {
+        Ok(Some(pkg)) => pkg,
+        Ok(None) => return not_found_response(),
+        Err(resp) => return resp,
+    };
+    let version_detail = client
+        .fetch_package_version(&pkg.registry, &pkg.repository, &version)
+        .await
+        .ok()
+        .flatten();
+    let idx: usize = child_index.parse().unwrap_or(usize::MAX);
+    let child = version_detail.as_ref().and_then(|d| {
+        d.components
+            .iter()
+            .flat_map(|c| &c.children)
+            .filter(|ch| ch.kind.as_deref() == Some("component"))
+            .nth(idx)
+    });
+    let Some(child) = child else {
+        return not_found_response();
+    };
+    let display_name = child
+        .name
+        .clone()
+        .unwrap_or_else(|| format!("component[{child_index}]"));
+    let html = pages::child_component::render(
+        &pkg,
+        &version,
+        version_detail.as_ref(),
+        child,
+        &display_name,
+    );
+    with_cache_control(html, "public, max-age=300")
 }
 
 /// Fetch a package by WIT namespace/name, validating the version exists.

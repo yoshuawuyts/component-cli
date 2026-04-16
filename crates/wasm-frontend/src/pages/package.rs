@@ -64,7 +64,7 @@ pub(crate) fn render(
     );
 
     let wit_content = if let Some(detail) = version_detail {
-        render_wit_content_with_doc(detail, &url_base, wit_doc.as_ref(), &display_name).to_string()
+        render_wit_content_with_doc(detail, &url_base, wit_doc.as_ref(), pkg, version).to_string()
     } else {
         String::new()
     };
@@ -91,7 +91,8 @@ fn render_wit_content_with_doc(
     detail: &PackageVersion,
     _url_base: &str,
     doc: Option<&WitDocument>,
-    pkg_name: &str,
+    pkg: &KnownPackage,
+    version: &str,
 ) -> Section {
     let mut section = Section::builder();
     section.class("space-y-10");
@@ -118,14 +119,91 @@ fn render_wit_content_with_doc(
         }
     }
 
-    // Component metadata (toolchain, children).
+    // Component children: list modules and nested components as navigable sections.
     for comp in &detail.components {
-        if !comp.producers.is_empty() || !comp.children.is_empty() {
-            section.push(render_component_metadata(comp, pkg_name));
+        let url_base = package_shell::url_base_for(pkg, version);
+
+        // Modules section
+        let modules: Vec<&wasm_meta_registry_client::ComponentSummary> = comp
+            .children
+            .iter()
+            .filter(|ch| ch.kind.as_deref() == Some("module"))
+            .collect();
+        if !modules.is_empty() {
+            section.push(render_children_overview(
+                "Modules", &modules, &url_base, "module",
+            ));
+        }
+
+        // Nested components section
+        let components: Vec<&wasm_meta_registry_client::ComponentSummary> = comp
+            .children
+            .iter()
+            .filter(|ch| ch.kind.as_deref() == Some("component"))
+            .collect();
+        if !components.is_empty() {
+            section.push(render_children_overview(
+                "Components",
+                &components,
+                &url_base,
+                "component",
+            ));
+        }
+
+        // Root toolchain
+        if !comp.producers.is_empty() {
+            section.push(render_producers(&comp.producers));
         }
     }
 
     section.build()
+}
+
+/// Render a section listing child modules or components as navigable links.
+fn render_children_overview(
+    heading: &str,
+    children: &[&wasm_meta_registry_client::ComponentSummary],
+    url_base: &str,
+    kind: &str,
+) -> Division {
+    let mut div = Division::builder();
+    div.heading_2(|h2| {
+        h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
+            .text(heading.to_owned())
+    });
+
+    let mut ul = UnorderedList::builder();
+    for (i, child) in children.iter().enumerate() {
+        let fallback = format!("{kind}[{i}]");
+        let name = child.name.as_deref().unwrap_or(&fallback);
+        let href = if kind == "module" {
+            format!("{url_base}/module/{name}")
+        } else {
+            format!("{url_base}/component/{i}")
+        };
+        let size = child.size_bytes.map(format_size).unwrap_or_default();
+
+        let link_class = if kind == "component" {
+            "font-mono text-base font-medium text-wit-world hover:underline"
+        } else {
+            "font-mono text-base font-medium text-wit-iface hover:underline"
+        };
+
+        ul.list_item(|li| {
+            li.class("py-1 flex justify-between");
+            li.anchor(|a| {
+                a.href(href)
+                    .class(link_class.to_owned())
+                    .text(name.to_owned())
+            });
+            if !size.is_empty() {
+                li.span(|s| s.class("text-sm text-fg-muted").text(size));
+            }
+            li
+        });
+    }
+    div.push(ul.build());
+    div.build()
 }
 
 /// Try parsing the WIT text into a rich document model.
@@ -332,187 +410,8 @@ fn build_iface_href(iface: &wasm_meta_registry_client::WitInterfaceRef) -> Optio
     }
 }
 
-/// Render component metadata: summary table + toolchain details.
-fn render_component_metadata(
-    comp: &wasm_meta_registry_client::ComponentSummary,
-    _pkg_name: &str,
-) -> Division {
-    use html::tables::Table;
-
-    let mut div = Division::builder();
-    div.class("space-y-8");
-
-    // Component summary table (kind, name, size, languages, children)
-    if !comp.children.is_empty() {
-        div.heading_2(|h2| {
-            h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
-                .text("Component Structure")
-        });
-
-        let mut table = Table::builder();
-        table.class("w-full text-sm");
-        table.table_row(|tr| {
-            tr.class("border-b-2 border-fg text-left text-fg-muted")
-                .table_header(|th| th.class("py-2 pr-4 font-medium").text("Kind"))
-                .table_header(|th| th.class("py-2 pr-4 font-medium").text("Name"))
-                .table_header(|th| th.class("py-2 pr-4 font-medium").text("Size"))
-                .table_header(|th| th.class("py-2 font-medium").text("Languages"))
-        });
-        let all_items = std::iter::once(comp).chain(comp.children.iter());
-        for (i, item) in all_items.enumerate() {
-            let fallback = if i == 0 { Some("<root>") } else { None };
-            table.push(build_summary_row(item, fallback));
-        }
-        div.push(table.build());
-    }
-
-    // Toolchain details (producers from root + children)
-    if !comp.producers.is_empty() {
-        div.push(render_producers(&comp.producers));
-    }
-
-    // Metadata links/info
-    let has_meta = comp.source.is_some()
-        || comp.homepage.is_some()
-        || comp.licenses.is_some()
-        || comp.authors.is_some()
-        || comp.revision.is_some()
-        || comp.component_version.is_some();
-    if has_meta {
-        div.push(render_component_info(comp));
-    }
-
-    // Rust crate dependencies (cargo-auditable)
-    if !comp.bill_of_materials.is_empty() {
-        div.push(render_bom(&comp.bill_of_materials));
-    }
-
-    div.build()
-}
-
-/// Render component metadata fields (source, homepage, etc.) as a definition list.
-fn render_component_info(comp: &wasm_meta_registry_client::ComponentSummary) -> Division {
-    let mut div = Division::builder();
-    div.heading_2(|h2| {
-        h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
-            .text("Metadata")
-    });
-
-    let mut dl = html::text_content::DescriptionList::builder();
-    dl.class("grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm");
-
-    let mut add_row = |label: &str, value: &str, is_link: bool| {
-        let label = label.to_owned();
-        let value = value.to_owned();
-        dl.description_term(|dt| dt.class("text-fg-muted font-medium").text(label));
-        if is_link {
-            let v = value.clone();
-            dl.description_details(|dd| {
-                dd.anchor(|a| {
-                    a.href(v)
-                        .class("font-mono text-accent hover:underline break-all")
-                        .text(value)
-                })
-            });
-        } else {
-            dl.description_details(|dd| dd.class("font-mono text-fg break-all").text(value));
-        }
-    };
-
-    if let Some(v) = &comp.component_version {
-        add_row("Version", v, false);
-    }
-    if let Some(a) = &comp.authors {
-        add_row("Authors", a, false);
-    }
-    if let Some(l) = &comp.licenses {
-        add_row("License", l, false);
-    }
-    if let Some(s) = &comp.source {
-        add_row("Source", s, true);
-    }
-    if let Some(h) = &comp.homepage {
-        add_row("Homepage", h, true);
-    }
-    if let Some(r) = &comp.revision {
-        add_row("Revision", r, false);
-    }
-
-    div.push(dl.build());
-    div.build()
-}
-
-/// Render Rust crate dependencies (from cargo-auditable metadata).
-fn render_bom(deps: &[wasm_meta_registry_client::BomEntry]) -> Division {
-    use html::tables::Table;
-
-    let mut div = Division::builder();
-    div.heading_2(|h2| {
-        h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
-            .text(format!("Bill of Materials ({})", deps.len()))
-    });
-
-    let mut table = Table::builder();
-    table.class("w-full text-sm");
-    table.table_row(|tr| {
-        tr.class("border-b-2 border-fg text-left text-fg-muted")
-            .table_header(|th| th.class("py-2 pr-4 font-medium").text("Crate"))
-            .table_header(|th| th.class("py-2 font-medium").text("Version"))
-    });
-    for dep in deps {
-        let name = dep.name.clone();
-        let version = dep.version.clone();
-        let href = format!("https://crates.io/crates/{name}");
-        table.push(
-            html::tables::TableRow::builder()
-                .class("border-b border-border-light")
-                .table_cell(|td| {
-                    td.class("py-1.5 pr-4").anchor(|a| {
-                        a.href(href)
-                            .class("font-mono text-accent hover:underline")
-                            .text(name)
-                    })
-                })
-                .table_cell(|td| td.class("py-1.5 font-mono text-fg").text(version))
-                .build(),
-        );
-    }
-    div.push(table.build());
-    div.build()
-}
-
-/// Build a table row for a component/module in the summary table.
-fn build_summary_row(
-    comp: &wasm_meta_registry_client::ComponentSummary,
-    name_fallback: Option<&str>,
-) -> html::tables::TableRow {
-    let kind = comp.kind.as_deref().unwrap_or("unknown").to_owned();
-    let name = comp
-        .name
-        .as_deref()
-        .or(name_fallback)
-        .unwrap_or("<unnamed>")
-        .to_owned();
-    let size = comp
-        .size_bytes
-        .map_or_else(|| "\u{2014}".to_owned(), format_size);
-    let langs = if comp.languages.is_empty() {
-        "\u{2014}".to_owned()
-    } else {
-        comp.languages.join(", ")
-    };
-
-    html::tables::TableRow::builder()
-        .class("border-b border-border-light")
-        .table_cell(|td| td.class("py-2 pr-4 text-fg-muted").text(kind))
-        .table_cell(|td| td.class("py-2 pr-4 font-mono text-fg").text(name))
-        .table_cell(|td| td.class("py-2 pr-4 text-fg").text(size))
-        .table_cell(|td| td.class("py-2 text-fg-secondary").text(langs))
-        .build()
-}
-
 /// Format a byte size into a human-readable string.
-fn format_size(bytes: u64) -> String {
+pub(crate) fn format_size(bytes: u64) -> String {
     const KIB: u64 = 1024;
     const MIB: u64 = 1024 * KIB;
     #[allow(clippy::cast_precision_loss)]
@@ -523,46 +422,43 @@ fn format_size(bytes: u64) -> String {
     }
 }
 
-/// Render producer toolchain entries as a table.
+/// Render producer toolchain entries as a list.
 fn render_producers(producers: &[wasm_meta_registry_client::ProducerEntry]) -> Division {
-    use html::tables::Table;
-
     let mut div = Division::builder();
     div.heading_2(|h2| {
         h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
-            .text("Toolchain")
+            .text("Producers")
     });
 
-    let mut table = Table::builder();
-    table.class("w-full text-sm");
-    table.table_row(|tr| {
-        tr.class("border-b-2 border-fg text-left text-fg-muted")
-            .table_header(|th| th.class("py-2 pr-4 font-medium").text("Field"))
-            .table_header(|th| th.class("py-2 pr-4 font-medium").text("Name"))
-            .table_header(|th| th.class("py-2 font-medium").text("Version"))
-    });
+    let mut ul = UnorderedList::builder();
     for entry in producers {
-        table.table_row(|tr| {
-            tr.class("border-b border-border-light")
-                .table_cell(|td| {
-                    td.class("py-2 pr-4 text-fg-muted")
-                        .text(entry.field.clone())
-                })
-                .table_cell(|td| {
-                    td.class("py-2 pr-4 font-mono text-accent")
-                        .text(entry.name.clone())
-                })
-                .table_cell(|td| {
-                    td.class("py-2 font-mono text-fg")
-                        .text(if entry.version.is_empty() {
-                            "\u{2014}".to_owned()
-                        } else {
-                            entry.version.clone()
-                        })
-                })
+        let name = entry.name.clone();
+        let version = entry.version.clone();
+        let field = entry.field.clone();
+        let tooltip = if version.is_empty() {
+            name.clone()
+        } else {
+            format!("{name} {version}")
+        };
+        ul.list_item(|li| {
+            li.class("py-1 flex justify-between gap-4");
+            li.span(|s| {
+                s.class("font-mono text-base min-w-0 truncate")
+                    .title(tooltip);
+                s.span(|n| n.class("text-accent").text(name));
+                if !version.is_empty() {
+                    s.span(|v| v.class("text-fg-muted ml-1").text(version));
+                }
+                s
+            });
+            li.span(|s| {
+                s.class("text-sm text-fg-muted shrink-0 whitespace-nowrap")
+                    .text(field)
+            });
+            li
         });
     }
-    div.push(table.build());
+    div.push(ul.build());
     div.build()
 }
 
@@ -572,50 +468,6 @@ fn first_sentence(text: &str) -> String {
         || text.trim().to_owned(),
         |(first, _)| first.trim().to_owned(),
     )
-}
-/// Render the OCI layers table.
-fn render_oci_layers(layers: &[wasm_meta_registry_client::LayerInfo]) -> Division {
-    use html::tables::Table;
-
-    let mut div = Division::builder();
-    div.heading_2(|h2| {
-        h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
-            .text("OCI Layers")
-    });
-
-    let mut table = Table::builder();
-    table.class("w-full text-sm");
-    table.table_row(|tr| {
-        tr.class("border-b-2 border-fg text-left text-fg-muted")
-            .table_header(|th| th.class("py-2 pr-4 font-medium").text("Media Type"))
-            .table_header(|th| th.class("py-2 pr-4 font-medium").text("Size"))
-            .table_header(|th| th.class("py-2 font-medium").text("Digest"))
-    });
-    for layer in layers {
-        let media = layer.media_type.as_deref().unwrap_or("unknown").to_owned();
-        let size = layer.size_bytes.map_or_else(
-            || "\u{2014}".to_owned(),
-            |b| format_size(u64::try_from(b).unwrap_or(0)),
-        );
-        let digest_short = if layer.digest.len() > 19 {
-            format!("{}…", &layer.digest[..19])
-        } else {
-            layer.digest.clone()
-        };
-        table.push(
-            html::tables::TableRow::builder()
-                .class("border-b border-border-light")
-                .table_cell(|td| td.class("py-2 pr-4 font-mono text-fg").text(media))
-                .table_cell(|td| td.class("py-2 pr-4 text-fg").text(size))
-                .table_cell(|td| {
-                    td.class("py-2 font-mono text-fg-muted text-xs")
-                        .text(digest_short)
-                })
-                .build(),
-        );
-    }
-    div.push(table.build());
-    div.build()
 }
 
 /// Detect whether WIT text is the lossy hand-rolled format rather than
