@@ -56,11 +56,24 @@ pub(crate) fn render(
     let mut content = Division::builder();
     content.class("space-y-10 max-w-3xl");
 
+    // Build a doc lookup from the API's enriched world data (has cross-package docs).
+    let api_docs = build_api_doc_lookup(version_detail, &world.name);
+
     if !world.imports.is_empty() {
-        content.push(render_item_section("Imports", &world.imports, true));
+        content.push(render_item_section(
+            "Imports",
+            &world.imports,
+            true,
+            &api_docs,
+        ));
     }
     if !world.exports.is_empty() {
-        content.push(render_item_section("Exports", &world.exports, false));
+        content.push(render_item_section(
+            "Exports",
+            &world.exports,
+            false,
+            &api_docs,
+        ));
     }
 
     let body_html = format!("{header}{}", content.build());
@@ -75,19 +88,55 @@ pub(crate) fn render(
     package_shell::render_page_with_crumbs(&ctx, &title, &body_html, &[])
 }
 
+/// Build a lookup map of interface name → doc string from the API's enriched
+/// world data. This provides cross-package docs that the WIT parser can't.
+fn build_api_doc_lookup(
+    version_detail: Option<&PackageVersion>,
+    world_name: &str,
+) -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
+    let Some(detail) = version_detail else {
+        return map;
+    };
+    for world in &detail.worlds {
+        if world.name != world_name {
+            continue;
+        }
+        for iface in world.imports.iter().chain(world.exports.iter()) {
+            if let Some(docs) = &iface.docs {
+                let mut key = iface.package.clone();
+                if let Some(name) = &iface.interface {
+                    key.push('/');
+                    key.push_str(name);
+                }
+                map.insert(key, docs.clone());
+            }
+        }
+    }
+    map
+}
+
 /// Render an imports or exports section, grouped by package namespace.
-fn render_item_section(heading: &str, items: &[WorldItemDoc], is_import: bool) -> Division {
+fn render_item_section(
+    heading: &str,
+    items: &[WorldItemDoc],
+    is_import: bool,
+    api_docs: &std::collections::HashMap<String, String>,
+) -> Division {
     // Separate interface items (shared rendering) from non-interface items
     let mut iface_entries: Vec<package_shell::ImportExportEntry> = Vec::new();
     let mut other_items: Vec<&WorldItemDoc> = Vec::new();
 
     for item in items {
         match item {
-            WorldItemDoc::Interface { name, url } => {
+            WorldItemDoc::Interface { name, url, docs } => {
+                // Use WIT-parsed docs first, fall back to API-enriched docs.
+                let display = strip_version(name);
+                let effective_docs = docs.clone().or_else(|| api_docs.get(display).cloned());
                 iface_entries.push(package_shell::ImportExportEntry {
-                    label: strip_version(name).to_owned(),
+                    label: display.to_owned(),
                     url: url.clone(),
-                    docs: None,
+                    docs: effective_docs,
                 });
             }
             _ => other_items.push(item),
@@ -145,6 +194,7 @@ fn render_world_item_row(item: &WorldItemDoc, link_color: &str) -> ListItem {
         WorldItemDoc::Interface {
             name,
             url: Some(url),
+            ..
         } => {
             let display = strip_version(name);
             li.anchor(|a| {
@@ -153,7 +203,9 @@ fn render_world_item_row(item: &WorldItemDoc, link_color: &str) -> ListItem {
                     .text(display.to_owned())
             });
         }
-        WorldItemDoc::Interface { name, url: None } => {
+        WorldItemDoc::Interface {
+            name, url: None, ..
+        } => {
             let display = strip_version(name);
             li.span(|s| {
                 s.class("block font-mono text-fg text-base")

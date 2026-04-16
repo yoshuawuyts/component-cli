@@ -304,7 +304,7 @@ world proxy {
         assert!(!world.exports.is_empty());
 
         match &world.imports[0] {
-            WorldItemDoc::Interface { name, url } => {
+            WorldItemDoc::Interface { name, url, .. } => {
                 assert!(name.contains("handler"));
                 assert!(url.is_some());
             }

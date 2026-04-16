@@ -280,6 +280,9 @@ pub(crate) enum WorldItemDoc {
         /// Pre-resolved URL to the interface page, if available.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         url: Option<String>,
+        /// First sentence of the interface's documentation.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        docs: Option<String>,
     },
     /// A freestanding function import/export.
     Function(FunctionDoc),

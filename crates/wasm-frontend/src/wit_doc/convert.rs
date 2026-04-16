@@ -484,9 +484,14 @@ impl Converter<'_> {
                     .get(*id)
                     .expect("interface id should be valid");
                 let (display_name, url) = self.resolve_interface_ref(*id, iface);
+                let docs = iface.docs.contents.as_deref().map(|d| {
+                    d.split_once("\n\n")
+                        .map_or_else(|| d.trim().to_owned(), |(first, _)| first.trim().to_owned())
+                });
                 WorldItemDoc::Interface {
                     name: display_name,
                     url,
+                    docs,
                 }
             }
             WorldItem::Function(func) => {

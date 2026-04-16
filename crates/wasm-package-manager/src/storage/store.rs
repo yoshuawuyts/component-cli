@@ -1420,8 +1420,10 @@ impl Store {
         for pkg_id in pkg_ids {
             let db_worlds = WitWorld::list_by_type(&self.conn, pkg_id)?;
             for w in db_worlds {
-                let imports = self.get_world_imports(w.id())?;
-                let exports = self.get_world_exports(w.id())?;
+                let mut imports = self.get_world_imports(w.id())?;
+                let mut exports = self.get_world_exports(w.id())?;
+                self.enrich_iface_docs(&mut imports);
+                self.enrich_iface_docs(&mut exports);
                 worlds.push(WitWorldSummary {
                     name: w.name,
                     description: w.description,
