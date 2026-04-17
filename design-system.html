@@ -45,7 +45,9 @@
               },
               line: "var(--c-line)",
               lineSoft: "var(--c-line-soft)",
+              rule: "var(--c-rule)",
               positive: "var(--c-positive)",
+              negative: "var(--c-negative)",
               cat: {
                 blue: "var(--c-cat-blue)",
                 blueInk: "var(--c-cat-blue-ink)",
@@ -104,6 +106,7 @@
         --c-line:          #D4D4D8;
         --c-line-soft:     #E4E4E7;
         --c-positive:      #1F8A4C;
+        --c-negative:      #9B4F5E;
 
         --c-cat-blue:      #D6E4FF;  --c-cat-blue-ink:   #3D5A99;
         --c-cat-pink:      #FBD9DF;  --c-cat-pink-ink:   #9B4F5E;
@@ -137,6 +140,10 @@
           --c-line:          #3A3A40;
           --c-line-soft:     #323238;
           --c-positive:      #4ADE80;
+          /* Negative needs to *pop* on dark canvas — the pastel
+             pinkInk reads muddy. A brighter coral keeps it warm,
+             not surgical-emergency-red. */
+          --c-negative:      #F87C90;
 
           /* Categoricals: keep the *exact* light-mode pastels.
              Against the dark canvas they read like little colored
@@ -172,6 +179,7 @@
         --c-line:          #3A3A40;
         --c-line-soft:     #323238;
         --c-positive:      #4ADE80;
+        --c-negative:      #F87C90;
 
         --c-cat-blue:      #D6E4FF;  --c-cat-blue-ink:   #3D5A99;
         --c-cat-pink:      #FBD9DF;  --c-cat-pink-ink:   #9B4F5E;
@@ -734,7 +742,7 @@
             </div>
             <div>
               <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Underline tabs</h3>
-              <div class="flex items-center gap-6 border-b-[1.5px] border-ink-900">
+              <div class="flex items-center gap-6 border-b-[1.5px] border-rule">
                 <button class="relative pb-3 text-[15px] font-medium">
                   Aenean
                   <span class="absolute left-0 right-0 -bottom-[1.5px] h-[1.5px] bg-ink-900"></span>
@@ -790,7 +798,7 @@
               <li><a href="#" class="flex items-center px-3 h-9 rounded-md hover:bg-surfaceMuted text-ink-700">Vestibulum Ante</a></li>
               <li><a href="#" class="flex items-center px-3 h-9 rounded-md hover:bg-surfaceMuted text-ink-700">Convallis Dolor</a></li>
             </ul>
-            <div class="my-4 border-t-[1.5px] border-ink-900"></div>
+            <div class="my-4 border-t-[1.5px] border-rule"></div>
             <ul class="space-y-px text-[14px]">
               <li><a href="#" class="flex items-center px-3 h-9 rounded-md hover:bg-surfaceMuted text-ink-700">Faucibus</a></li>
               <li><a href="#" class="flex items-center px-3 h-9 rounded-md hover:bg-surfaceMuted text-ink-700">Suspendisse</a></li>
@@ -822,14 +830,14 @@
                 <div class="text-[12px] text-ink-500">Current Index</div>
                 <div class="text-[20px] font-semibold tracking-tight leading-tight mt-1">42.7 k</div>
               </div>
-              <div class="py-4 border-t-[1.5px] border-ink-900">
+              <div class="py-4 border-t-[1.5px] border-rule">
                 <div class="text-[12px] text-ink-500">Last cycle</div>
                 <div class="mt-1 flex items-baseline gap-1.5">
                   <span class="text-[20px] font-semibold tracking-tight leading-tight">38.1 k</span>
                   <span class="text-[11px] font-medium text-positive">+12.1%</span>
                 </div>
               </div>
-              <div class="pt-4 border-t-[1.5px] border-ink-900">
+              <div class="pt-4 border-t-[1.5px] border-rule">
                 <div class="text-[12px] text-ink-500">Two cycles ago</div>
                 <div class="mt-1 flex items-baseline gap-1.5">
                   <span class="text-[20px] font-semibold tracking-tight leading-tight">31.4 k</span>
@@ -948,10 +956,10 @@
                 </tr>
                 <tr class="border-t-[1.5px] border-lineSoft">
                   <td class="py-5 pr-6 font-medium">Dolor outflow</td>
-                  <td class="text-right px-4 tabular-nums text-cat-pinkInk">−1 423</td>
-                  <td class="text-right px-4 tabular-nums text-cat-pinkInk">−984</td>
-                  <td class="text-right px-4 tabular-nums text-cat-pinkInk">−762</td>
-                  <td class="text-right px-4 tabular-nums text-cat-pinkInk">−1 889</td>
+                  <td class="text-right px-4 tabular-nums text-negative">−1 423</td>
+                  <td class="text-right px-4 tabular-nums text-negative">−984</td>
+                  <td class="text-right px-4 tabular-nums text-negative">−762</td>
+                  <td class="text-right px-4 tabular-nums text-negative">−1 889</td>
                 </tr>
                 <tr class="border-t-[1.5px] border-lineSoft">
                   <td class="py-5 pr-6 font-medium">Net amet</td>
@@ -1065,9 +1073,9 @@
             </label>
             <!-- Error state -->
             <label class="block">
-              <span class="text-[12px] text-cat-pinkInk">Error state</span>
-              <input type="text" value="Invalid value" class="mt-1 block w-full h-9 px-3 rounded-md border border-cat-pinkInk bg-surface text-[14px]" />
-              <span class="mt-1 block text-[11px] text-cat-pinkInk">Pellentesque habitant morbi.</span>
+              <span class="text-[12px] text-negative">Error state</span>
+              <input type="text" value="Invalid value" class="mt-1 block w-full h-9 px-3 rounded-md border border-negative bg-surface text-[14px]" />
+              <span class="mt-1 block text-[11px] text-negative">Pellentesque habitant morbi.</span>
             </label>
             <!-- Disabled -->
             <label class="block">
@@ -1385,7 +1393,7 @@
                 <span class="ml-auto text-[11px] mono text-ink-400">⌘S</span>
               </button>
               <div class="my-1 border-t border-lineSoft"></div>
-              <button class="w-full text-left px-3 h-8 hover:bg-surfaceMuted flex items-center gap-2 text-cat-pinkInk">
+              <button class="w-full text-left px-3 h-8 hover:bg-surfaceMuted flex items-center gap-2 text-negative">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                 Delete
               </button>
@@ -1410,8 +1418,17 @@
               padding. Header / body / footer rhythm.
             </p>
           </div>
-          <div class="relative rounded-lg p-8 md:p-12" style="background: color-mix(in oklab, var(--c-ink-900) 50%, transparent);">
-            <div class="mx-auto max-w-md bg-surface border border-line rounded-lg shadow-tooltip">
+          <div class="relative rounded-lg p-8 md:p-12 overflow-hidden bg-canvas">
+            <!-- Simulate the page beneath: a faint preview of content -->
+            <div class="absolute inset-0 p-6 select-none pointer-events-none" aria-hidden="true">
+              <div class="h-3 w-40 rounded mb-3" style="background: var(--c-ink-300);"></div>
+              <div class="h-2 w-72 rounded mb-2" style="background: var(--c-line);"></div>
+              <div class="h-2 w-64 rounded mb-2" style="background: var(--c-line);"></div>
+              <div class="h-2 w-56 rounded" style="background: var(--c-line);"></div>
+            </div>
+            <!-- Scrim: always-dark, regardless of theme, so it darkens the page -->
+            <div class="absolute inset-0" style="background: rgba(15, 15, 17, 0.55); backdrop-filter: blur(2px);"></div>
+            <div class="relative mx-auto max-w-md bg-surface border border-line rounded-lg shadow-tooltip">
               <div class="flex items-start justify-between p-5 border-b border-lineSoft">
                 <div>
                   <div class="text-[15px] font-semibold tracking-tight">Confirm action</div>
@@ -1847,7 +1864,7 @@
                     <dd>Aenean Lectus</dd>
                   </div>
                 </dl>
-                <div class="my-3 border-t-[1.5px] border-ink-900"></div>
+                <div class="my-3 border-t-[1.5px] border-rule"></div>
                 <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-1.5">Infrastructure</div>
                 <dl>
                   <div class="flex items-baseline justify-between gap-4 py-1.5">
@@ -1878,7 +1895,7 @@
                   <span class="inline-flex items-center px-2 h-5 rounded-pill bg-cat-green text-cat-greenInk text-[11px] font-medium">Active</span>
                 </div>
                 <div class="text-[11px] text-ink-500 mono mt-0.5">id_8a4f29c1</div>
-                <div class="my-4 border-t-[1.5px] border-ink-900"></div>
+                <div class="my-4 border-t-[1.5px] border-rule"></div>
                 <dl class="text-[13px]">
                   <div class="flex items-baseline justify-between gap-4 py-1.5">
                     <dt class="text-ink-500">Region</dt>
