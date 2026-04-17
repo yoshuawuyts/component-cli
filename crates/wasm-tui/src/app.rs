@@ -444,12 +444,12 @@ impl App {
             (KeyCode::Down | KeyCode::Char('j'), _) if self.current_tab == Tab::Interfaces => {
                 self.types_view_state.select_next(self.wit_types.len());
             }
-            (KeyCode::Enter, _) if self.current_tab == Tab::Interfaces => {
-                if !self.wit_types.is_empty() {
-                    self.types_view_state.viewing_detail = true;
-                    self.types_view_state.detail_scroll = 0;
-                    self.input_mode = InputMode::TypeDetail;
-                }
+            (KeyCode::Enter, _)
+                if self.current_tab == Tab::Interfaces && !self.wit_types.is_empty() =>
+            {
+                self.types_view_state.viewing_detail = true;
+                self.types_view_state.detail_scroll = 0;
+                self.input_mode = InputMode::TypeDetail;
             }
             // Pull selected package from search results (not in offline mode)
             (KeyCode::Char('p'), _)
@@ -480,10 +480,11 @@ impl App {
             (KeyCode::Up | KeyCode::Char('k'), _) if self.current_tab == Tab::Log => {
                 self.log_scroll = self.log_scroll.saturating_sub(1);
             }
-            (KeyCode::Down | KeyCode::Char('j'), _) if self.current_tab == Tab::Log => {
-                if self.log_scroll < self.log_lines.len().saturating_sub(1) {
-                    self.log_scroll += 1;
-                }
+            (KeyCode::Down | KeyCode::Char('j'), _)
+                if self.current_tab == Tab::Log
+                    && self.log_scroll < self.log_lines.len().saturating_sub(1) =>
+            {
+                self.log_scroll += 1;
             }
             (KeyCode::Char('G'), KeyModifiers::SHIFT) if self.current_tab == Tab::Log => {
                 self.log_scroll = self.log_lines.len().saturating_sub(1);
@@ -565,14 +566,12 @@ impl App {
             KeyCode::Esc => {
                 self.input_mode = InputMode::Normal;
             }
-            KeyCode::Enter => {
-                if !state.input.is_empty() {
-                    // Send pull request to manager
-                    let input = state.input.clone();
-                    state.in_progress = true;
-                    state.error = None;
-                    let _ = self.event_sender.try_send(AppEvent::Pull(input));
-                }
+            KeyCode::Enter if !state.input.is_empty() => {
+                // Send pull request to manager
+                let input = state.input.clone();
+                state.in_progress = true;
+                state.error = None;
+                let _ = self.event_sender.try_send(AppEvent::Pull(input));
             }
             KeyCode::Backspace => {
                 state.input.pop();

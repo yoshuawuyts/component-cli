@@ -104,7 +104,7 @@ impl std::fmt::Display for ManagerError {
                 write!(f, "failed to retrieve indexed package")
             }
             ManagerError::SyncNoLocalData { reason } => {
-                write!(f, "{reason}. No local data available",)
+                write!(f, "{reason}. No local data available")
             }
             ManagerError::NoTagsFound {
                 registry,

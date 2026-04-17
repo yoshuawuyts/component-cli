@@ -68,7 +68,7 @@ impl std::fmt::Display for OciLayerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OciLayerError::InvalidLayerCount { found } => {
-                write!(f, "expected exactly 1 layer in OCI bundle, found {found}",)
+                write!(f, "expected exactly 1 layer in OCI bundle, found {found}")
             }
             OciLayerError::InvalidMediaType { found } => {
                 write!(

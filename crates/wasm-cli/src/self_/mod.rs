@@ -175,9 +175,7 @@ impl Opts {
                 if dotenv_path.exists() {
                     // Count variables defined in the file (system env vars take precedence;
                     // variables already set in the environment are not overridden).
-                    let var_count = dotenvy::from_path_iter(dotenv_path)
-                        .map(Iterator::count)
-                        .unwrap_or(0);
+                    let var_count = dotenvy::from_path_iter(dotenv_path).map_or(0, Iterator::count);
                     println!("Status:\t\texists ({var_count} variable(s) defined in file)");
                 } else {
                     println!("Status:\t\tnot found");

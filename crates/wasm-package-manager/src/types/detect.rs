@@ -26,11 +26,9 @@ pub fn is_wit_package(bytes: &[u8]) -> bool {
     let parser = Parser::new(0);
     for payload in parser.parse_all(bytes) {
         match payload {
-            Ok(Payload::Version { encoding, .. }) => {
-                if encoding != Encoding::Component {
-                    // Core modules are not WIT packages
-                    return false;
-                }
+            Ok(Payload::Version { encoding, .. }) if encoding != Encoding::Component => {
+                // Core modules are not WIT packages
+                return false;
             }
             Ok(
                 Payload::ModuleSection { .. }

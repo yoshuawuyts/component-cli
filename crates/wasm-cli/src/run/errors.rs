@@ -101,10 +101,10 @@ impl std::fmt::Display for RunError {
                 )
             }
             RunError::InvalidRegistryPath { path, name } => {
-                write!(f, "invalid registry path '{path}' in lockfile for '{name}'",)
+                write!(f, "invalid registry path '{path}' in lockfile for '{name}'")
             }
             RunError::VendoredFileMissing { path, name } => {
-                write!(f, "vendored file '{path}' not found for component '{name}'",)
+                write!(f, "vendored file '{path}' not found for component '{name}'")
             }
             RunError::HttpBindFailed { addr, reason } => {
                 write!(f, "failed to bind HTTP server to {addr}: {reason}")

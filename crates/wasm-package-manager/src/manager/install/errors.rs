@@ -62,7 +62,7 @@ impl std::fmt::Display for InstallError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             InstallError::InvalidInput { input } => {
-                write!(f, "'{input}' is not a valid OCI reference or manifest key",)
+                write!(f, "'{input}' is not a valid OCI reference or manifest key")
             }
             InstallError::InvalidReference { reason } => {
                 write!(f, "invalid OCI reference in manifest: {reason}")

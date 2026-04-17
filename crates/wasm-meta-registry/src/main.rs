@@ -109,7 +109,7 @@ async fn main() -> anyhow::Result<()> {
                 error!("Indexer thread has stopped unexpectedly");
                 break;
             }
-            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            tokio::time::sleep(std::time::Duration::from_mins(1)).await;
         }
     });
 

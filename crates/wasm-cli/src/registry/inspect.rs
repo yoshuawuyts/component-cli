@@ -133,11 +133,10 @@ fn write_summary_table_inner(
         .si_short()
         .to_string();
 
-    let percent = if range_max == 0 {
-        0usize
-    } else {
-        size_bytes.saturating_mul(100) / range_max
-    };
+    let percent = size_bytes
+        .saturating_mul(100)
+        .checked_div(range_max)
+        .unwrap_or(0);
     let usep = match u8::try_from(percent.min(100)).unwrap_or(100) {
         // If the item was truly empty, it wouldn't be part of the binary
         0..=1 => "<1%".to_string(),

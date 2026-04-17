@@ -137,8 +137,7 @@ impl Store {
         let store_size = dir_size(&store_dir).await;
         let metadata_size = tokio::fs::metadata(&metadata_file)
             .await
-            .map(|m| m.len())
-            .unwrap_or(0);
+            .map_or(0, |m| m.len());
         let state_info = StateInfo::new_at(
             data_dir,
             config_file,
