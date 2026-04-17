@@ -1,0 +1,602 @@
+---
+source: crates/wasm-frontend-test/tests/snapshot.rs
+expression: normalized
+---
+<!DOCTYPE html>
+<html lang="en" style="view-transition-name:root;background:#d9d9d9">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Browse and discover WebAssembly components and WIT interfaces published to OCI registries.">
+  <title>ba:sample-wasi-http-rust — wasm registry</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="preload" href="/fonts/iosevka-regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/iosevka-semibold.woff2" as="font" type="font/woff2" crossorigin>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            accent: 'var(--color-accent)',
+            'accent-hover': 'var(--color-accent-hover)',
+            page: 'var(--color-bg)',
+            // Violet-tinted neutrals driven by CSS custom properties
+            surface: {
+              DEFAULT: 'var(--color-surface)',
+              muted:   'var(--color-surface-muted)',
+            },
+            border: {
+              DEFAULT: 'var(--color-border)',
+              light:   'var(--color-border-light)',
+            },
+            fg: {
+              DEFAULT:   'var(--color-fg)',
+              secondary: 'var(--color-fg-secondary)',
+              muted:     'var(--color-fg-muted)',
+              faint:     'var(--color-fg-faint)',
+            },
+            // WIT item kind colors
+            wit: {
+              struct:   'var(--color-wit-struct)',
+              enum:     'var(--color-wit-enum)',
+              resource: 'var(--color-wit-resource)',
+              func:     'var(--color-wit-func)',
+              world:    'var(--color-wit-world)',
+              iface:    'var(--color-wit-iface)',
+              import:   'var(--color-wit-import)',
+              module:   'var(--color-wit-module)',
+            },
+          },
+          fontFamily: {
+            sans: ['"Source Serif 4"', 'Georgia', 'serif'],
+            mono: ['"Iosevka Web"', 'Iosevka', '"SF Mono"', '"Fira Code"', '"Cascadia Code"', 'Consolas', 'monospace'],
+            display: ['"Iosevka Web"', 'Iosevka', '"SF Mono"', 'monospace'],
+          },
+          letterSpacing: {
+            display: '-0.06em',
+          },
+          fontSize: {
+            sm: ['0.875rem', { lineHeight: '1.375rem' }],
+            lg: ['1.125rem', { lineHeight: '1.625rem' }],
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Self-hosted Iosevka webfont */
+    @font-face {
+      font-family: 'Iosevka Web';
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: url('/fonts/iosevka-regular.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Iosevka Web';
+      font-style: normal;
+      font-weight: 500;
+      font-display: swap;
+      src: url('/fonts/iosevka-medium.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Iosevka Web';
+      font-style: normal;
+      font-weight: 600;
+      font-display: swap;
+      src: url('/fonts/iosevka-semibold.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Iosevka Web';
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+      src: url('/fonts/iosevka-bold.woff2') format('woff2');
+    }
+    /* Color system: two-tone, inspired by charcuterie.elastiq.ch.
+       Warm off-white background, vivid blue foreground. */
+    :root {
+      --color-bg: #d9d9d9;
+      --color-accent: #232cf4;
+      --color-accent-hover: #1a22c0;
+      --color-surface: #cfcfcf;
+      --color-surface-muted: #c8c8c8;
+      --color-border: rgba(35, 44, 244, 0.25);
+      --color-border-light: rgba(35, 44, 244, 0.12);
+      --color-fg: #232cf4;
+      --color-fg-secondary: rgba(35, 44, 244, 0.85);
+      --color-fg-muted: rgba(35, 44, 244, 0.70);
+      --color-fg-faint: rgba(35, 44, 244, 0.4);
+      /* WIT item kind colors */
+      --color-wit-struct: #4338ca;
+      --color-wit-enum: #0d7377;
+      --color-wit-resource: #b45309;
+      --color-wit-func: #15803d;
+      --color-wit-world: #9333ea;
+      --color-wit-iface: #0369a1;
+      --color-wit-import: #b91c1c;
+      --color-wit-module: #be185d;
+    }
+    html, body {
+      background-color: var(--color-bg);
+      color: var(--color-fg);
+    }
+    /* Consistent focus ring for keyboard navigation */
+    :focus-visible {
+      outline: 2px solid var(--color-accent);
+      outline-offset: 2px;
+    }
+    /* Remove default outline when not keyboard-navigating */
+    :focus:not(:focus-visible) {
+      outline: none;
+    }
+    @view-transition {
+      navigation: auto;
+    }
+    ::view-transition-old(root) {
+      animation: none;
+    }
+    ::view-transition-new(root) {
+      animation: none;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      ::view-transition-old(root),
+      ::view-transition-new(root) {
+        animation: none;
+      }
+    }
+    /* Card hover — pop out with scale, shadow, and strong border */
+    .card-lift {
+      transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
+      transform-origin: center center;
+    }
+    /* Prose styling for rendered markdown documentation */
+    .prose-doc p {
+      margin-bottom: 0.75em;
+    }
+    .prose-doc p:last-child {
+      margin-bottom: 0;
+    }
+    .prose-doc code {
+      background: var(--color-surface);
+      padding: 0.1em 0.3em;
+      font-size: 0.9em;
+    }
+    .prose-doc a {
+      color: var(--color-accent);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .prose-doc a:hover {
+      color: var(--color-accent-hover);
+    }
+    .prose-doc ul, .prose-doc ol {
+      margin: 0.5em 0;
+      padding-left: 1.5em;
+    }
+    .prose-doc li {
+      margin-bottom: 0.25em;
+    }
+    .prose-doc pre {
+      background: var(--color-surface);
+      padding: 0.75em 1em;
+      overflow-x: auto;
+      margin: 0.75em 0;
+      font-size: 0.875em;
+    }
+    .card-lift:hover {
+      transform: scale(1.03);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+      z-index: 1;
+      position: relative;
+      outline: 2px solid var(--color-fg);
+      outline-offset: -2px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .card-lift { transition: none; }
+      .card-lift:hover { transform: none; box-shadow: none; }
+    }
+    /* Card kind variants — thin left border for categorization */
+    .card-interface {
+      border-left: 2px solid var(--color-wit-iface);
+    }
+    .card-component {
+      border-left: 2px solid var(--color-accent);
+    }
+    /* Copy hint */
+    .copy-hint {
+      cursor: pointer;
+      position: relative;
+    }
+    .copy-hint::after {
+      content: 'click to copy';
+      position: absolute;
+      right: -0.25rem;
+      top: 50%;
+      transform: translateX(100%) translateY(-50%);
+      font-size: 0.65rem;
+      color: var(--color-fg-faint);
+      opacity: 0;
+      transition: opacity 0.15s;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    .copy-hint:hover::after {
+      opacity: 1;
+    }
+    .copy-hint.copied::after {
+      content: 'copied!';
+      color: var(--color-accent);
+      opacity: 1;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .copy-hint::after { transition: none; }
+    }
+    /* Keyboard shortcut badge — inside search input, Linear-style */
+    .search-kbd {
+      position: absolute;
+      right: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.5rem;
+      height: 1.5rem;
+      border: 2px solid var(--color-border);
+      border-radius: 0;
+      font-size: 0.8125rem;
+      font-family: inherit;
+      color: var(--color-fg-muted);
+      background: var(--color-surface-muted);
+      line-height: 1;
+      pointer-events: none;
+      transition: opacity 0.1s;
+    }
+    .search-form:focus-within .search-kbd {
+      opacity: 0;
+      pointer-events: none;
+    }
+    /* Search carousel placeholder */
+    .search-carousel {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1rem;
+      color: var(--color-fg-faint);
+      pointer-events: none;
+      white-space: nowrap;
+      overflow: hidden;
+      transition: opacity 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+    .carousel-word {
+      display: inline;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .carousel-word {
+        transition: none;
+      }
+    }
+    /* Tab buttons — square, bordered, Charcuterie style */
+    .tab-btn {
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      color: var(--color-fg);
+      background: var(--color-bg);
+      border: 2px solid var(--color-fg);
+      border-bottom: none;
+      margin-left: -2px;
+      cursor: pointer;
+      transition: color 0.15s, background-color 0.15s;
+      flex: 1;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .tab-btn:first-child {
+      margin-left: 0;
+    }
+    .tab-btn:hover {
+      background: var(--color-fg);
+      color: var(--color-bg);
+    }
+    .tab-btn:hover > * {
+      opacity: 1;
+    }
+    .tab-btn[aria-selected="true"] {
+      background: var(--color-fg);
+      color: var(--color-bg);
+    }
+    .tab-btn[aria-selected="true"] > * {
+      opacity: 1;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .tab-btn { transition: none; }
+    }
+  </style>
+</head>
+<body class="bg-page text-fg min-h-screen flex flex-col leading-relaxed font-sans">
+  
+  <main class="flex-1 w-full">
+    <style>
+  .page-grid {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "sidebar topbar"
+      "sidebar main";
+    gap: 0 2.5rem;
+    min-height: 100vh;
+  }
+  @media (min-width: 1280px) {
+    .page-grid {
+      grid-template-columns: 260px 1fr auto;
+      grid-template-areas:
+        "sidebar main rightbar"
+        "sidebar main rightbar";
+    }
+    .page-grid .topbar {
+      display: none;
+    }
+    .page-grid .rightbar {
+      display: block;
+    }
+  }
+  .sidebar-scroll {
+    scrollbar-width: none;
+  }
+  .sidebar-scroll::-webkit-scrollbar {
+    display: none;
+  }
+</style>
+<div class="page-grid pt-3 xl:pt-6">
+  <aside class="space-y-5 sidebar-scroll font-mono" style="grid-area:sidebar;position:sticky;top:1.5rem;align-self:start;display:flex;flex-direction:column;height:calc(100vh - 3rem);overflow-y:auto;padding-right:0.75rem;padding-left:0.75rem">
+    <div class="space-y-5 flex-1">
+    <div class="flex justify-center mb-4"><a href="/" id="bunny" aria-label="Home" role="link" class="text-lg font-mono font-medium text-fg hover:text-accent transition-colors" style="cursor:pointer;display:inline-block;width:12ch;text-align:left">(๑╹ᆺ╹)</a></div>
+    <div class="space-y-4" style="font-size:0.75rem;line-height:1.125rem"><div class=""><div class="space-y-3 border-2 border-fg p-3"><div class="flex items-center justify-between gap-3"><span class="text-fg-muted text-sm">Version</span><select name="version" class="bg-transparent text-fg text-sm cursor-pointer border-0 outline-none text-right" id="version-select"><option selected value="0.1.6">0.1.6</option><option value="0.1.5">0.1.5</option><option value="0.1.4">0.1.4</option></select><script>document.getElementById('version-select').addEventListener('change',function(){var p=window.location.pathname;var base='/ba/sample-wasi-http-rust/';var rest=p.indexOf(base)===0?p.slice(base.length):'';var slash=rest.indexOf('/');var sub=slash>=0?rest.slice(slash):'';window.location.href=base+this.value+sub})</script></div><div class="flex items-baseline justify-between gap-3"><span class="text-fg-muted text-sm shrink-0">Registry</span><a href="https://ghcr.io/bytecodealliance/sample-wasi-http-rust/sample-wasi-http-rust" class="text-accent hover:underline font-mono text-sm text-right truncate">GitHub Packages</a></div><div class="flex items-baseline justify-between gap-3"><span class="text-fg-muted text-sm shrink-0">Repository</span><a href="https://github.com/bytecodealliance/sample-wasi-http-rust" class="text-accent hover:underline font-mono text-sm text-right truncate">GitHub</a></div><div class="flex items-baseline justify-between gap-3"><span class="text-fg-muted text-sm shrink-0">License</span><span class="text-fg text-sm font-mono text-right">Apache-2.0 WITH LLVM-exception</span></div><div class="flex items-baseline justify-between gap-3"><span class="text-fg-muted text-sm shrink-0">Size</span><span class="text-fg text-sm font-mono text-right">238.8 KiB</span></div></div></div><div class=""><div class="text-sm font-medium text-fg-muted mb-1">Install</div><div><div class="flex items-center gap-2 border-2 border-fg px-3 py-2 font-mono text-sm text-fg"><code class="flex-1 select-all overflow-hidden whitespace-nowrap text-ellipsis">wasm install ba:sample-wasi-http-rust@0.1.6</code><button class="shrink-0 text-fg-muted hover:text-fg transition-opacity cursor-pointer" id="copy-install-btn"></button><script>(function(){var btn=document.getElementById('copy-install-btn');var copyIcon="<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>";var checkIcon="<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>";btn.innerHTML=copyIcon;btn.addEventListener('click',function(){navigator.clipboard.writeText('wasm install ba:sample-wasi-http-rust@0.1.6').then(function(){btn.innerHTML=checkIcon;setTimeout(function(){btn.innerHTML=copyIcon},2000)})})})()</script></div></div></div><div class=""><h3 class="text-sm font-medium text-fg-muted mb-1">Imports</h3><div class="border-2 border-fg p-3"><ul class="space-y-1"><li class="font-mono text-sm"><a href="/wasi/cli/0.2.0" class="text-accent hover:underline"><span>wasi:cli</span><span class="text-fg-faint ml-1">@0.2.0</span></a></li><li class="font-mono text-sm"><a href="/wasi/clocks/0.2.3" class="text-accent hover:underline"><span>wasi:clocks</span><span class="text-fg-faint ml-1">@0.2.3</span></a></li><li class="font-mono text-sm"><a href="/wasi/http/0.2.3" class="text-accent hover:underline"><span>wasi:http</span><span class="text-fg-faint ml-1">@0.2.3</span></a></li><li class="font-mono text-sm"><a href="/wasi/io/0.2.0" class="text-accent hover:underline"><span>wasi:io</span><span class="text-fg-faint ml-1">@0.2.0</span></a></li><li class="font-mono text-sm"><a href="/wasi/io/0.2.3" class="text-accent hover:underline"><span>wasi:io</span><span class="text-fg-faint ml-1">@0.2.3</span></a></li><li class="font-mono text-sm"><a href="/wasi/random/0.2.0" class="text-accent hover:underline"><span>wasi:random</span><span class="text-fg-faint ml-1">@0.2.0</span></a></li></ul></div></div><div class=""><h3 class="text-sm font-medium text-fg-muted mb-1">Exports</h3><div class="border-2 border-fg p-3"><ul class="space-y-1"><li class="font-mono text-sm"><a href="/wasi/http/0.2.3" class="text-accent hover:underline"><span>wasi:http</span><span class="text-fg-faint ml-1">@0.2.3</span></a></li></ul></div></div></div>
+    </div>
+    <p class="text-sm text-fg-faint pb-6">Made by <a href="https://yosh.is" class="hover:text-fg transition-colors">Yosh Wuyts</a><br>Intended to be donated to the <a href="https://bytecodealliance.org" class="hover:text-fg transition-colors">Bytecode Alliance</a></p>
+  </aside>
+  <div class="topbar flex items-center justify-end gap-4 pb-2 pr-4" style="grid-area:topbar;align-self:start">
+    <a href="/docs" class="text-sm text-fg-muted hover:text-fg transition-colors">Docs</a>
+    <a href="/downloads" class="text-sm text-fg-muted hover:text-fg transition-colors">Downloads</a>
+    <form action="/search" method="get" class="relative flex">
+      <input type="search" name="q" placeholder="Search…" aria-label="Search" class="w-48 px-3 pr-12 py-1.5 text-sm border-2 border-fg bg-page text-fg focus:outline-none" id="search-input">
+      <span class="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-mono pointer-events-none opacity-30" aria-hidden="true">[ / ]</span>
+    </form>
+  </div>
+  <div style="grid-area:main;min-width:0" class="pr-4">
+    <div class="flex flex-wrap items-baseline text-lg font-light tracking-display font-display font-display mb-2">
+      <a href="/ba" class="text-fg-muted hover:text-fg transition-colors">ba</a><span class="text-fg-faint">:</span>
+    </div>
+    <div class="max-w-3xl mb-6">
+  <h2 class="text-3xl font-light tracking-display font-display flex items-baseline gap-2 group">
+    <span class="text-accent">sample-wasi-http-rust</span>
+    <button id="copy-fqn-btn" class="text-fg-faint hover:text-fg transition-opacity cursor-pointer opacity-0 group-hover:opacity-100" style="font-size:0.5em;vertical-align:middle" title="Copy item path to clipboard"><svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg></button>
+  </h2>
+  <span class="text-sm text-fg-muted mt-1 block">Component</span>
+  <div class="mt-4"><div class="text-base text-fg-muted leading-relaxed prose-doc"><p>A sample WASI HTTP component written in Rust</p>
+</div></div>
+</div>
+<script>
+(function(){
+  var btn=document.getElementById('copy-fqn-btn');
+  var copyIcon="<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>";
+  var checkIcon="<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>";
+  btn.addEventListener('click',function(){
+    navigator.clipboard.writeText('ba:sample-wasi-http-rust').then(function(){
+      btn.innerHTML=checkIcon;
+      setTimeout(function(){btn.innerHTML=copyIcon},2000);
+    });
+  });
+})();
+</script><div class="space-y-10 max-w-4xl pt-4 pb-12"><section class="space-y-10"><div class="mb-4"><div><h2 class="text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border">Imports</h2><ul><li class="py-1 flex gap-4"><div class="shrink-0 w-80"><a href="/wasi/io/0.2.3/interface/poll" class="block font-mono hover:underline text-base"><span class="text-fg-muted">wasi:io/</span><span class="text-wit-iface">poll</span></a></div><div class="text-base leading-relaxed text-fg-secondary min-w-0">A poll API intended to let users wait for I/O events on multiple handles
+at once.</div></li><li class="py-1 flex gap-4"><div class="shrink-0 w-80"><a href="/wasi/clocks/0.2.3/interface/monotonic-clock" class="block font-mono hover:underline text-base"><span class="text-fg-muted">wasi:clocks/</span><span class="text-wit-iface">monotonic-clock</span></a></div><div class="text-base leading-relaxed text-fg-secondary min-w-0">WASI Monotonic Clock is a clock API intended to let users measure elapsed
+time.</div></li><li class="py-1 flex gap-4"><div class="shrink-0 w-80"><a href="/wasi/io/0.2.3/interface/error" class="block font-mono hover:underline text-base"><span class="text-fg-muted">wasi:io/</span><span class="text-wit-iface">error</span><span class="text-fg-faint ml-1">@0.2.3</span></a></div></li><li class="py-1 flex gap-4"><div class="shrink-0 w-80"><a href="/wasi/io/0.2.3/interface/streams" class="block font-mono hover:underline text-base"><span class="text-fg-muted">wasi:io/</span><span class="text-wit-iface">streams</span><span class="text-fg-faint ml-1">@0.2.3</span></a></div><div class="text-base leading-relaxed text-fg-secondary min-w-0">WASI I/O is an I/O abstraction API which is currently focused on providing
+stream types.</div></li><li class="py-1 flex gap-4"><div class="shrink-0 w-80"><a href="/wasi/http/0.2.3/interface/types" class="block font-mono hover:underline text-base"><span class="text-fg-muted">wasi:http/</span><span class="text-wit-iface">types</span></a></div><div class="text-base leading-relaxed text-fg-secondary min-w-0">This interface defines all of the types and methods for implementing
+HTTP Requests and Responses, both incoming and outgoing, as well as
+their headers, trailers, and bodies.</div></li><li class="py-1 flex gap-4"><div class="shrink-0 w-80"><a href="/wasi/random/0.2.0/interface/random" class="block font-mono hover:underline text-base"><span class="text-fg-muted">wasi:random/</span><span class="text-wit-iface">random</span></a></div><div class="text-base leading-relaxed text-fg-secondary min-w-0">WASI Random is a random data API.</div></li><li class="py-1 flex gap-4"><div class="shrink-0 w-80"><a href="/wasi/io/0.2.0/interface/error" class="block font-mono hover:underline text-base"><span class="text-fg-muted">wasi:io/</span><span class="text-wit-iface">error</span><span class="text-fg-faint ml-1">@0.2.0</span></a></div></li><li class="py-1 flex gap-4"><div class="shrink-0 w-80"><a href="/wasi/io/0.2.0/interface/streams" class="block font-mono hover:underline text-base"><span class="text-fg-muted">wasi:io/</span><span class="text-wit-iface">streams</span><span class="text-fg-faint ml-1">@0.2.0</span></a></div><div class="text-base leading-relaxed text-fg-secondary min-w-0">WASI I/O is an I/O abstraction API which is currently focused on providing
+stream types.</div></li><li class="py-1 flex gap-4"><div class="shrink-0 w-80"><a href="/wasi/cli/0.2.0/interface/stdout" class="block font-mono hover:underline text-base"><span class="text-fg-muted">wasi:cli/</span><span class="text-wit-iface">stdout</span></a></div></li><li class="py-1 flex gap-4"><div class="shrink-0 w-80"><a href="/wasi/cli/0.2.0/interface/stderr" class="block font-mono hover:underline text-base"><span class="text-fg-muted">wasi:cli/</span><span class="text-wit-iface">stderr</span></a></div></li><li class="py-1 flex gap-4"><div class="shrink-0 w-80"><a href="/wasi/cli/0.2.0/interface/stdin" class="block font-mono hover:underline text-base"><span class="text-fg-muted">wasi:cli/</span><span class="text-wit-iface">stdin</span></a></div></li></ul></div></div><div class="mb-4"><div><h2 class="text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border">Exports</h2><ul><li class="py-1 flex gap-4"><div class="shrink-0 w-80"><a href="/wasi/http/0.2.3/interface/incoming-handler" class="block font-mono hover:underline text-base"><span class="text-fg-muted">wasi:http/</span><span class="text-wit-iface">incoming-handler</span></a></div><div class="text-base leading-relaxed text-fg-secondary min-w-0">This interface defines a handler of incoming HTTP Requests. It should
+be exported by components which can respond to HTTP Requests.</div></li></ul></div></div><div><h2 class="text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border">Modules</h2><ul><li class="py-1"><a href="/ba/sample-wasi-http-rust/0.1.6/module/sample_wasi_http_rust.wasm" class="font-mono text-base font-medium text-wit-module hover:underline">sample_wasi_http_rust.wasm</a></li><li class="py-1"><a href="/ba/sample-wasi-http-rust/0.1.6/module/wit-component:adapter:wasi_snapshot_preview1" class="font-mono text-base font-medium text-wit-module hover:underline">wit-component:adapter:wasi_snapshot_preview1</a></li><li class="py-1"><a href="/ba/sample-wasi-http-rust/0.1.6/module/wit-component:shim" class="font-mono text-base font-medium text-wit-module hover:underline">wit-component:shim</a></li><li class="py-1"><a href="/ba/sample-wasi-http-rust/0.1.6/module/wit-component:fixups" class="font-mono text-base font-medium text-wit-module hover:underline">wit-component:fixups</a></li></ul></div><div><h2 class="text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border">Components</h2><ul><li class="py-1"><a href="/ba/sample-wasi-http-rust/0.1.6/component/0" class="font-mono text-base font-medium text-wit-world hover:underline">component[0]</a></li></ul></div><div><h2 class="text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border">Producers</h2><ul><li class="py-1"><span class="font-mono text-base min-w-0 truncate" title="wit-component 0.215.0"><span class="text-accent">wit-component</span><span class="text-fg-faint ml-1">@0.215.0</span></span></li><li class="py-1"><span class="font-mono text-base min-w-0 truncate" title="cargo-component 0.16.0 (5d1e26c 2024-09-05)"><span class="text-accent">cargo-component</span><span class="text-fg-faint ml-1">@0.16.0</span></span></li></ul></div></section></div>
+  </div>
+  <aside class="rightbar hidden pr-4" style="grid-area:rightbar;position:sticky;top:1.5rem;align-self:start">
+    <div class="flex items-center gap-4">
+      <a href="/docs" class="text-sm text-fg-muted hover:text-fg transition-colors">Docs</a>
+      <a href="/downloads" class="text-sm text-fg-muted hover:text-fg transition-colors">Downloads</a>
+      <form action="/search" method="get" class="relative flex">
+        <input type="search" name="q" placeholder="Search…" aria-label="Search" class="w-36 px-3 pr-10 py-1.5 text-sm border-2 border-fg bg-page text-fg focus:outline-none" id="search-input-lg">
+        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-mono pointer-events-none opacity-30" aria-hidden="true">[ / ]</span>
+      </form>
+    </div>
+  </aside>
+</div>
+<script>
+(function(){
+  var b=document.getElementById('bunny');
+  if(!b)return;
+  var anims=[
+    ['(๑╹ᆺ╹)','(๑°ᆺ°)!','(๑◉ᆺ◉)!!'],
+    ['(๑╹ᆺ╹)','(๑°ᆺ°)♪','ヽ(๑≧ᆺ≦)ノ'],
+    ['(๑╹ᆺ╹)','(๑╹ᆺ╹)>','(๑°ᆺ°)>>']
+  ];
+  var seq=anims[Math.floor(Math.random()*anims.length)];
+  var timer=null;
+  b.addEventListener('mouseenter',function(){
+    if(timer)return;
+    b.textContent=seq[1];
+    timer=setTimeout(function(){
+      b.textContent=seq[2];
+    },80);
+  });
+  b.addEventListener('mouseleave',function(){
+    if(timer){clearTimeout(timer);timer=null;}
+    b.textContent=seq[0];
+  });
+})();
+</script>
+  </main>
+  
+  <script>
+    // Focus search on / key (developer convention)
+    document.addEventListener('keydown', function(e) {
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        var el = document.activeElement;
+        var tag = el && el.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el && el.isContentEditable)) return;
+        var search = document.getElementById('search-input');
+        if (search && search.offsetParent === null) search = document.getElementById('search-input-lg');
+        if (search) { e.preventDefault(); search.focus(); }
+      }
+    });
+    // Click-to-copy for install hint
+    document.addEventListener('click', function(e) {
+      var el = e.target.closest('.copy-hint');
+      if (!el) return;
+      var text = el.textContent || '';
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(function() {
+          el.classList.add('copied');
+          setTimeout(function() { el.classList.remove('copied'); }, 1200);
+        });
+      }
+    });
+    // Tab switching
+    document.addEventListener('click', function(e) {
+      var btn = e.target.closest('.tab-btn');
+      if (!btn) return;
+      var group = btn.closest('.tab-group');
+      if (!group) return;
+      var tab = btn.getAttribute('data-tab');
+      // Update tab buttons
+      group.querySelectorAll('.tab-btn').forEach(function(b) {
+        b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
+      });
+      // Show/hide panels
+      group.querySelectorAll('.tab-panel').forEach(function(p) {
+        if (p.id === 'panel-' + tab) {
+          p.style.display = '';
+        } else {
+          p.style.display = 'none';
+        }
+      });
+    });
+    // Search placeholder carousel
+    (function() {
+      var words = [
+        'components\u2026',
+        'interfaces\u2026',
+        'libraries\u2026',
+        'plugins\u2026',
+        'servers\u2026',
+        'tools\u2026',
+        'apps\u2026',
+        'extensions\u2026',
+        'handlers\u2026',
+        'services\u2026',
+        'applets\u2026',
+        'clients\u2026',
+        'addons\u2026',
+        'modules\u2026',
+        'packages\u2026',
+        'widgets\u2026',
+        'expansions\u2026',
+        'augmentations\u2026',
+        'supplements\u2026',
+        'accessories\u2026',
+        'middleware\u2026',
+        'hooks\u2026',
+        'mods\u2026',
+        'bundles\u2026',
+        'toolkits\u2026',
+        'SDKs\u2026',
+        'adapters\u2026',
+        'drivers\u2026',
+        'providers\u2026',
+        'connectors\u2026',
+        'shims\u2026',
+        'polyfills\u2026',
+      ];
+      var el = document.getElementById('carousel-word');
+      var overlay = document.getElementById('search-carousel');
+      var input = document.getElementById('search-input');
+      if (!el || !overlay || !input) return;
+      var idx = 0;
+      var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      function updateVisibility() {
+        var hasValue = input.value.length > 0;
+        overlay.style.opacity = hasValue ? '0' : '';
+      }
+      input.addEventListener('input', updateVisibility);
+      input.addEventListener('focus', updateVisibility);
+      input.addEventListener('blur', updateVisibility);
+      updateVisibility();
+
+      var currentWord = words[idx];
+      el.textContent = currentWord;
+      var typing = false;
+
+      function jitter() {
+        return 50 + Math.random() * 90;
+      }
+
+      function deleteWord(cb) {
+        var text = el.textContent;
+        if (text.length === 0) { cb(); return; }
+        typing = true;
+        var first = true;
+        function step() {
+          text = text.slice(0, -1);
+          el.textContent = text;
+          if (text.length > 0) {
+            if (first) {
+              first = false;
+              setTimeout(step, 300);
+            } else {
+              setTimeout(step, 20 + Math.random() * 25);
+            }
+          } else {
+            typing = false;
+            cb();
+          }
+        }
+        setTimeout(step, 20);
+      }
+
+      function typeWord(word, cb) {
+        var i = 0;
+        typing = true;
+        function step() {
+          i++;
+          el.textContent = word.slice(0, i);
+          if (i < word.length) {
+            setTimeout(step, jitter());
+          } else {
+            typing = false;
+            if (cb) cb();
+          }
+        }
+        setTimeout(step, jitter());
+      }
+
+      function cycle() {
+        if (input.value || typing) return;
+        deleteWord(function() {
+          setTimeout(function() {
+            var next = idx;
+            while (next === idx) next = Math.floor(Math.random() * words.length);
+            idx = next;
+            typeWord(words[idx]);
+          }, reducedMotion ? 0 : 200);
+        });
+      }
+
+      setInterval(cycle, 5000);
+    })();
+  </script>
+</body>
+</html>

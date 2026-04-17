@@ -99,6 +99,15 @@ impl Manager {
     ///
     /// This may return an error if it fails to create the cache location on disk.
     pub async fn open_at(data_dir: impl Into<std::path::PathBuf>) -> anyhow::Result<Self> {
+        Self::open_at_with_offline(data_dir, false).await
+    }
+
+    /// Create a new store at a custom data directory on disk with the
+    /// specified offline mode.
+    pub async fn open_at_with_offline(
+        data_dir: impl Into<std::path::PathBuf>,
+        offline: bool,
+    ) -> anyhow::Result<Self> {
         let config = Config::load()?;
         let client = Client::new(config.clone());
         let store = Store::open_at(data_dir).await?;
@@ -107,7 +116,7 @@ impl Manager {
             client,
             store,
             config,
-            offline: false,
+            offline,
         })
     }
 

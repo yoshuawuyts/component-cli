@@ -1,0 +1,22 @@
+[package]
+name = "wasm-frontend-test"
+description = "End-to-end snapshot tests for wasm-frontend rendered HTML."
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+
+[dev-dependencies]
+anyhow = { workspace = true }
+insta = { workspace = true }
+reqwest = { workspace = true, features = ["blocking"] }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

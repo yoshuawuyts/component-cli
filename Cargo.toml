@@ -5,6 +5,7 @@ members = [
     "crates/wasm-cli",
     "crates/wasm-cli-internal-run",
     "crates/wasm-frontend",
+    "crates/wasm-frontend-test",
     "crates/wasm-manifest",
     "crates/wasm-meta-registry",
     "crates/wasm-meta-registry-client",

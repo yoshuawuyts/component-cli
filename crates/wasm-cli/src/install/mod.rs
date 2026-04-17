@@ -43,7 +43,12 @@ pub(crate) struct Opts {
 }
 
 impl Opts {
-    pub(crate) async fn run(self, offline: bool) -> miette::Result<()> {
+    pub(crate) async fn run(
+        self,
+        offline: bool,
+        data_dir: Option<std::path::PathBuf>,
+        registry_url: Option<String>,
+    ) -> miette::Result<()> {
         let manifest_path = std::path::PathBuf::from("wasm.toml");
         let lockfile_path = std::path::PathBuf::from("wasm.lock.toml");
         let wasm_vendor_dir = std::path::PathBuf::from("vendor/wasm");
@@ -77,12 +82,14 @@ impl Opts {
         };
 
         // Open manager
-        let manager = if offline {
-            Manager::open_offline()
+        let manager = match data_dir {
+            Some(dir) => Manager::open_at_with_offline(dir, offline)
                 .await
-                .map_err(crate::util::into_miette)?
-        } else {
-            Manager::open().await.map_err(crate::util::into_miette)?
+                .map_err(crate::util::into_miette)?,
+            None if offline => Manager::open_offline()
+                .await
+                .map_err(crate::util::into_miette)?,
+            None => Manager::open().await.map_err(crate::util::into_miette)?,
         };
 
         // Shared progress display for all concurrent installs.
@@ -93,8 +100,9 @@ impl Opts {
         // names and search-based lookups can be resolved.
         if !offline {
             display.lock().await.start_sync();
+            let sync_url = registry_url.as_deref().unwrap_or(REGISTRY_URL);
             let sync_result = manager
-                .sync_from_meta_registry(REGISTRY_URL, SYNC_INTERVAL, SyncPolicy::IfStale)
+                .sync_from_meta_registry(sync_url, SYNC_INTERVAL, SyncPolicy::IfStale)
                 .await;
             match sync_result {
                 Ok(SyncResult::Degraded { error }) => {

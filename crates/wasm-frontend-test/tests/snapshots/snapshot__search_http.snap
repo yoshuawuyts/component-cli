@@ -1,0 +1,522 @@
+---
+source: crates/wasm-frontend-test/tests/snapshot.rs
+expression: normalized
+---
+<!DOCTYPE html>
+<html lang="en" style="view-transition-name:root;background:#d9d9d9">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Browse and discover WebAssembly components and WIT interfaces published to OCI registries.">
+  <title>Search — wasm registry</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="preload" href="/fonts/iosevka-regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/iosevka-semibold.woff2" as="font" type="font/woff2" crossorigin>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            accent: 'var(--color-accent)',
+            'accent-hover': 'var(--color-accent-hover)',
+            page: 'var(--color-bg)',
+            // Violet-tinted neutrals driven by CSS custom properties
+            surface: {
+              DEFAULT: 'var(--color-surface)',
+              muted:   'var(--color-surface-muted)',
+            },
+            border: {
+              DEFAULT: 'var(--color-border)',
+              light:   'var(--color-border-light)',
+            },
+            fg: {
+              DEFAULT:   'var(--color-fg)',
+              secondary: 'var(--color-fg-secondary)',
+              muted:     'var(--color-fg-muted)',
+              faint:     'var(--color-fg-faint)',
+            },
+            // WIT item kind colors
+            wit: {
+              struct:   'var(--color-wit-struct)',
+              enum:     'var(--color-wit-enum)',
+              resource: 'var(--color-wit-resource)',
+              func:     'var(--color-wit-func)',
+              world:    'var(--color-wit-world)',
+              iface:    'var(--color-wit-iface)',
+              import:   'var(--color-wit-import)',
+              module:   'var(--color-wit-module)',
+            },
+          },
+          fontFamily: {
+            sans: ['"Source Serif 4"', 'Georgia', 'serif'],
+            mono: ['"Iosevka Web"', 'Iosevka', '"SF Mono"', '"Fira Code"', '"Cascadia Code"', 'Consolas', 'monospace'],
+            display: ['"Iosevka Web"', 'Iosevka', '"SF Mono"', 'monospace'],
+          },
+          letterSpacing: {
+            display: '-0.06em',
+          },
+          fontSize: {
+            sm: ['0.875rem', { lineHeight: '1.375rem' }],
+            lg: ['1.125rem', { lineHeight: '1.625rem' }],
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Self-hosted Iosevka webfont */
+    @font-face {
+      font-family: 'Iosevka Web';
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: url('/fonts/iosevka-regular.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Iosevka Web';
+      font-style: normal;
+      font-weight: 500;
+      font-display: swap;
+      src: url('/fonts/iosevka-medium.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Iosevka Web';
+      font-style: normal;
+      font-weight: 600;
+      font-display: swap;
+      src: url('/fonts/iosevka-semibold.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Iosevka Web';
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+      src: url('/fonts/iosevka-bold.woff2') format('woff2');
+    }
+    /* Color system: two-tone, inspired by charcuterie.elastiq.ch.
+       Warm off-white background, vivid blue foreground. */
+    :root {
+      --color-bg: #d9d9d9;
+      --color-accent: #232cf4;
+      --color-accent-hover: #1a22c0;
+      --color-surface: #cfcfcf;
+      --color-surface-muted: #c8c8c8;
+      --color-border: rgba(35, 44, 244, 0.25);
+      --color-border-light: rgba(35, 44, 244, 0.12);
+      --color-fg: #232cf4;
+      --color-fg-secondary: rgba(35, 44, 244, 0.85);
+      --color-fg-muted: rgba(35, 44, 244, 0.70);
+      --color-fg-faint: rgba(35, 44, 244, 0.4);
+      /* WIT item kind colors */
+      --color-wit-struct: #4338ca;
+      --color-wit-enum: #0d7377;
+      --color-wit-resource: #b45309;
+      --color-wit-func: #15803d;
+      --color-wit-world: #9333ea;
+      --color-wit-iface: #0369a1;
+      --color-wit-import: #b91c1c;
+      --color-wit-module: #be185d;
+    }
+    html, body {
+      background-color: var(--color-bg);
+      color: var(--color-fg);
+    }
+    /* Consistent focus ring for keyboard navigation */
+    :focus-visible {
+      outline: 2px solid var(--color-accent);
+      outline-offset: 2px;
+    }
+    /* Remove default outline when not keyboard-navigating */
+    :focus:not(:focus-visible) {
+      outline: none;
+    }
+    @view-transition {
+      navigation: auto;
+    }
+    ::view-transition-old(root) {
+      animation: none;
+    }
+    ::view-transition-new(root) {
+      animation: none;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      ::view-transition-old(root),
+      ::view-transition-new(root) {
+        animation: none;
+      }
+    }
+    /* Card hover — pop out with scale, shadow, and strong border */
+    .card-lift {
+      transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
+      transform-origin: center center;
+    }
+    /* Prose styling for rendered markdown documentation */
+    .prose-doc p {
+      margin-bottom: 0.75em;
+    }
+    .prose-doc p:last-child {
+      margin-bottom: 0;
+    }
+    .prose-doc code {
+      background: var(--color-surface);
+      padding: 0.1em 0.3em;
+      font-size: 0.9em;
+    }
+    .prose-doc a {
+      color: var(--color-accent);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .prose-doc a:hover {
+      color: var(--color-accent-hover);
+    }
+    .prose-doc ul, .prose-doc ol {
+      margin: 0.5em 0;
+      padding-left: 1.5em;
+    }
+    .prose-doc li {
+      margin-bottom: 0.25em;
+    }
+    .prose-doc pre {
+      background: var(--color-surface);
+      padding: 0.75em 1em;
+      overflow-x: auto;
+      margin: 0.75em 0;
+      font-size: 0.875em;
+    }
+    .card-lift:hover {
+      transform: scale(1.03);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+      z-index: 1;
+      position: relative;
+      outline: 2px solid var(--color-fg);
+      outline-offset: -2px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .card-lift { transition: none; }
+      .card-lift:hover { transform: none; box-shadow: none; }
+    }
+    /* Card kind variants — thin left border for categorization */
+    .card-interface {
+      border-left: 2px solid var(--color-wit-iface);
+    }
+    .card-component {
+      border-left: 2px solid var(--color-accent);
+    }
+    /* Copy hint */
+    .copy-hint {
+      cursor: pointer;
+      position: relative;
+    }
+    .copy-hint::after {
+      content: 'click to copy';
+      position: absolute;
+      right: -0.25rem;
+      top: 50%;
+      transform: translateX(100%) translateY(-50%);
+      font-size: 0.65rem;
+      color: var(--color-fg-faint);
+      opacity: 0;
+      transition: opacity 0.15s;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    .copy-hint:hover::after {
+      opacity: 1;
+    }
+    .copy-hint.copied::after {
+      content: 'copied!';
+      color: var(--color-accent);
+      opacity: 1;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .copy-hint::after { transition: none; }
+    }
+    /* Keyboard shortcut badge — inside search input, Linear-style */
+    .search-kbd {
+      position: absolute;
+      right: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.5rem;
+      height: 1.5rem;
+      border: 2px solid var(--color-border);
+      border-radius: 0;
+      font-size: 0.8125rem;
+      font-family: inherit;
+      color: var(--color-fg-muted);
+      background: var(--color-surface-muted);
+      line-height: 1;
+      pointer-events: none;
+      transition: opacity 0.1s;
+    }
+    .search-form:focus-within .search-kbd {
+      opacity: 0;
+      pointer-events: none;
+    }
+    /* Search carousel placeholder */
+    .search-carousel {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1rem;
+      color: var(--color-fg-faint);
+      pointer-events: none;
+      white-space: nowrap;
+      overflow: hidden;
+      transition: opacity 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+    .carousel-word {
+      display: inline;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .carousel-word {
+        transition: none;
+      }
+    }
+    /* Tab buttons — square, bordered, Charcuterie style */
+    .tab-btn {
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      color: var(--color-fg);
+      background: var(--color-bg);
+      border: 2px solid var(--color-fg);
+      border-bottom: none;
+      margin-left: -2px;
+      cursor: pointer;
+      transition: color 0.15s, background-color 0.15s;
+      flex: 1;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .tab-btn:first-child {
+      margin-left: 0;
+    }
+    .tab-btn:hover {
+      background: var(--color-fg);
+      color: var(--color-bg);
+    }
+    .tab-btn:hover > * {
+      opacity: 1;
+    }
+    .tab-btn[aria-selected="true"] {
+      background: var(--color-fg);
+      color: var(--color-bg);
+    }
+    .tab-btn[aria-selected="true"] > * {
+      opacity: 1;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .tab-btn { transition: none; }
+    }
+  </style>
+</head>
+<body class="bg-page text-fg min-h-screen flex flex-col leading-relaxed font-sans">
+  <nav class="w-full max-w-6xl mx-auto px-6 sm:px-8 pt-6 pb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2" aria-label="Main">
+  <div class="flex flex-wrap items-baseline text-2xl font-light tracking-display font-display">
+    <a href="/" id="bunny" aria-label="Home" role="link" class="text-lg font-mono font-medium text-fg hover:text-accent transition-colors shrink-0 inline-block text-left" style="cursor:pointer;min-width:10ch">(๑╹ᆺ╹)</a>
+  </div>
+  <div class="flex items-center gap-5 shrink-0">
+    <a href="/docs" class="text-sm text-fg-muted hover:text-fg transition-colors">Docs</a>
+    <a href="/downloads" class="text-sm text-fg-muted hover:text-fg transition-colors">Downloads</a>
+    <form action="/search" method="get" class="relative flex">
+      <input type="search" name="q" placeholder="Search…" aria-label="Search" class="w-48 px-3 pr-12 py-1.5 text-sm border-2 border-fg bg-page text-fg-muted focus:text-fg focus:outline-none" id="search-input">
+      <span class="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-mono pointer-events-none opacity-30" aria-hidden="true">[ / ]</span>
+    </form>
+  </div>
+  <script>
+  (function(){
+    var b=document.getElementById('bunny');
+    if(!b)return;
+    var anims=[
+      ['(๑╹ᆺ╹)','(๑°ᆺ°)!','(๑◉ᆺ◉)!!'],
+      ['(๑╹ᆺ╹)','(๑°ᆺ°)♪','ヽ(๑≧ᆺ≦)ノ'],
+      ['(๑╹ᆺ╹)','(๑╹ᆺ╹)>','(๑°ᆺ°)>>']
+    ];
+    var seq=anims[Math.floor(Math.random()*anims.length)];
+    var timer=null;
+    b.addEventListener('mouseenter',function(){
+      if(timer)return;
+      b.textContent=seq[1];
+      timer=setTimeout(function(){
+        b.textContent=seq[2];
+      },80);
+    });
+    b.addEventListener('mouseleave',function(){
+      if(timer){clearTimeout(timer);timer=null;}
+      b.textContent=seq[0];
+    });
+  })();
+  </script>
+</nav>
+  <main class="flex-1 w-full max-w-6xl mx-auto px-6 sm:px-8 pb-12">
+    <div><div class="pt-8 pb-6 border-b-2 border-fg mb-6"><h1 class="text-3xl font-light tracking-display font-display">Results for “http”</h1><p class="text-sm text-fg-faint mt-2">2 results found</p></div><div class="mb-8"><form action="/search" method="get" class="flex gap-2"><input name="q" placeholder="Search…" type="search" value="http" class="flex-1 px-3 py-2 border-2 border-fg bg-page text-fg text-sm placeholder:text-fg-faint focus:border-accent focus:ring-1 focus:ring-accent outline-none"><button type="submit" class="px-4 py-2 bg-accent text-white text-sm font-normal hover:bg-accent-hover transition-colors">Search</button></form></div><div class="hidden sm:flex items-baseline gap-3 px-2 pb-2 text-sm text-fg-faint"><span class="w-48 shrink-0">Name</span><span class="w-20 shrink-0">Version</span><span>Description</span></div><div class="divide-y divide-border-light"><div><a href="/ba/sample-wasi-http-rust" class="flex items-baseline gap-3 py-3 hover:bg-surface -mx-2 px-2 transition-colors"><span class="w-48 shrink-0 font-medium text-accent truncate">ba:sample-wasi-http-rust</span><span class="w-20 shrink-0 text-sm text-fg-faint">0.1.6</span><span class="text-sm text-fg-muted truncate">A sample WASI HTTP component written in Rust</span></a></div><div><a href="/wasi/http" class="flex items-baseline gap-3 py-3 hover:bg-surface -mx-2 px-2 transition-colors"><span class="w-48 shrink-0 font-medium text-accent truncate">wasi:http</span><span class="w-20 shrink-0 text-sm text-fg-faint">0.3.0-rc-2026-03-15</span><span class="text-sm text-fg-muted truncate">WASI HTTP interfaces for HTTP client and server</span></a></div></div></div>
+  </main>
+  <footer class="mt-8"><div class="max-w-6xl mx-auto px-6 sm:px-8 py-4 text-sm text-fg-muted"><p>Made by Yosh Wuyts</p></div></footer>
+  <script>
+    // Focus search on / key (developer convention)
+    document.addEventListener('keydown', function(e) {
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        var el = document.activeElement;
+        var tag = el && el.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el && el.isContentEditable)) return;
+        var search = document.getElementById('search-input');
+        if (search && search.offsetParent === null) search = document.getElementById('search-input-lg');
+        if (search) { e.preventDefault(); search.focus(); }
+      }
+    });
+    // Click-to-copy for install hint
+    document.addEventListener('click', function(e) {
+      var el = e.target.closest('.copy-hint');
+      if (!el) return;
+      var text = el.textContent || '';
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(function() {
+          el.classList.add('copied');
+          setTimeout(function() { el.classList.remove('copied'); }, 1200);
+        });
+      }
+    });
+    // Tab switching
+    document.addEventListener('click', function(e) {
+      var btn = e.target.closest('.tab-btn');
+      if (!btn) return;
+      var group = btn.closest('.tab-group');
+      if (!group) return;
+      var tab = btn.getAttribute('data-tab');
+      // Update tab buttons
+      group.querySelectorAll('.tab-btn').forEach(function(b) {
+        b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
+      });
+      // Show/hide panels
+      group.querySelectorAll('.tab-panel').forEach(function(p) {
+        if (p.id === 'panel-' + tab) {
+          p.style.display = '';
+        } else {
+          p.style.display = 'none';
+        }
+      });
+    });
+    // Search placeholder carousel
+    (function() {
+      var words = [
+        'components\u2026',
+        'interfaces\u2026',
+        'libraries\u2026',
+        'plugins\u2026',
+        'servers\u2026',
+        'tools\u2026',
+        'apps\u2026',
+        'extensions\u2026',
+        'handlers\u2026',
+        'services\u2026',
+        'applets\u2026',
+        'clients\u2026',
+        'addons\u2026',
+        'modules\u2026',
+        'packages\u2026',
+        'widgets\u2026',
+        'expansions\u2026',
+        'augmentations\u2026',
+        'supplements\u2026',
+        'accessories\u2026',
+        'middleware\u2026',
+        'hooks\u2026',
+        'mods\u2026',
+        'bundles\u2026',
+        'toolkits\u2026',
+        'SDKs\u2026',
+        'adapters\u2026',
+        'drivers\u2026',
+        'providers\u2026',
+        'connectors\u2026',
+        'shims\u2026',
+        'polyfills\u2026',
+      ];
+      var el = document.getElementById('carousel-word');
+      var overlay = document.getElementById('search-carousel');
+      var input = document.getElementById('search-input');
+      if (!el || !overlay || !input) return;
+      var idx = 0;
+      var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      function updateVisibility() {
+        var hasValue = input.value.length > 0;
+        overlay.style.opacity = hasValue ? '0' : '';
+      }
+      input.addEventListener('input', updateVisibility);
+      input.addEventListener('focus', updateVisibility);
+      input.addEventListener('blur', updateVisibility);
+      updateVisibility();
+
+      var currentWord = words[idx];
+      el.textContent = currentWord;
+      var typing = false;
+
+      function jitter() {
+        return 50 + Math.random() * 90;
+      }
+
+      function deleteWord(cb) {
+        var text = el.textContent;
+        if (text.length === 0) { cb(); return; }
+        typing = true;
+        var first = true;
+        function step() {
+          text = text.slice(0, -1);
+          el.textContent = text;
+          if (text.length > 0) {
+            if (first) {
+              first = false;
+              setTimeout(step, 300);
+            } else {
+              setTimeout(step, 20 + Math.random() * 25);
+            }
+          } else {
+            typing = false;
+            cb();
+          }
+        }
+        setTimeout(step, 20);
+      }
+
+      function typeWord(word, cb) {
+        var i = 0;
+        typing = true;
+        function step() {
+          i++;
+          el.textContent = word.slice(0, i);
+          if (i < word.length) {
+            setTimeout(step, jitter());
+          } else {
+            typing = false;
+            if (cb) cb();
+          }
+        }
+        setTimeout(step, jitter());
+      }
+
+      function cycle() {
+        if (input.value || typing) return;
+        deleteWord(function() {
+          setTimeout(function() {
+            var next = idx;
+            while (next === idx) next = Math.floor(Math.random() * words.length);
+            idx = next;
+            typeWord(words[idx]);
+          }, reducedMotion ? 0 : 200);
+        });
+      }
+
+      setInterval(cycle, 5000);
+    })();
+  </script>
+</body>
+</html>

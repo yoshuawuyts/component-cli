@@ -35,6 +35,29 @@ pub(crate) struct Cli {
     #[arg(long, global = true, help_heading = "Global Options")]
     offline: bool,
 
+    /// Override the data directory used for the local cache.
+    ///
+    /// Defaults to the OS-specific data directory (e.g. `~/.local/share/wasm`
+    /// on Linux). Useful for tests and isolated environments.
+    #[arg(
+        long,
+        global = true,
+        value_name = "PATH",
+        help_heading = "Global Options"
+    )]
+    data_dir: Option<std::path::PathBuf>,
+
+    /// Override the meta-registry URL used for package index lookups.
+    ///
+    /// Defaults to `http://localhost:8080`. Useful for tests.
+    #[arg(
+        long,
+        global = true,
+        value_name = "URL",
+        help_heading = "Global Options"
+    )]
+    registry_url: Option<String>,
+
     /// Controls logging verbosity via `-v`/`--verbose` and `-q`/`--quiet`
     /// flags.
     #[command(flatten, next_help_heading = "Global Options")]
@@ -54,7 +77,10 @@ impl Cli {
             Some(Command::Registry(opts)) => opts.run(self.offline).await.map_err(into_miette)?,
             Some(Command::Compose(opts)) => opts.run().map_err(into_miette)?,
             Some(Command::Init(opts)) => opts.run().await?,
-            Some(Command::Install(opts)) => opts.run(self.offline).await?,
+            Some(Command::Install(opts)) => {
+                opts.run(self.offline, self.data_dir, self.registry_url)
+                    .await?
+            }
             Some(Command::Self_(opts)) => opts.run().await.map_err(into_miette)?,
             None if std::io::stdin().is_terminal() => {
                 wasm_tui::run(self.offline).await.map_err(into_miette)?;

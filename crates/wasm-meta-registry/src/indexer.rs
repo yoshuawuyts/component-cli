@@ -129,9 +129,18 @@ impl Indexer {
 
     /// Run the indexer in a loop, syncing at the configured interval.
     ///
+    /// When `no_sync` is true, the indexer skips the initial sync and the
+    /// loop entirely. The function returns immediately. Useful for tests and
+    /// offline operation where the cache is pre-populated.
+    ///
     /// This method runs indefinitely and should be spawned as a background task.
     #[allow(clippy::infinite_loop)]
-    pub async fn run(mut self) {
+    pub async fn run(mut self, no_sync: bool) {
+        if no_sync {
+            info!("Sync disabled (--no-sync); serving cached data only");
+            return;
+        }
+
         let interval = Duration::from_secs(self.config.sync_interval);
 
         // Run an initial sync immediately
