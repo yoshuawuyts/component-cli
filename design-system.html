@@ -84,8 +84,8 @@
       }
       .hairline { border-color: #E4E4E7; }
       .rule {
-        border-color: #18181B;
-        border-top-width: 3px;
+        border-color: #18181B !important;
+        border-top-width: 1.5px !important;
       }
       .swatch {
         height: 88px;
@@ -181,6 +181,7 @@
         <a href="#empty" class="text-ink-700 hover:text-ink-900">20 — Empty State</a>
         <a href="#regions" class="text-ink-700 hover:text-ink-900">21 — Regions</a>
         <a href="#motion" class="text-ink-700 hover:text-ink-900">22 — Motion</a>
+        <a href="#details" class="text-ink-700 hover:text-ink-900">23 — Details</a>
       </nav>
 
       <div class="border-t rule"></div>
@@ -591,10 +592,10 @@
             </div>
             <div>
               <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Underline tabs</h3>
-              <div class="flex items-center gap-6 border-b hairline">
+              <div class="flex items-center gap-6 border-b-[1.5px] border-ink-900">
                 <button class="relative pb-3 text-[15px] font-medium">
                   Aenean
-                  <span class="absolute left-0 right-0 -bottom-px h-px bg-ink-900"></span>
+                  <span class="absolute left-0 right-0 -bottom-[1.5px] h-[1.5px] bg-ink-900"></span>
                 </button>
                 <button class="pb-3 text-[15px] text-ink-500">Mauris</button>
                 <button class="pb-3 text-[15px] text-ink-500">Vivamus</button>
@@ -647,7 +648,7 @@
               <li><a href="#" class="flex items-center px-3 h-9 rounded-md hover:bg-surfaceMuted text-ink-700">Vestibulum Ante</a></li>
               <li><a href="#" class="flex items-center px-3 h-9 rounded-md hover:bg-surfaceMuted text-ink-700">Convallis Dolor</a></li>
             </ul>
-            <div class="my-4 border-t hairline"></div>
+            <div class="my-4 border-t-[1.5px] border-ink-900"></div>
             <ul class="space-y-px text-[14px]">
               <li><a href="#" class="flex items-center px-3 h-9 rounded-md hover:bg-surfaceMuted text-ink-700">Faucibus</a></li>
               <li><a href="#" class="flex items-center px-3 h-9 rounded-md hover:bg-surfaceMuted text-ink-700">Suspendisse</a></li>
@@ -674,19 +675,19 @@
             </p>
           </div>
           <div class="space-y-8">
-            <div class="max-w-[180px] space-y-4">
-              <div>
+            <div class="max-w-[180px]">
+              <div class="pb-4">
                 <div class="text-[12px] text-ink-500">Current Index</div>
                 <div class="text-[20px] font-semibold tracking-tight leading-tight mt-1">42.7 k</div>
               </div>
-              <div>
+              <div class="py-4 border-t-[1.5px] border-ink-900">
                 <div class="text-[12px] text-ink-500">Last cycle</div>
                 <div class="mt-1 flex items-baseline gap-1.5">
                   <span class="text-[20px] font-semibold tracking-tight leading-tight">38.1 k</span>
                   <span class="text-[11px] font-medium text-positive">+12.1%</span>
                 </div>
               </div>
-              <div>
+              <div class="pt-4 border-t-[1.5px] border-ink-900">
                 <div class="text-[12px] text-ink-500">Two cycles ago</div>
                 <div class="mt-1 flex items-baseline gap-1.5">
                   <span class="text-[20px] font-semibold tracking-tight leading-tight">31.4 k</span>
@@ -777,7 +778,7 @@
               numerals; right-aligned values; negatives in pinkInk.
             </p>
           </div>
-          <div class="overflow-x-auto border-t hairline">
+          <div class="overflow-x-auto border-t-[1.5px] border-lineSoft">
             <table class="w-full min-w-[560px] text-[13px]">
               <thead>
                 <tr class="text-ink-400">
@@ -789,28 +790,28 @@
                 </tr>
               </thead>
               <tbody class="text-ink-900">
-                <tr class="border-t hairline">
+                <tr class="border-t-[1.5px] border-lineSoft">
                   <td class="py-5 pr-6 font-medium">Lorem inflow</td>
                   <td class="text-right px-4 tabular-nums">8 778</td>
                   <td class="text-right px-4 tabular-nums">10 246</td>
                   <td class="text-right px-4 tabular-nums text-ink-400">0</td>
                   <td class="text-right px-4 tabular-nums">5 642</td>
                 </tr>
-                <tr class="border-t border-lineSoft">
+                <tr class="border-t-[1.5px] border-lineSoft">
                   <td class="py-5 pr-6 font-medium">Ipsum delta</td>
                   <td class="text-right px-4 tabular-nums">2 140</td>
                   <td class="text-right px-4 tabular-nums">3 184</td>
                   <td class="text-right px-4 tabular-nums">1 905</td>
                   <td class="text-right px-4 tabular-nums">2 760</td>
                 </tr>
-                <tr class="border-t border-lineSoft">
+                <tr class="border-t-[1.5px] border-lineSoft">
                   <td class="py-5 pr-6 font-medium">Dolor outflow</td>
                   <td class="text-right px-4 tabular-nums text-cat-pinkInk">−1 423</td>
                   <td class="text-right px-4 tabular-nums text-cat-pinkInk">−984</td>
                   <td class="text-right px-4 tabular-nums text-cat-pinkInk">−762</td>
                   <td class="text-right px-4 tabular-nums text-cat-pinkInk">−1 889</td>
                 </tr>
-                <tr class="border-t hairline">
+                <tr class="border-t-[1.5px] border-lineSoft">
                   <td class="py-5 pr-6 font-medium">Net amet</td>
                   <td class="text-right px-4 tabular-nums font-medium">9 495</td>
                   <td class="text-right px-4 tabular-nums font-medium">12 446</td>
@@ -1617,6 +1618,206 @@
                 <li class="flex gap-3"><span class="mono text-ink-400 w-12 shrink-0">04</span>Spring is for human-initiated, direct manipulation only. Never for system events.</li>
                 <li class="flex gap-3"><span class="mono text-ink-400 w-12 shrink-0">05</span>Honor <span class="mono text-ink-900">prefers-reduced-motion</span> — collapse to instant or to a 60ms cross-fade.</li>
               </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      <div class="border-t rule mt-16"></div>
+
+      <!-- ============================== -->
+      <!-- 23 DETAILS                     -->
+      <!-- ============================== -->
+      <section id="details" class="pt-12 md:pt-16">
+        <div class="grid md:grid-cols-[200px_1fr] gap-6 md:gap-12">
+          <div>
+            <div class="text-[12px] mono uppercase tracking-wider text-ink-500">23</div>
+            <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Details</h2>
+            <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
+              Compact key/value lists for sidebars and inspector panels. Three variants:
+              stacked for spacious layouts, inline for narrow rails, and sectioned when
+              groups need separation.
+            </p>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <!-- Stacked -->
+            <div>
+              <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Stacked</h3>
+              <dl class="space-y-3 max-w-[220px]">
+                <div>
+                  <dt class="text-[11px] text-ink-500 uppercase tracking-wider">Status</dt>
+                  <dd class="text-[14px] mt-0.5">Active</dd>
+                </div>
+                <div>
+                  <dt class="text-[11px] text-ink-500 uppercase tracking-wider">Owner</dt>
+                  <dd class="text-[14px] mt-0.5">Aenean Lectus</dd>
+                </div>
+                <div>
+                  <dt class="text-[11px] text-ink-500 uppercase tracking-wider">Created</dt>
+                  <dd class="text-[14px] mt-0.5 mono">2026-04-02</dd>
+                </div>
+                <div>
+                  <dt class="text-[11px] text-ink-500 uppercase tracking-wider">Region</dt>
+                  <dd class="text-[14px] mt-0.5">eu-west-1</dd>
+                </div>
+              </dl>
+            </div>
+
+            <!-- Inline -->
+            <div>
+              <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Inline</h3>
+              <dl class="text-[13px] max-w-[260px]">
+                <div class="flex items-baseline justify-between gap-4 py-1.5">
+                  <dt class="text-ink-500">Status</dt>
+                  <dd>Active</dd>
+                </div>
+                <div class="flex items-baseline justify-between gap-4 py-1.5">
+                  <dt class="text-ink-500">Owner</dt>
+                  <dd>Aenean Lectus</dd>
+                </div>
+                <div class="flex items-baseline justify-between gap-4 py-1.5">
+                  <dt class="text-ink-500">Created</dt>
+                  <dd class="mono tabular-nums">2026-04-02</dd>
+                </div>
+                <div class="flex items-baseline justify-between gap-4 py-1.5">
+                  <dt class="text-ink-500">Region</dt>
+                  <dd>eu-west-1</dd>
+                </div>
+                <div class="flex items-baseline justify-between gap-4 py-1.5">
+                  <dt class="text-ink-500">Replicas</dt>
+                  <dd class="mono tabular-nums">3</dd>
+                </div>
+              </dl>
+            </div>
+
+            <!-- Sectioned -->
+            <div>
+              <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Sectioned</h3>
+              <div class="max-w-[260px] text-[13px]">
+                <dl>
+                  <div class="flex items-baseline justify-between gap-4 py-1.5">
+                    <dt class="text-ink-500">Status</dt>
+                    <dd>Active</dd>
+                  </div>
+                  <div class="flex items-baseline justify-between gap-4 py-1.5">
+                    <dt class="text-ink-500">Owner</dt>
+                    <dd>Aenean Lectus</dd>
+                  </div>
+                </dl>
+                <div class="my-3 border-t-[1.5px] border-ink-900"></div>
+                <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-1.5">Infrastructure</div>
+                <dl>
+                  <div class="flex items-baseline justify-between gap-4 py-1.5">
+                    <dt class="text-ink-500">Region</dt>
+                    <dd>eu-west-1</dd>
+                  </div>
+                  <div class="flex items-baseline justify-between gap-4 py-1.5">
+                    <dt class="text-ink-500">Replicas</dt>
+                    <dd class="mono tabular-nums">3</dd>
+                  </div>
+                  <div class="flex items-baseline justify-between gap-4 py-1.5">
+                    <dt class="text-ink-500">Uptime</dt>
+                    <dd class="mono tabular-nums">99.94%</dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+          </div>
+
+          <!-- Combined examples -->
+          <div class="mt-10 space-y-8">
+            <!-- In a card -->
+            <div>
+              <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">In a card</h3>
+              <div class="p-5 bg-surface rounded-lg shadow-card max-w-[320px]">
+                <div class="flex items-baseline justify-between gap-3">
+                  <div class="text-[14px] font-medium tracking-tight">Aenean Lectus</div>
+                  <span class="inline-flex items-center px-2 h-5 rounded-pill bg-cat-green text-cat-greenInk text-[11px] font-medium">Active</span>
+                </div>
+                <div class="text-[11px] text-ink-500 mono mt-0.5">id_8a4f29c1</div>
+                <div class="my-4 border-t-[1.5px] border-ink-900"></div>
+                <dl class="text-[13px]">
+                  <div class="flex items-baseline justify-between gap-4 py-1.5">
+                    <dt class="text-ink-500">Region</dt>
+                    <dd>eu-west-1</dd>
+                  </div>
+                  <div class="flex items-baseline justify-between gap-4 py-1.5">
+                    <dt class="text-ink-500">Replicas</dt>
+                    <dd class="mono tabular-nums">3</dd>
+                  </div>
+                  <div class="flex items-baseline justify-between gap-4 py-1.5">
+                    <dt class="text-ink-500">Created</dt>
+                    <dd class="mono tabular-nums">2026-04-02</dd>
+                  </div>
+                  <div class="flex items-baseline justify-between gap-4 py-1.5">
+                    <dt class="text-ink-500">Uptime</dt>
+                    <dd class="mono tabular-nums">99.94%</dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+
+            <!-- As a sidebar in a region -->
+            <div>
+              <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">As a sidebar across regions</h3>
+              <div class="border border-line rounded-lg overflow-hidden">
+                <!-- Primary region: canvas -->
+                <div class="bg-canvas p-5 space-y-5">
+                  <div>
+                    <div class="text-[11px] mono uppercase tracking-wider text-ink-500">Primary · canvas</div>
+                    <div class="mt-2 text-[16px] font-semibold tracking-tight">Lorem ipsum dolor</div>
+                    <div class="mt-3 grid grid-cols-3 gap-2 max-w-[320px]">
+                      <div class="h-10 rounded bg-surfaceMuted"></div>
+                      <div class="h-10 rounded bg-surfaceMuted"></div>
+                      <div class="h-10 rounded bg-surfaceMuted"></div>
+                    </div>
+                  </div>
+                  <aside class="max-w-[260px]">
+                    <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Details</div>
+                    <dl class="text-[12px]">
+                      <div class="flex items-baseline justify-between gap-2 py-1">
+                        <dt class="text-ink-500">Status</dt>
+                        <dd>Active</dd>
+                      </div>
+                      <div class="flex items-baseline justify-between gap-2 py-1">
+                        <dt class="text-ink-500">Owner</dt>
+                        <dd>A. Lectus</dd>
+                      </div>
+                      <div class="flex items-baseline justify-between gap-2 py-1">
+                        <dt class="text-ink-500">Region</dt>
+                        <dd>eu-west-1</dd>
+                      </div>
+                      <div class="flex items-baseline justify-between gap-2 py-1">
+                        <dt class="text-ink-500">Replicas</dt>
+                        <dd class="mono tabular-nums">3</dd>
+                      </div>
+                    </dl>
+                  </aside>
+                </div>
+                <!-- Secondary region: surface -->
+                <div class="bg-surface p-5">
+                  <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Secondary · surface</div>
+                  <dl class="text-[12px] max-w-[320px]">
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                      <dt class="text-ink-500">Created</dt>
+                      <dd class="mono tabular-nums">2026-04-02</dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                      <dt class="text-ink-500">Uptime</dt>
+                      <dd class="mono tabular-nums">99.94%</dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                      <dt class="text-ink-500">Build</dt>
+                      <dd class="mono">v2.18.3</dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                      <dt class="text-ink-500">Tier</dt>
+                      <dd>Standard</dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
             </div>
           </div>
         </div>
