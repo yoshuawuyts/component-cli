@@ -5,37 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dashboard Design System</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://rsms.me/" />
-    <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
     <script>
       tailwind.config = {
         theme: {
           extend: {
             fontFamily: {
               sans: [
-                "Inter",
-                "ui-sans-serif",
-                "system-ui",
                 "-apple-system",
+                "BlinkMacSystemFont",
+                "system-ui",
+                "\"Segoe UI\"",
+                "\"Helvetica Neue\"",
+                "Helvetica",
+                "Arial",
                 "sans-serif",
               ],
             },
             colors: {
               // Surfaces
-              canvas: "#EFEAE1",      // warm cream — top workspace
-              surface: "#FBF8F2",     // lighter cream — bottom chart-data section
-              surfaceMuted: "#E5DFD2",// hovered/secondary surface
+              canvas: "#F4F4F5",       // top workspace bg
+              surface: "#FFFFFF",      // bottom chart-data bg
+              surfaceMuted: "#E8E8EA", // hovered/pill track
               // Ink (text)
               ink: {
-                900: "#1A1D24", // primary text, active pill bg
-                700: "#3A3F4A",
-                500: "#6B7280", // muted labels
-                400: "#9AA0AB", // axis / placeholder
-                300: "#C9CCD2", // hairline emphasis
+                900: "#18181B",
+                700: "#3F3F46",
+                500: "#71717A",
+                400: "#A1A1AA",
+                300: "#D4D4D8",
               },
               // Hairline borders
-              line: "#E5E1D8",
-              lineSoft: "#EDEAE2",
+              line: "#D4D4D8",
+              lineSoft: "#E4E4E7",
               // Semantic
               positive: "#1F8A4C", // +% green
               // Pastel categorical palette
@@ -68,13 +69,11 @@
     <style>
       html,
       body {
-        font-feature-settings:
-          "ss01" 1,
-          "cv11" 1;
         -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       }
       .hairline {
-        border-color: #e5e1d8;
+        border-color: #d4d4d8;
       }
       /* Bar segment helper */
       .bar {
@@ -93,7 +92,7 @@
         height: 10px;
       }
       ::-webkit-scrollbar-thumb {
-        background: #e5e1d8;
+        background: #d4d4d8;
         border-radius: 999px;
       }
     </style>
@@ -102,16 +101,44 @@
     <!-- Top hairline (chrome boundary) -->
     <div class="border-t hairline"></div>
 
-    <main class="mx-auto max-w-[1280px] px-8">
+    <main class="mx-auto max-w-[1280px] px-4 md:px-8">
       <!-- ============================================== -->
       <!-- HEADER ROW: tabs + title + actions             -->
       <!-- ============================================== -->
-      <section class="grid grid-cols-[200px_1fr_160px] gap-8 pt-8">
-        <!-- Segmented pill tabs (Charts / Maps) -->
+      <section class="pt-6 md:pt-8">
+        <!-- Mobile: title first, then tabs+actions row -->
+        <div class="md:hidden">
+          <h1 class="text-[22px] leading-[1.2] font-semibold tracking-tight">
+            Monthly Recurring Revenue
+          </h1>
+          <div class="mt-4 flex items-center justify-between gap-2 flex-wrap">
+            <div class="inline-flex p-1 rounded-lg bg-surfaceMuted shrink-0">
+              <button class="px-3 h-7 rounded-md bg-ink-900 text-white text-[13px] font-medium">Charts</button>
+              <button class="px-3 h-7 rounded-md text-[13px] text-ink-500">Maps</button>
+            </div>
+            <div class="flex items-center gap-1">
+              <button class="h-9 w-9 grid place-items-center rounded-md hover:bg-surfaceMuted text-ink-700" aria-label="Filter">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
+              </button>
+              <button class="h-9 w-9 grid place-items-center rounded-md hover:bg-surfaceMuted text-ink-700" aria-label="Save">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3"/></svg>
+              </button>
+              <button class="ml-1 h-9 px-3 inline-flex items-center gap-2 rounded-lg bg-ink-900 text-white text-[13px] hover:bg-ink-700 whitespace-nowrap">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
+                2024 – 2025
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Desktop: 3-col header -->
+        <div class="hidden md:grid md:grid-cols-[200px_1fr_160px] md:gap-8">
+        <!-- Segmented tabs (Charts / Maps) -->
         <div>
-          <div class="inline-flex p-1 rounded-pill bg-surfaceMuted">
-            <button class="px-4 h-8 rounded-pill bg-ink-900 text-canvas text-sm font-medium">Charts</button>
-            <button class="px-4 h-8 rounded-pill text-sm text-ink-500">Maps</button>
+          <div class="flex p-1 rounded-lg bg-surfaceMuted">
+            <button class="flex-1 h-7 rounded-md bg-ink-900 text-white text-[13px] font-medium">Charts</button>
+            <button class="flex-1 h-7 rounded-md text-[13px] text-ink-500">Maps</button>
           </div>
         </div>
 
@@ -121,18 +148,19 @@
         </h1>
 
         <!-- Top right controls -->
-        <div class="flex items-center justify-end gap-2">
-          <button class="h-9 w-9 grid place-items-center rounded-md border hairline bg-surface hover:bg-surfaceMuted" aria-label="Filter">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
+        <div class="flex items-center justify-end gap-1">
+          <button class="h-8 w-8 grid place-items-center rounded-md hover:bg-surfaceMuted text-ink-700" aria-label="Filter">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
           </button>
-          <button class="h-9 w-9 grid place-items-center rounded-md border hairline bg-surface hover:bg-surfaceMuted" aria-label="Save">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3"/></svg>
+          <button class="h-8 w-8 grid place-items-center rounded-md hover:bg-surfaceMuted text-ink-700" aria-label="Save">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3"/></svg>
           </button>
-          <button class="h-9 px-3 inline-flex items-center gap-2 rounded-md border hairline bg-surface text-[13px] hover:bg-surfaceMuted whitespace-nowrap">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
+          <button class="ml-1 h-8 px-3 inline-flex items-center gap-2 rounded-lg bg-ink-900 text-white text-[13px] hover:bg-ink-700 whitespace-nowrap">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
             2024 – 2025
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
           </button>
+        </div>
         </div>
       </section>
 
@@ -142,11 +170,11 @@
       <!-- ============================================== -->
       <!-- WORKSPACE: sidebar | chart | metrics           -->
       <!-- ============================================== -->
-      <section class="grid grid-cols-[200px_1fr_160px] gap-8 pt-6">
+      <section class="flex flex-col gap-6 pt-6 md:grid md:grid-cols-[200px_1fr_160px] md:gap-8">
         <!-- ===== SIDEBAR ===== -->
-        <aside>
-          <!-- Underline sub-tabs -->
-          <div class="flex items-center gap-6 border-b hairline">
+        <aside class="min-w-0 -mx-4 md:mx-0">
+          <!-- Underline sub-tabs (desktop) -->
+          <div class="hidden md:flex items-center gap-6 border-b hairline">
             <button class="relative pb-3 text-[15px] font-medium">
               Default
               <span class="absolute left-0 right-0 -bottom-px h-px bg-ink-900"></span>
@@ -154,10 +182,27 @@
             <button class="pb-3 text-[15px] text-ink-500">Saved</button>
           </div>
 
-          <!-- Nav group 1 -->
-          <ul class="mt-4 space-y-px text-[14px]">
+          <!-- Mobile: horizontal scroll of nav pills -->
+          <div class="md:hidden overflow-x-auto px-4" style="scrollbar-width:none">
+            <ul class="flex items-center gap-2 text-[13px] whitespace-nowrap pb-1">
+              <li><a href="#" class="inline-flex items-center px-3 h-8 rounded-pill bg-ink-900 text-white font-medium">MRR</a></li>
+              <li><a href="#" class="inline-flex items-center px-3 h-8 rounded-pill bg-surfaceMuted text-ink-700">MRR Movements</a></li>
+              <li><a href="#" class="inline-flex items-center px-3 h-8 rounded-pill bg-surfaceMuted text-ink-700">Net MRR Change</a></li>
+              <li><a href="#" class="inline-flex items-center px-3 h-8 rounded-pill bg-surfaceMuted text-ink-700">Annual Run Rate</a></li>
+              <li><a href="#" class="inline-flex items-center px-3 h-8 rounded-pill bg-surfaceMuted text-ink-700">CMRR Forecast</a></li>
+              <li class="px-1 text-ink-300">•</li>
+              <li><a href="#" class="inline-flex items-center px-3 h-8 rounded-pill bg-surfaceMuted text-ink-700">Leads</a></li>
+              <li><a href="#" class="inline-flex items-center px-3 h-8 rounded-pill bg-surfaceMuted text-ink-700">Free Trials</a></li>
+              <li><a href="#" class="inline-flex items-center px-3 h-8 rounded-pill bg-surfaceMuted text-ink-700">Trial Conversion</a></li>
+              <li><a href="#" class="inline-flex items-center px-3 h-8 rounded-pill bg-surfaceMuted text-ink-700">Funnel Analysis</a></li>
+              <li><a href="#" class="inline-flex items-center px-3 h-8 rounded-pill bg-surfaceMuted text-ink-700">Sales Cycle</a></li>
+            </ul>
+          </div>
+
+          <!-- Nav group 1 (desktop) -->
+          <ul class="hidden md:block mt-4 space-y-px text-[14px]">
             <li>
-              <a href="#" class="flex items-center justify-between px-3 h-9 rounded-md bg-ink-900 text-canvas">
+              <a href="#" class="flex items-center justify-between px-3 h-9 rounded-md bg-surfaceMuted text-ink-900 font-medium">
                 <span>MRR</span>
               </a>
             </li>
@@ -167,10 +212,10 @@
             <li><a href="#" class="flex items-center px-3 h-9 rounded-md hover:bg-surfaceMuted text-ink-700">CMRR Forecast</a></li>
           </ul>
 
-          <div class="my-4 border-t hairline"></div>
+          <div class="hidden md:block my-4 border-t hairline"></div>
 
-          <!-- Nav group 2 -->
-          <ul class="space-y-px text-[14px]">
+          <!-- Nav group 2 (desktop) -->
+          <ul class="hidden md:block space-y-px text-[14px]">
             <li><a href="#" class="flex items-center px-3 h-9 rounded-md hover:bg-surfaceMuted text-ink-700">Leads</a></li>
             <li><a href="#" class="flex items-center px-3 h-9 rounded-md hover:bg-surfaceMuted text-ink-700">Free Trials</a></li>
             <li><a href="#" class="flex items-center px-3 h-9 rounded-md hover:bg-surfaceMuted text-ink-700">Trial Conversion</a></li>
@@ -182,32 +227,32 @@
         <!-- ===== CHART AREA ===== -->
         <div class="min-w-0">
           <!-- Chart toolbar -->
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between flex-wrap gap-y-3">
             <!-- Left: chart-type icon group + secondary icons -->
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-3">
               <div class="inline-flex p-1 rounded-md bg-ink-900">
-                <button class="h-7 w-7 grid place-items-center rounded text-canvas" aria-label="Line">
+                <button class="h-6 w-6 grid place-items-center rounded text-white" aria-label="Line">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17 9 11l4 4 8-8"/></svg>
                 </button>
-                <button class="h-7 w-7 grid place-items-center rounded text-ink-400" aria-label="Bar">
+                <button class="h-6 w-6 grid place-items-center rounded text-ink-500" aria-label="Bar">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>
                 </button>
               </div>
-              <div class="flex items-center gap-3 text-ink-400">
-                <button class="h-7 w-7 grid place-items-center hover:text-ink-900" aria-label="Axis"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v16h16"/><path d="M8 16V8M12 16v-4M16 16v-2"/></svg></button>
-                <button class="h-7 w-7 grid place-items-center hover:text-ink-900" aria-label="Annotate"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16M6 16l8-8 4 4-8 8H6z"/></svg></button>
-                <button class="h-7 w-7 grid place-items-center hover:text-ink-900" aria-label="Forecast"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg></button>
-                <button class="h-7 w-7 grid place-items-center hover:text-ink-900" aria-label="Refresh"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
-                <button class="h-7 w-7 grid place-items-center hover:text-ink-900" aria-label="Percent"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 19 14-14"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/></svg></button>
+              <div class="flex items-center gap-1 text-ink-700">
+                <button class="h-7 w-7 grid place-items-center rounded hover:bg-surfaceMuted" aria-label="Axis"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 4v16h16"/><path d="M8 16V8M12 16v-4M16 16v-2"/></svg></button>
+                <button class="h-7 w-7 grid place-items-center rounded hover:bg-surfaceMuted" aria-label="Annotate"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 20h16M6 16l8-8 4 4-8 8H6z"/></svg></button>
+                <button class="h-7 w-7 grid place-items-center rounded hover:bg-surfaceMuted" aria-label="Forecast"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="8"/></svg></button>
+                <button class="h-7 w-7 grid place-items-center rounded hover:bg-surfaceMuted" aria-label="Refresh"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button>
+                <button class="h-7 w-7 grid place-items-center rounded hover:bg-surfaceMuted" aria-label="Percent"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="m5 19 14-14"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/></svg></button>
               </div>
             </div>
             <!-- Right: range segmented (D / W / M / All) -->
             <div class="inline-flex items-center gap-1 text-[13px] text-ink-500">
               <button class="h-7 w-7 grid place-items-center rounded">D</button>
               <button class="h-7 w-7 grid place-items-center rounded">W</button>
-              <button class="h-7 w-7 grid place-items-center rounded text-ink-900">M</button>
-              <button class="h-7 px-3 inline-flex items-center gap-2 rounded-pill bg-surfaceMuted text-ink-900">
-                <span class="h-3 w-3 rounded-full bg-ink-300"></span>
+              <button class="h-7 w-7 grid place-items-center rounded text-ink-900 font-medium">M</button>
+              <button class="h-7 pl-1 pr-3 inline-flex items-center gap-1.5 rounded-pill bg-surfaceMuted text-ink-900">
+                <span class="h-5 w-5 rounded-full bg-ink-300"></span>
                 All
               </button>
             </div>
@@ -216,7 +261,7 @@
           <!-- Chart body -->
           <div class="relative mt-6 h-[280px]">
             <!-- Y axis labels -->
-            <div class="absolute left-0 top-0 bottom-6 w-12 flex flex-col justify-between text-[11px] text-ink-400 text-right pr-2">
+            <div class="absolute left-0 top-0 bottom-6 w-12 flex flex-col justify-between text-[11px] text-ink-500 text-right pr-2">
               <span>$1,750</span><span>$1,500</span><span>$1,250</span>
               <span>$1,000</span><span>$500</span><span>$100</span><span>$0</span>
             </div>
@@ -244,54 +289,95 @@
             </div>
 
             <!-- X axis labels -->
-            <div class="absolute left-12 right-0 bottom-0 flex justify-between text-[11px] text-ink-400">
-              <span>Jul 21, 24</span><span>Sep 15, 24</span><span>Nov 10, 24</span>
-              <span>Jan 5, 25</span><span>Mar 2, 25</span><span>Apr 27, 25</span>
-              <span>Jun 22, 25</span><span>Jul 22, 25</span><span>Aug 8, 25</span>
+            <div class="absolute left-12 right-0 bottom-0 flex justify-between text-[11px] text-ink-500">
+              <span>Jul 21, 24</span><span class="hidden sm:inline">Sep 15, 24</span><span>Nov 10, 24</span>
+              <span class="hidden sm:inline">Jan 5, 25</span><span>Mar 2, 25</span><span class="hidden sm:inline">Apr 27, 25</span>
+              <span>Jun 22, 25</span><span class="hidden sm:inline">Jul 22, 25</span><span class="hidden sm:inline">Aug 8, 25</span>
             </div>
           </div>
         </div>
 
         <!-- ===== METRICS COLUMN ===== -->
-        <aside class="space-y-4">
-          <div>
-            <div class="text-[12px] text-ink-500">Current MRR</div>
-            <div class="text-[20px] font-semibold tracking-tight leading-tight mt-1">$1,254</div>
-          </div>
-          <div class="border-t hairline"></div>
-
-          <div>
-            <div class="text-[12px] text-ink-500">30 days ago</div>
-            <div class="mt-1 flex items-baseline gap-1.5">
-              <span class="text-[20px] font-semibold tracking-tight leading-tight">$1,216</span>
-              <span class="text-[11px] font-medium text-positive">+4.2%</span>
+        <aside class="min-w-0 -mx-4 md:mx-0">
+          <!-- Mobile: horizontal scroll of metric cards -->
+          <div class="md:hidden overflow-x-auto px-4" style="scrollbar-width:none">
+            <div class="flex gap-3 min-w-max pb-1">
+              <div class="shrink-0 w-[140px] p-3 rounded-lg border border-line bg-white">
+                <div class="text-[12px] text-ink-500">Current MRR</div>
+                <div class="text-[18px] font-semibold tracking-tight leading-tight mt-1">$1,254</div>
+              </div>
+              <div class="shrink-0 w-[140px] p-3 rounded-lg border border-line bg-white">
+                <div class="text-[12px] text-ink-500">30 days ago</div>
+                <div class="mt-1 flex items-baseline gap-1.5">
+                  <span class="text-[18px] font-semibold tracking-tight leading-tight">$1,216</span>
+                  <span class="text-[11px] font-medium text-positive">+4.2%</span>
+                </div>
+              </div>
+              <div class="shrink-0 w-[140px] p-3 rounded-lg border border-line bg-white">
+                <div class="text-[12px] text-ink-500">60 days ago</div>
+                <div class="mt-1 flex items-baseline gap-1.5">
+                  <span class="text-[18px] font-semibold tracking-tight leading-tight">$1,109</span>
+                  <span class="text-[11px] font-medium text-positive">+13.6%</span>
+                </div>
+              </div>
+              <div class="shrink-0 w-[140px] p-3 rounded-lg border border-line bg-white">
+                <div class="text-[12px] text-ink-500">180 days ago</div>
+                <div class="mt-1 flex items-baseline gap-1.5">
+                  <span class="text-[18px] font-semibold tracking-tight leading-tight">$983</span>
+                  <span class="text-[11px] font-medium text-positive">+27.5%</span>
+                </div>
+              </div>
+              <div class="shrink-0 w-[140px] p-3 rounded-lg border border-line bg-white">
+                <div class="text-[12px] text-ink-500">360 days ago</div>
+                <div class="mt-1 flex items-baseline gap-1.5">
+                  <span class="text-[18px] font-semibold tracking-tight leading-tight">$850</span>
+                  <span class="text-[11px] font-medium text-positive">+47.1%</span>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="border-t hairline"></div>
 
-          <div>
-            <div class="text-[12px] text-ink-500">60 days ago</div>
-            <div class="mt-1 flex items-baseline gap-1.5">
-              <span class="text-[20px] font-semibold tracking-tight leading-tight">$1,109</span>
-              <span class="text-[11px] font-medium text-positive">+13.6%</span>
+          <!-- Desktop: vertical stack -->
+          <div class="hidden md:block space-y-4">
+            <div>
+              <div class="text-[12px] text-ink-500">Current MRR</div>
+              <div class="text-[20px] font-semibold tracking-tight leading-tight mt-1">$1,254</div>
             </div>
-          </div>
-          <div class="border-t hairline"></div>
+            <div class="border-t hairline"></div>
 
-          <div>
-            <div class="text-[12px] text-ink-500">180 days ago</div>
-            <div class="mt-1 flex items-baseline gap-1.5">
-              <span class="text-[20px] font-semibold tracking-tight leading-tight">$983</span>
-              <span class="text-[11px] font-medium text-positive">+27.5%</span>
+            <div>
+              <div class="text-[12px] text-ink-500">30 days ago</div>
+              <div class="mt-1 flex items-baseline gap-1.5">
+                <span class="text-[20px] font-semibold tracking-tight leading-tight">$1,216</span>
+                <span class="text-[11px] font-medium text-positive">+4.2%</span>
+              </div>
             </div>
-          </div>
-          <div class="border-t hairline"></div>
+            <div class="border-t hairline"></div>
 
-          <div>
-            <div class="text-[12px] text-ink-500">360 days ago</div>
-            <div class="mt-1 flex items-baseline gap-1.5">
-              <span class="text-[20px] font-semibold tracking-tight leading-tight">$850</span>
-              <span class="text-[11px] font-medium text-positive">+47.1%</span>
+            <div>
+              <div class="text-[12px] text-ink-500">60 days ago</div>
+              <div class="mt-1 flex items-baseline gap-1.5">
+                <span class="text-[20px] font-semibold tracking-tight leading-tight">$1,109</span>
+                <span class="text-[11px] font-medium text-positive">+13.6%</span>
+              </div>
+            </div>
+            <div class="border-t hairline"></div>
+
+            <div>
+              <div class="text-[12px] text-ink-500">180 days ago</div>
+              <div class="mt-1 flex items-baseline gap-1.5">
+                <span class="text-[20px] font-semibold tracking-tight leading-tight">$983</span>
+                <span class="text-[11px] font-medium text-positive">+27.5%</span>
+              </div>
+            </div>
+            <div class="border-t hairline"></div>
+
+            <div>
+              <div class="text-[12px] text-ink-500">360 days ago</div>
+              <div class="mt-1 flex items-baseline gap-1.5">
+                <span class="text-[20px] font-semibold tracking-tight leading-tight">$850</span>
+                <span class="text-[11px] font-medium text-positive">+47.1%</span>
+              </div>
             </div>
           </div>
         </aside>
@@ -300,29 +386,41 @@
       <!-- ============================================== -->
       <!-- CHART DATA TABLE                                -->
       <!-- ============================================== -->
-      <section class="mt-12 pt-8 pb-16 relative">
+      <section class="mt-10 md:mt-12 pt-6 md:pt-8 pb-12 md:pb-16 relative">
         <!-- Full-bleed lighter background + top divider -->
         <div class="absolute left-1/2 -translate-x-1/2 top-0 w-screen h-full bg-surface border-t hairline -z-10"></div>
         <!-- Section header -->
-        <div class="grid grid-cols-[200px_1fr_160px] gap-8 items-center">
-          <h2 class="text-[26px] font-semibold tracking-tight">Chart data</h2>
-
-          <!-- Legend -->
-          <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[13px] text-ink-700">
-            <span class="inline-flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-cat-blueInk"></span>New subscriptions</span>
-            <span class="inline-flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-cat-pinkInk"></span>Churn</span>
-            <span class="inline-flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-cat-peachInk"></span>Expansions</span>
-            <span class="inline-flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-cat-greenInk"></span>Reactivations</span>
-            <span class="inline-flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-cat-pinkInk"></span>Trial-to-paid conversions</span>
-            <span class="inline-flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-cat-lilacInk"></span>Seasonal</span>
+        <div class="flex flex-col gap-4 md:grid md:grid-cols-[200px_1fr_160px] md:gap-8 md:items-center">
+          <div class="flex items-center justify-between gap-4">
+            <h2 class="text-[22px] md:text-[26px] font-semibold tracking-tight">Chart data</h2>
+            <!-- Mobile-only inline actions -->
+            <div class="flex md:hidden items-center gap-1">
+              <button class="h-9 w-9 grid place-items-center rounded-md hover:bg-surfaceMuted text-ink-700" aria-label="Export">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 4v12"/><path d="m6 10 6-6 6 6"/><path d="M4 20h16"/></svg>
+              </button>
+              <button class="ml-1 h-9 px-3 inline-flex items-center gap-2 rounded-lg border border-line bg-white text-[13px] hover:bg-surfaceMuted whitespace-nowrap">
+                All MRR Movements
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+            </div>
           </div>
 
-          <!-- Table actions -->
-          <div class="flex items-center justify-end gap-2">
-            <button class="h-9 w-9 grid place-items-center rounded-md hover:bg-surfaceMuted text-ink-500" aria-label="Export">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12"/><path d="m6 10 6-6 6 6"/><path d="M4 20h16"/></svg>
+          <!-- Legend -->
+          <div class="flex flex-wrap items-center md:justify-center gap-x-4 md:gap-x-6 gap-y-2 text-[12px] md:text-[13px] text-ink-700">
+            <span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-cat-blue"></span>New subscriptions</span>
+            <span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-cat-pink"></span>Churn</span>
+            <span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-cat-peach"></span>Expansions</span>
+            <span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-cat-green"></span>Reactivations</span>
+            <span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-cat-cream"></span>Trial-to-paid conversions</span>
+            <span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-cat-lilac"></span>Seasonal</span>
+          </div>
+
+          <!-- Table actions (desktop only; mobile lives next to title) -->
+          <div class="hidden md:flex items-center justify-end gap-1">
+            <button class="h-8 w-8 grid place-items-center rounded-md hover:bg-surfaceMuted text-ink-700" aria-label="Export">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 4v12"/><path d="m6 10 6-6 6 6"/><path d="M4 20h16"/></svg>
             </button>
-            <button class="h-9 px-3 inline-flex items-center gap-2 rounded-md border hairline bg-surface text-[13px] hover:bg-surfaceMuted whitespace-nowrap">
+            <button class="ml-1 h-8 px-3 inline-flex items-center gap-2 rounded-lg border border-line bg-white text-[13px] hover:bg-surfaceMuted whitespace-nowrap">
               All MRR Movements
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
             </button>
@@ -330,8 +428,8 @@
         </div>
 
         <!-- Table -->
-        <div class="mt-8 border-t hairline">
-          <table class="w-full text-[13px]">
+        <div class="mt-6 md:mt-8 -mx-4 md:mx-0 overflow-x-auto border-t hairline">
+          <table class="w-full min-w-[640px] text-[13px]">
             <thead>
               <tr class="text-ink-400">
                 <th class="text-left font-normal py-4 pr-6 w-[220px]"></th>
