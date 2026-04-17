@@ -274,7 +274,7 @@ interface api {
         assert_eq!(get_item.name, "get-item");
 
         match &get_item.result {
-            Some(TypeRef::Named { name, url }) => {
+            Some(TypeRef::Named { name, url, .. }) => {
                 assert_eq!(name, "item");
                 assert!(url.is_some(), "should have a URL for same-package type");
                 let url_str = url.as_ref().unwrap();
@@ -345,7 +345,7 @@ interface draw {
         let draw_at = &draw.functions[0];
 
         match &draw_at.params[0].ty {
-            TypeRef::Named { name, url } => {
+            TypeRef::Named { name, url, .. } => {
                 assert_eq!(name, "point");
                 assert!(url.is_some(), "should have a URL for the used type");
             }

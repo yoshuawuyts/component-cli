@@ -327,6 +327,45 @@ fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
         }
     }
 
+    // Dependencies
+    if !pkg.dependencies.is_empty() {
+        sidebar.division(|wrapper| {
+            wrapper.class("").heading_3(|h3| {
+                h3.class("text-sm font-medium text-fg-muted mb-1")
+                    .text("Dependencies")
+            });
+            wrapper.division(|div| {
+                div.class("border-2 border-fg p-3");
+                let mut ul = html::text_content::UnorderedList::builder();
+                ul.class("space-y-1");
+                for dep in &pkg.dependencies {
+                    ul.list_item(|li| {
+                        li.class("font-mono text-sm");
+                        match dep.package.split_once(':') {
+                            Some((ns, name)) => {
+                                li.anchor(|a| {
+                                    a.href(format!("/{ns}/{name}"))
+                                        .class("text-accent hover:underline")
+                                        .text(dep.package.clone())
+                                });
+                            }
+                            None => {
+                                li.span(|s| s.class("text-fg").text(dep.package.clone()));
+                            }
+                        }
+                        if let Some(v) = &dep.version {
+                            li.span(|s| s.class("text-fg-faint ml-1").text(format!("@{v}")));
+                        }
+                        li
+                    });
+                }
+                div.push(ul.build());
+                div
+            });
+            wrapper
+        });
+    }
+
     // Dependents
     let total_dependents = ctx.importers.len() + ctx.exporters.len();
     if total_dependents > 0 {
