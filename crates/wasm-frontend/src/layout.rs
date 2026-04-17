@@ -97,6 +97,7 @@ fn document_inner(
               world:    'var(--color-wit-world)',
               iface:    'var(--color-wit-iface)',
               import:   'var(--color-wit-import)',
+              module:   'var(--color-wit-module)',
             }},
           }},
           fontFamily: {{
@@ -167,6 +168,7 @@ fn document_inner(
       --color-wit-world: #9333ea;
       --color-wit-iface: #0369a1;
       --color-wit-import: #b91c1c;
+      --color-wit-module: #be185d;
     }}
     html, body {{
       background-color: var(--color-bg);

@@ -30,11 +30,20 @@ pub(crate) fn render(
         .map(super::package::format_size)
         .unwrap_or_default();
 
-    let subtitle = if size_text.is_empty() {
-        kind.to_owned()
+    let lang_text = if child.languages.is_empty() {
+        String::new()
     } else {
-        format!("{kind} ({size_text})")
+        child.languages.join(", ")
     };
+
+    let mut subtitle_parts = vec![kind.to_owned()];
+    if !size_text.is_empty() {
+        subtitle_parts.push(size_text);
+    }
+    if !lang_text.is_empty() {
+        subtitle_parts.push(lang_text);
+    }
+    let subtitle = subtitle_parts.join(" \u{2014} ");
 
     let header = format!(
         r#"<div class="max-w-3xl mb-6">
@@ -93,8 +102,14 @@ pub(crate) fn render(
     package_shell::render_page_with_crumbs(&ctx, &title, &body, &[])
 }
 
-/// Render producers as a list (matching package page style).
+/// Render producers as a list, excluding language entries (shown in subtitle).
 fn render_producers_section(producers: &[wasm_meta_registry_client::ProducerEntry]) -> String {
+    // Filter out language entries — those are shown in the subtitle.
+    let filtered: Vec<_> = producers.iter().filter(|e| e.field != "language").collect();
+    if filtered.is_empty() {
+        return String::new();
+    }
+
     let mut div = Division::builder();
     div.heading_2(|h2| {
         h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
@@ -102,29 +117,31 @@ fn render_producers_section(producers: &[wasm_meta_registry_client::ProducerEntr
     });
 
     let mut ul = UnorderedList::builder();
-    for entry in producers {
+    for entry in &filtered {
         let name = entry.name.clone();
         let version = entry.version.clone();
-        let field = entry.field.clone();
+        // Strip parenthesized info from display, keep in tooltip.
+        let display_version = version
+            .split_once(" (")
+            .map_or_else(|| version.clone(), |(before, _)| before.to_owned());
         let tooltip = if version.is_empty() {
             name.clone()
         } else {
             format!("{name} {version}")
         };
         ul.list_item(|li| {
-            li.class("py-1 flex justify-between gap-4");
+            li.class("py-1");
             li.span(|s| {
                 s.class("font-mono text-base min-w-0 truncate")
                     .title(tooltip);
                 s.span(|n| n.class("text-accent").text(name));
-                if !version.is_empty() {
-                    s.span(|v| v.class("text-fg-muted ml-1").text(version));
+                if !display_version.is_empty() {
+                    s.span(|v| {
+                        v.class("text-fg-faint ml-1")
+                            .text(format!("@{display_version}"))
+                    });
                 }
                 s
-            });
-            li.span(|s| {
-                s.class("text-sm text-fg-muted shrink-0 whitespace-nowrap")
-                    .text(field)
             });
             li
         });
@@ -138,7 +155,7 @@ fn render_bom_section(deps: &[wasm_meta_registry_client::BomEntry]) -> String {
     let mut div = Division::builder();
     div.heading_2(|h2| {
         h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
-            .text(format!("Dependencies ({})", deps.len()))
+            .text("Dependencies")
     });
 
     let mut ul = UnorderedList::builder();

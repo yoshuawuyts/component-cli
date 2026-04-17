@@ -663,6 +663,13 @@ pub(crate) fn render_import_export_section(heading: &str, items: &[ImportExportE
             .text(heading.to_owned())
     });
 
+    // Count names (without version) to detect duplicates that need disambiguation.
+    let mut name_counts = std::collections::HashMap::new();
+    for item in items {
+        let name = item.label.split_once('@').map_or(&*item.label, |(n, _)| n);
+        *name_counts.entry(name.to_owned()).or_insert(0u32) += 1;
+    }
+
     let mut ul = html::text_content::UnorderedList::builder();
     for item in items {
         let link_class = match item.item_kind {
@@ -676,6 +683,9 @@ pub(crate) fn render_import_export_section(heading: &str, items: &[ImportExportE
                 Some((n, v)) => (n.to_owned(), Some(v.to_owned())),
                 None => (item.label.clone(), None),
             };
+            // Only show version when needed to disambiguate duplicates.
+            let show_version =
+                ver_part.is_some() && name_counts.get(&name_part).copied().unwrap_or(0) > 1;
             li.division(|left| {
                 left.class("shrink-0 w-80");
                 // Split "wasi:cli/stdin" into prefix "wasi:cli/" (muted) + "stdin" (colored).
@@ -695,7 +705,7 @@ pub(crate) fn render_import_export_section(heading: &str, items: &[ImportExportE
                                 a.span(|s| s.class("text-fg-muted").text(pfx.clone()));
                             }
                             a.span(|s| s.class(link_class).text(highlight.clone()));
-                            if let Some(v) = &ver_part {
+                            if show_version && let Some(v) = &ver_part {
                                 a.span(|s| s.class("text-fg-faint ml-1").text(format!("@{v}")));
                             }
                             a
@@ -708,7 +718,7 @@ pub(crate) fn render_import_export_section(heading: &str, items: &[ImportExportE
                                 s.span(|ps| ps.class("text-fg-muted").text(pfx.clone()));
                             }
                             s.span(|hs| hs.class("text-fg").text(highlight.clone()));
-                            if let Some(v) = &ver_part {
+                            if show_version && let Some(v) = &ver_part {
                                 s.span(|vs| vs.class("text-fg-faint ml-1").text(format!("@{v}")));
                             }
                             s

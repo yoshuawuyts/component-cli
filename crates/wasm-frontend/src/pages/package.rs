@@ -197,24 +197,20 @@ fn render_children_overview(
         } else {
             format!("{url_base}/component/{i}")
         };
-        let size = child.size_bytes.map(format_size).unwrap_or_default();
 
         let link_class = if kind == "component" {
             "font-mono text-base font-medium text-wit-world hover:underline"
         } else {
-            "font-mono text-base font-medium text-wit-iface hover:underline"
+            "font-mono text-base font-medium text-wit-module hover:underline"
         };
 
         ul.list_item(|li| {
-            li.class("py-1 flex justify-between");
+            li.class("py-1");
             li.anchor(|a| {
                 a.href(href)
                     .class(link_class.to_owned())
                     .text(name.to_owned())
             });
-            if !size.is_empty() {
-                li.span(|s| s.class("text-sm text-fg-muted").text(size));
-            }
             li
         });
     }
@@ -412,8 +408,13 @@ pub(crate) fn format_size(bytes: u64) -> String {
     }
 }
 
-/// Render producer toolchain entries as a list.
+/// Render producer entries as a list, excluding language entries.
 fn render_producers(producers: &[wasm_meta_registry_client::ProducerEntry]) -> Division {
+    let filtered: Vec<_> = producers.iter().filter(|e| e.field != "language").collect();
+    if filtered.is_empty() {
+        return Division::builder().build();
+    }
+
     let mut div = Division::builder();
     div.heading_2(|h2| {
         h2.class("text-lg font-medium text-fg-muted mb-3 pb-2 border-b border-border")
@@ -421,29 +422,30 @@ fn render_producers(producers: &[wasm_meta_registry_client::ProducerEntry]) -> D
     });
 
     let mut ul = UnorderedList::builder();
-    for entry in producers {
+    for entry in &filtered {
         let name = entry.name.clone();
         let version = entry.version.clone();
-        let field = entry.field.clone();
+        let display_version = version
+            .split_once(" (")
+            .map_or_else(|| version.clone(), |(before, _)| before.to_owned());
         let tooltip = if version.is_empty() {
             name.clone()
         } else {
             format!("{name} {version}")
         };
         ul.list_item(|li| {
-            li.class("py-1 flex justify-between gap-4");
+            li.class("py-1");
             li.span(|s| {
                 s.class("font-mono text-base min-w-0 truncate")
                     .title(tooltip);
                 s.span(|n| n.class("text-accent").text(name));
-                if !version.is_empty() {
-                    s.span(|v| v.class("text-fg-muted ml-1").text(version));
+                if !display_version.is_empty() {
+                    s.span(|v| {
+                        v.class("text-fg-faint ml-1")
+                            .text(format!("@{display_version}"))
+                    });
                 }
                 s
-            });
-            li.span(|s| {
-                s.class("text-sm text-fg-muted shrink-0 whitespace-nowrap")
-                    .text(field)
             });
             li
         });
