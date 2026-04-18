@@ -156,14 +156,26 @@
     :root[data-theme="light"] .theme-icon-sun{display:none;}
     :root[data-theme="light"] .theme-icon-moon{display:inline-block;}
 
-    /* Kind sigil — small, colored. Links stay ink-900 so tables are calm;
-       color does the kind-taxonomy work once, not three times. */
+    /* Kind sigil — small, low-saturation taxonomy marker.
+       It's a hint, not a logo: ink-500 on a faint surface tint. */
     .sigil{
       display:inline-grid;place-items:center;
-      height:18px;width:18px;border-radius:3px;
+      height:16px;width:16px;border-radius:3px;
       font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
-      font-size:10px;font-weight:600;line-height:1;flex-shrink:0;
+      font-size:10px;font-weight:500;line-height:1;flex-shrink:0;
+      background:var(--c-surface-muted);color:var(--c-ink-500);
     }
+    .sigil[data-kind="M"]{background:var(--c-cat-pink);color:var(--c-cat-pinkInk);}
+    .sigil[data-kind="S"]{background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);}
+    .sigil[data-kind="E"]{background:var(--c-cat-teal);color:var(--c-cat-tealInk);}
+    .sigil[data-kind="T"]{background:var(--c-cat-blue);color:var(--c-cat-blueInk);}
+    .sigil[data-kind="f"]{background:var(--c-cat-green);color:var(--c-cat-greenInk);}
+    .sigil[data-kind="Y"]{background:var(--c-cat-peach);color:var(--c-cat-peachInk);}
+    .sigil[data-kind="!"]{background:var(--c-cat-plum);color:var(--c-cat-plumInk);}
+    .sigil[data-kind="C"]{background:var(--c-cat-slate);color:var(--c-cat-slateInk);}
+    /* Tables sit on surface (the secondary region) — sigils there get the
+       muted treatment so the table reads as calm reference data. */
+    .items-region .sigil{background:var(--c-surface-muted)!important;color:var(--c-ink-500)!important;}
 
     /* Code blocks */
     .code{
@@ -234,17 +246,39 @@
     .prose ul li::marker{color:var(--c-ink-400);}
     .prose strong{color:var(--c-ink-900);font-weight:600;}
 
-    /* Sidebar link */
+    /* Sidebar link — categorical color is a 2px left rail.
+       Hover shows the rail at 50%, active at 100%. The kind letter is
+       a quiet mono prefix in ink-400 — scannable, never shouts. */
     .side-link{
-      display:flex;align-items:center;gap:8px;
-      padding:3px 8px;border-radius:4px;
+      position:relative;display:flex;align-items:center;gap:10px;
+      padding:5px 8px 5px 12px;border-radius:4px;
       font-size:13px;color:var(--c-ink-700);
       text-decoration:none;line-height:1.4;
     }
+    .side-link::before{
+      content:"";position:absolute;left:2px;top:6px;bottom:6px;width:2px;
+      border-radius:2px;background:transparent;
+      transition:background-color .1s linear;
+    }
+    .side-link .kind{
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:11px;color:var(--c-ink-400);width:10px;text-align:center;
+      flex-shrink:0;
+    }
+    .side-link .count{
+      margin-left:auto;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-variant-numeric:tabular-nums;
+      font-size:10.5px;color:var(--c-ink-400);
+    }
     .side-link:hover{background:var(--c-surface-muted);color:var(--c-ink-900);}
-    .side-link.active{background:var(--c-surface-muted);color:var(--c-ink-900);font-weight:500;}
+    .side-link:hover::before{background:color-mix(in oklab,var(--c-rail,var(--c-line)) 60%,transparent);}
+    .side-link:hover .kind{color:var(--c-ink-700);}
+    .side-link.active{background:var(--c-surface-muted);color:var(--c-ink-900);}
+    .side-link.active::before{background:var(--c-rail,var(--c-ink-900));}
+    .side-link.active .kind{color:var(--c-ink-900);}
 
-    /* Right TOC */
+    /* Right TOC — in-page scrollspy. Hierarchy is real indent, no bullets. */
     .toc-link{
       display:block;padding:3px 10px;
       font-size:12px;color:var(--c-ink-500);
@@ -253,7 +287,14 @@
     }
     .toc-link:hover{color:var(--c-ink-900);border-left-color:var(--c-line);}
     .toc-link.active{color:var(--c-ink-900);border-left-color:var(--c-ink-900);}
-    .toc-link.indent{padding-left:22px;}
+    .toc-link.indent{padding-left:22px;color:var(--c-ink-500);}
+    .toc-link.indent.active{color:var(--c-ink-900);}
+    .toc-sub-label{
+      padding:10px 10px 4px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+      color:var(--c-ink-500);
+    }
 
     /* Anchor — persistently visible but quiet */
     .anchor{
@@ -337,11 +378,16 @@
   <!-- ============================== -->
   <div class="sticky top-0 z-20 bg-canvas/90 backdrop-blur border-b hairline">
     <div class="mx-auto max-w-[1440px] px-4 md:px-6 h-12 flex items-center gap-4">
-      <a href="#" class="flex items-center gap-2 text-ink-900 no-underline min-w-0">
-        <span class="inline-grid place-items-center h-6 w-6 rounded-md bg-cat-rust text-cat-rustInk mono text-[11px] font-semibold">W</span>
-        <span class="mono text-[13px] font-medium truncate">wasm_component</span>
-        <span class="mono text-[11px] text-ink-500 hidden sm:inline">0.4.2</span>
-      </a>
+      <!-- Brand + breadcrumb. The brand is the rust-monogram; the breadcrumb
+           tells you WHERE in the crate you are. No dead-weight single item. -->
+      <div class="flex items-center gap-2.5 min-w-0">
+        <a href="#" aria-label="Home" class="inline-grid place-items-center h-6 w-6 rounded-md bg-cat-rust text-cat-rustInk mono text-[11px] font-semibold no-underline">W</a>
+        <nav aria-label="Breadcrumb" class="flex items-center gap-1.5 mono text-[13px] min-w-0">
+          <a href="#" class="text-ink-700 hover:text-ink-900 truncate">wasm_component</a>
+          <span class="text-ink-400" aria-hidden="true">/</span>
+          <a href="#struct.Component" class="text-ink-900 truncate">Component</a>
+        </nav>
+      </div>
 
       <!-- Command palette trigger: honest about being a trigger, not a live input -->
       <button type="button" id="palette-trigger"
@@ -421,53 +467,55 @@
         </div>
       </div>
 
-      <!-- In-crate nav -->
+      <!-- In-crate nav — the global crate map, never changes per page.
+           Categorical color is a hairline rail; kind letter is a quiet prefix. -->
       <div class="py-4">
         <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-2">In wasm_component</div>
-        <nav class="space-y-0.5">
-          <a href="#modules" class="side-link">
-            <span class="sigil" style="background:var(--c-cat-pink);color:var(--c-cat-pinkInk);">M</span>
-            Modules <span class="ml-auto mono text-[10.5px] text-ink-400">8</span>
+        <nav class="space-y-px">
+          <a href="#modules" class="side-link" style="--c-rail:var(--c-cat-pinkInk)">
+            <span class="kind">M</span>Modules<span class="count">8</span>
           </a>
-          <a href="#macros" class="side-link">
-            <span class="sigil" style="background:var(--c-cat-plum);color:var(--c-cat-plumInk);">!</span>
-            Macros <span class="ml-auto mono text-[10.5px] text-ink-400">2</span>
+          <a href="#macros" class="side-link" style="--c-rail:var(--c-cat-plumInk)">
+            <span class="kind">!</span>Macros<span class="count">2</span>
           </a>
-          <a href="#structs" class="side-link">
-            <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">S</span>
-            Structs <span class="ml-auto mono text-[10.5px] text-ink-400">6</span>
+          <a href="#structs" class="side-link active" style="--c-rail:var(--c-cat-lilacInk)">
+            <span class="kind">S</span>Structs<span class="count">6</span>
           </a>
-          <a href="#enums" class="side-link">
-            <span class="sigil" style="background:var(--c-cat-teal);color:var(--c-cat-tealInk);">E</span>
-            Enums <span class="ml-auto mono text-[10.5px] text-ink-400">2</span>
+          <a href="#enums" class="side-link" style="--c-rail:var(--c-cat-tealInk)">
+            <span class="kind">E</span>Enums<span class="count">2</span>
           </a>
-          <a href="#traits" class="side-link">
-            <span class="sigil" style="background:var(--c-cat-blue);color:var(--c-cat-blueInk);">T</span>
-            Traits <span class="ml-auto mono text-[10.5px] text-ink-400">3</span>
+          <a href="#traits" class="side-link" style="--c-rail:var(--c-cat-blueInk)">
+            <span class="kind">T</span>Traits<span class="count">3</span>
           </a>
-          <a href="#functions" class="side-link">
-            <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">f</span>
-            Functions <span class="ml-auto mono text-[10.5px] text-ink-400">3</span>
+          <a href="#functions" class="side-link" style="--c-rail:var(--c-cat-greenInk)">
+            <span class="kind">f</span>Functions<span class="count">3</span>
           </a>
-          <a href="#types" class="side-link">
-            <span class="sigil" style="background:var(--c-cat-peach);color:var(--c-cat-peachInk);">Y</span>
-            Type Aliases <span class="ml-auto mono text-[10.5px] text-ink-400">2</span>
+          <a href="#types" class="side-link" style="--c-rail:var(--c-cat-peachInk)">
+            <span class="kind">Y</span>Type Aliases<span class="count">2</span>
           </a>
-          <a href="#constants" class="side-link">
-            <span class="sigil" style="background:var(--c-cat-slate);color:var(--c-cat-slateInk);">C</span>
-            Constants <span class="ml-auto mono text-[10.5px] text-ink-400">2</span>
+          <a href="#constants" class="side-link" style="--c-rail:var(--c-cat-slateInk)">
+            <span class="kind">C</span>Constants<span class="count">2</span>
           </a>
         </nav>
       </div>
 
-      <!-- Contextual nav for current item -->
+      <!-- Project links — the crate's external endpoints; the per-page TOC
+           on the right covers in-page navigation, so we don't duplicate it here. -->
       <div class="py-4 border-t hairline">
-        <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-2">On struct Component</div>
-        <nav class="space-y-0.5 text-[12.5px]">
-          <a href="#struct.Component" class="side-link">Overview</a>
-          <a href="#impl-Component" class="side-link">Methods <span class="ml-auto mono text-[10.5px] text-ink-400">5</span></a>
-          <a href="#trait-impls" class="side-link">Trait impls <span class="ml-auto mono text-[10.5px] text-ink-400">4</span></a>
-          <a href="#auto-trait-impls" class="side-link">Auto traits <span class="ml-auto mono text-[10.5px] text-ink-400">2</span></a>
+        <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-2">Project</div>
+        <nav class="space-y-px">
+          <a href="#" class="side-link gap-2">
+            <svg class="h-3.5 w-3.5 text-ink-500" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 .2a8 8 0 0 0-2.5 15.6c.4 0 .55-.17.55-.38v-1.4c-2.22.48-2.69-1.07-2.69-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.71 1.23 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.77-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.83-2.15-.08-.2-.36-1.02.08-2.13 0 0 .67-.22 2.2.82A7.6 7.6 0 0 1 8 4.04c.68 0 1.37.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.11.16 1.93.08 2.13.52.56.83 1.28.83 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.74.54 1.49v2.21c0 .21.15.46.55.38A8 8 0 0 0 8 .2Z"/></svg>
+            Repository
+          </a>
+          <a href="#" class="side-link gap-2">
+            <svg class="h-3.5 w-3.5 text-ink-500" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1"/><path d="M2.5 6.5h11M6 3v10"/></svg>
+            Crates.io
+          </a>
+          <a href="#" class="side-link gap-2">
+            <svg class="h-3.5 w-3.5 text-ink-500" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3.5M8 11v.01"/></svg>
+            Issues<span class="count">12</span>
+          </a>
         </nav>
       </div>
     </aside>
@@ -477,27 +525,25 @@
     <!-- ============================== -->
     <article class="min-w-0">
 
-      <nav class="flex items-center gap-1.5 text-[12px] text-ink-500 mono">
-        <a href="#" class="hover:text-ink-900">wasm_component</a>
-      </nav>
-
-      <div class="mt-1 flex items-start justify-between gap-4 flex-wrap">
-        <h1 class="flex items-baseline gap-3 text-[26px] font-semibold tracking-tight">
-          <span class="text-ink-500 mono text-[15px] font-normal">Crate</span>
-          <span class="mono">wasm_component</span>
-          <a href="#" class="anchor text-[16px]">§</a>
-        </h1>
-        <div class="flex items-center gap-2 pt-1">
+      <div class="mt-2 flex items-start justify-between gap-4 flex-wrap">
+        <div class="min-w-0">
+          <div class="text-[11px] mono uppercase tracking-wider text-ink-500">Crate</div>
+          <h1 class="mt-1 text-[36px] md:text-[40px] leading-[1.05] font-semibold tracking-tight mono">
+            wasm_component
+            <a href="#" class="anchor text-[18px] align-middle">§</a>
+          </h1>
+        </div>
+        <div class="flex items-center gap-2 pt-2">
           <span class="since-tag">1.0.0</span>
           <a href="#" class="src-link">source</a>
         </div>
       </div>
 
-      <div class="mt-5 border-t rule"></div>
+      <div class="mt-6 border-t rule"></div>
 
       <!-- Overview prose -->
-      <section class="pt-6 prose max-w-[72ch]">
-        <p>
+      <section class="pt-8 prose max-w-[72ch]">
+        <p class="!text-[15px] !text-ink-700">
           A minimal, ergonomic runtime for <a href="#">WebAssembly Components</a>.
           Provides a typed <a href="#"><span class="icode">Linker</span></a>,
           host bindings, and a wire-compatible ABI for interface types. Designed to
@@ -513,7 +559,8 @@
         </p>
 
         <!-- Example -->
-        <div class="mt-6">
+        <div class="mt-8">
+          <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Example</div>
           <div class="code-head">
             <span>examples/hello.rs</span>
             <button class="copy-btn" data-copy="hello">
@@ -541,16 +588,32 @@
 }</pre>
         </div>
 
-        <p class="mt-5">
+        <p class="mt-5 !text-ink-500">
           For the full tutorial see the <a href="#">book</a>. To browse all items jump
-          to <a href="#modules">Modules</a>.
+          to <a href="#modules">Modules</a> below.
         </p>
       </section>
 
       <!-- ============================== -->
+      <!-- SECONDARY REGION: ITEMS INDEX  -->
+      <!-- Full-bleed surface swap (DS §21 Regions) — no rule between
+           regions; the surface change IS the boundary.               -->
+      <!-- ============================== -->
+      <div class="items-region relative mt-12 md:mt-16 pt-10 md:pt-14 pb-12 md:pb-16">
+        <div class="absolute left-1/2 -translate-x-1/2 top-0 w-screen h-full bg-surface -z-10"></div>
+
+        <div class="flex items-baseline justify-between mb-6">
+          <div>
+            <div class="text-[11px] mono uppercase tracking-wider text-ink-500">Reference</div>
+            <h2 class="mt-1 text-[22px] font-semibold tracking-tight">Items in this crate</h2>
+          </div>
+          <span class="text-[11px] text-ink-500 mono">28 items</span>
+        </div>
+
+      <!-- ============================== -->
       <!-- MODULES                        -->
       <!-- ============================== -->
-      <section id="modules" class="mt-12">
+      <section id="modules" class="mt-8">
         <div class="section-head">
           <h2 class="text-[18px] font-semibold tracking-tight flex items-baseline gap-2">
             Modules
@@ -880,26 +943,31 @@
         </table>
       </section>
 
+      </div>
+      <!-- /SECONDARY REGION — surface swap back to canvas; no rule needed -->
+
       <!-- ============================== -->
       <!-- DETAIL: Component              -->
+      <!-- Back on canvas — primary subject of the page when you're here. -->
       <!-- ============================== -->
-      <section id="struct.Component" class="mt-20">
-        <div class="border-t rule"></div>
-
-        <div class="pt-6 flex items-start justify-between gap-4 flex-wrap">
-          <h2 class="flex items-baseline gap-3 text-[22px] font-semibold tracking-tight">
-            <span class="sigil self-center" style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">S</span>
-            <span class="text-ink-500 mono text-[14px] font-normal">Struct</span>
-            <span class="mono">wasm_component::Component</span>
-            <a href="#struct.Component" class="anchor text-[14px]">§</a>
-          </h2>
-          <div class="flex items-center gap-2 pt-1">
+      <section id="struct.Component" class="pt-12 md:pt-16">
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+          <div class="min-w-0">
+            <div class="text-[11px] mono uppercase tracking-wider text-ink-500">Struct</div>
+            <h2 class="mt-1 flex items-baseline gap-3 text-[32px] md:text-[36px] leading-[1.1] font-semibold tracking-tight mono">
+              Component
+              <a href="#struct.Component" class="anchor text-[16px]">§</a>
+            </h2>
+          </div>
+          <div class="flex items-center gap-2 pt-2">
             <span class="since-tag">1.0.0</span>
             <a href="#" class="src-link">source</a>
           </div>
         </div>
 
-        <pre class="mt-4 code signature"><span class="kw">pub struct</span> <span class="ty">Component</span> { <span class="cm">/* private fields */</span> }</pre>
+        <div class="mt-6 border-t rule"></div>
+
+        <pre class="mt-6 code signature"><span class="kw">pub struct</span> <span class="ty">Component</span> { <span class="cm">/* private fields */</span> }</pre>
 
         <div class="prose mt-5 max-w-[72ch]">
           <p>
@@ -978,7 +1046,7 @@
               </div>
 
               <div class="sub-head">Example</div>
-              <div class="code-head">
+              <div class="code-head -mt-1">
                 <span>Compile a component from disk</span>
                 <button class="copy-btn" data-copy="ex-from-file">
                   <svg class="h-3 w-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="6" height="6" rx="1"/><path d="M2 8V3a1 1 0 0 1 1-1h5"/></svg>
@@ -1178,28 +1246,15 @@
           </div>
         </div>
 
-        <!-- Auto trait impls -->
-        <div id="auto-trait-impls" class="mt-10">
-          <div class="section-head">
-            <h3 class="text-[16px] font-semibold tracking-tight flex items-baseline gap-2">
-              Auto Trait Implementations
-              <span class="mono text-[11px] text-ink-500 font-normal">2</span>
-              <a href="#auto-trait-impls" class="anchor text-[12px]">§</a>
-            </h3>
-          </div>
-          <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[13px]">
-            <div class="flex items-center gap-2 px-3 py-2 border border-lineSoft rounded-md bg-surface">
-              <span class="mono text-ink-500">impl</span>
-              <span class="mono">Send</span>
-              <span class="mono text-ink-500">for</span>
-              <span class="mono">Component</span>
-            </div>
-            <div class="flex items-center gap-2 px-3 py-2 border border-lineSoft rounded-md bg-surface">
-              <span class="mono text-ink-500">impl</span>
-              <span class="mono">Sync</span>
-              <span class="mono text-ink-500">for</span>
-              <span class="mono">Component</span>
-            </div>
+        <!-- Auto trait impls — quietest content on the page; trivial facts. -->
+        <div id="auto-trait-impls" class="mt-8">
+          <div class="flex items-baseline gap-3 text-[12px] text-ink-500">
+            <span class="mono uppercase tracking-wider">Auto traits</span>
+            <span class="mono">·</span>
+            <span class="mono text-ink-700">Send</span>
+            <span class="mono">·</span>
+            <span class="mono text-ink-700">Sync</span>
+            <a href="#auto-trait-impls" class="anchor">§</a>
           </div>
         </div>
 
@@ -1211,7 +1266,6 @@
         <div class="flex items-center gap-3">
           <a href="#" class="hover:text-ink-900">Settings</a>
           <a href="#" class="hover:text-ink-900">Help</a>
-          <a href="#" class="hover:text-ink-900">↑ top</a>
         </div>
       </footer>
     </article>
@@ -1221,7 +1275,7 @@
     <!-- ============================== -->
     <aside class="hidden lg:block lg:sticky lg:top-16 lg:self-start lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto">
       <div class="py-1">
-        <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-2 px-2.5">On this page</div>
+        <div class="toc-sub-label" style="padding-top:0">On this page</div>
         <nav id="toc" class="-ml-px">
           <a href="#modules" class="toc-link">Modules</a>
           <a href="#macros" class="toc-link">Macros</a>
@@ -1231,17 +1285,26 @@
           <a href="#functions" class="toc-link">Functions</a>
           <a href="#types" class="toc-link">Type Aliases</a>
           <a href="#constants" class="toc-link">Constants</a>
-          <div class="my-2 border-t hairline mx-2.5"></div>
-          <a href="#struct.Component" class="toc-link">Component</a>
-          <a href="#impl-Component" class="toc-link indent">Methods</a>
-          <a href="#method.from_file" class="toc-link indent">· from_file</a>
-          <a href="#method.from_bytes" class="toc-link indent">· from_bytes</a>
-          <a href="#method.from_file_async" class="toc-link indent">· from_file_async</a>
-          <a href="#method.exports" class="toc-link indent">· exports</a>
-          <a href="#method.types" class="toc-link indent">· types</a>
-          <a href="#trait-impls" class="toc-link indent">Trait impls</a>
-          <a href="#auto-trait-impls" class="toc-link indent">Auto traits</a>
         </nav>
+        <div class="toc-sub-label">On Component</div>
+        <nav class="-ml-px" id="toc-component">
+          <a href="#struct.Component" class="toc-link">Overview</a>
+          <a href="#impl-Component" class="toc-link">Methods</a>
+          <a href="#method.from_file" class="toc-link indent mono">from_file</a>
+          <a href="#method.from_bytes" class="toc-link indent mono">from_bytes</a>
+          <a href="#method.from_file_async" class="toc-link indent mono">from_file_async</a>
+          <a href="#method.exports" class="toc-link indent mono">exports</a>
+          <a href="#method.types" class="toc-link indent mono">types</a>
+          <a href="#trait-impls" class="toc-link">Trait impls</a>
+          <a href="#auto-trait-impls" class="toc-link">Auto traits</a>
+        </nav>
+        <div class="px-2.5 mt-4">
+          <button type="button" id="back-to-top"
+            class="inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[11px] mono text-ink-500 hover:bg-surfaceMuted hover:text-ink-900 transition-colors">
+            <svg class="h-3 w-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="m3 7.5 3-3 3 3"/></svg>
+            Back to top
+          </button>
+        </div>
       </div>
     </aside>
   </div>
@@ -1284,26 +1347,65 @@
       });
     });
 
-    // TOC scrollspy
+    // Scrollspy — drives BOTH the right TOC and the left in-crate nav, so
+    // the left rail always shows which top-level section you're reading.
     (function () {
-      var toc = document.getElementById("toc");
-      if (!toc) return;
-      var links = Array.prototype.slice.call(toc.querySelectorAll("a[href^='#']"));
-      var targets = links.map(function (a) {
-        return document.getElementById(a.getAttribute("href").slice(1));
+      var tocLinks = Array.prototype.slice.call(
+        document.querySelectorAll("#toc a[href^='#'], #toc-component a[href^='#']")
+      );
+      var sideLinks = Array.prototype.slice.call(
+        document.querySelectorAll("aside .side-link[href^='#']")
+      );
+      var allLinks = tocLinks.concat(sideLinks);
+      if (!allLinks.length) return;
+
+      // Build href -> target map once.
+      var seen = {};
+      var entries = [];
+      allLinks.forEach(function (a) {
+        var id = a.getAttribute("href").slice(1);
+        if (!id || seen[id]) return;
+        seen[id] = true;
+        var el = document.getElementById(id);
+        if (el) entries.push({ id: id, el: el });
       });
+
+      function setActive(activeIds) {
+        allLinks.forEach(function (a) {
+          var id = a.getAttribute("href").slice(1);
+          a.classList.toggle("active", activeIds.indexOf(id) !== -1);
+        });
+      }
+
       function onScroll() {
         var y = window.scrollY + 100;
-        var activeIdx = -1;
-        for (var i = 0; i < targets.length; i++) {
-          var t = targets[i]; if (!t) continue;
-          if (t.getBoundingClientRect().top + window.scrollY <= y) activeIdx = i;
+        // Find the deepest entry whose top is above the threshold.
+        var current = null;
+        for (var i = 0; i < entries.length; i++) {
+          var top = entries[i].el.getBoundingClientRect().top + window.scrollY;
+          if (top <= y) current = entries[i];
         }
-        links.forEach(function (a, i) { a.classList.toggle("active", i === activeIdx); });
+        if (!current) { setActive([]); return; }
+
+        // Activate the current id, plus its top-level ancestor (so the left
+        // in-crate rail lights up its section while you scroll into methods).
+        var ids = [current.id];
+        var ancestor = current.el.closest("section[id]");
+        if (ancestor && ancestor.id !== current.id) ids.push(ancestor.id);
+        setActive(ids);
       }
       document.addEventListener("scroll", onScroll, { passive: true });
       window.addEventListener("resize", onScroll);
       onScroll();
+    })();
+
+    // Back to top
+    (function () {
+      var btn = document.getElementById("back-to-top");
+      if (!btn) return;
+      btn.addEventListener("click", function () {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
     })();
 
     // ⌘K placeholder

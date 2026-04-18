@@ -213,9 +213,55 @@
     /* Status code dot */
     .status-dot { display: inline-block; height: 8px; width: 8px; border-radius: 999px; }
 
-    /* Code block */
-    pre.code {
+    /* ============================================================
+       REGIONS — page is composed of stacked regions. The primary
+       region sits on canvas; the reference region swaps to surface.
+       The surface bleeds from the content column out to the right
+       edge of the viewport. The sidebar stays on canvas — this
+       reinforces "navigation = canvas, reference = surface". The
+       boundary IS the surface swap (no rule, no border).
+       ============================================================ */
+    .region-surface {
+      position: relative;
+    }
+    .region-surface::before {
+      content: '';
+      position: absolute;
+      top: 0; bottom: 0;
+      left: -24px;                   /* small bleed into the gutter */
+      right: calc(50% - 50vw);       /* extend to viewport right edge */
       background: var(--c-surface);
+      z-index: -1;
+    }
+    @media (max-width: 767px) {
+      /* On mobile the sidebar collapses; bleed both sides. */
+      .region-surface::before {
+        left: calc(50% - 50vw);
+      }
+    }
+
+    /* Subtle eyebrow that signals "start of a new endpoint group"
+       within the surface region. Smaller than an h2; uses ink-400. */
+    .group-eyebrow {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+    }
+
+    /* Operation header — the most important thing in each endpoint.
+       In the canvas region, surfaceMuted == canvas, so this only
+       reads as a panel inside the surface region. That's intentional. */
+    .op-header {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
+      padding: 10px 12px;
+      border-radius: 5px;
+      background: var(--c-canvas);
+      border: 1px solid var(--c-line-soft);
+    }
+
+    /* Code block \u2014 surfaceMuted is the consistent \"inset\" tone;
+       reads as a panel against both canvas and surface backgrounds. */
+    pre.code {
+      background: var(--c-surface-muted);
       border: 1px solid var(--c-line-soft);
       border-radius: 5px;
       padding: 14px 16px;
@@ -643,15 +689,17 @@
           </p>
         </section>
 
-        <!-- ====================================== -->
-        <!--   ENDPOINTS                            -->
-        <!-- ====================================== -->
-
-        <div class="border-t rule"></div>
+        <!-- ============================================================ -->
+        <!-- REFERENCE REGION                                             -->
+        <!-- Surface swap signals "this is reference / lookup material".  -->
+        <!-- The boundary IS the surface swap — no rule.                  -->
+        <!-- ============================================================ -->
+        <div class="region-surface mt-2 pt-12 md:pt-16 pb-12">
+          <div class="space-y-12">
 
         <!-- =========================== HEALTH =========================== -->
         <section>
-          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">Health</div>
+          <div class="group-eyebrow mono uppercase tracking-wider text-ink-500">Health</div>
           <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Service health</h2>
           <p class="mt-2 text-[13px] text-ink-500 max-w-2xl leading-relaxed">
             Liveness probe for orchestrators and uptime monitors. Cheap; no
@@ -660,7 +708,7 @@
         </section>
 
         <article id="op-health" class="space-y-5">
-          <div class="flex items-center gap-3 flex-wrap">
+          <div class="op-header">
             <span class="method method-get">GET</span>
             <span class="path"><span class="seg">/v1/health</span></span>
           </div>
@@ -692,11 +740,11 @@
           </div>
         </article>
 
-        <div class="border-t rule"></div>
+        <div class="border-t border-lineSoft pt-4"></div>
 
         <!-- =========================== PACKAGES =========================== -->
         <section>
-          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">Packages</div>
+          <div class="group-eyebrow mono uppercase tracking-wider text-ink-500">Packages</div>
           <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Packages</h2>
           <p class="mt-2 text-[13px] text-ink-500 max-w-2xl leading-relaxed">
             Inspect packages, list versions, and read per-version metadata.
@@ -707,7 +755,7 @@
 
         <!-- ============== Package detail ============== -->
         <article id="op-detail" class="space-y-5">
-          <div class="flex items-center gap-3 flex-wrap">
+          <div class="op-header">
             <span class="method method-get">GET</span>
             <span class="path">
               <span class="seg">/v1/packages/detail</span><span class="sl">/</span><span class="par">{registry}</span><span class="sl">/</span><span class="par">{*repository}</span>
@@ -793,7 +841,7 @@
 
         <!-- ============== List versions ============== -->
         <article id="op-versions" class="space-y-5">
-          <div class="flex items-center gap-3 flex-wrap">
+          <div class="op-header">
             <span class="method method-get">GET</span>
             <span class="path">
               <span class="seg">/v1/packages/versions</span><span class="sl">/</span><span class="par">{registry}</span><span class="sl">/</span><span class="par">{*repository}</span>
@@ -880,7 +928,7 @@
 
         <!-- ============== Get version ============== -->
         <article id="op-version" class="space-y-5">
-          <div class="flex items-center gap-3 flex-wrap">
+          <div class="op-header">
             <span class="method method-get">GET</span>
             <span class="path">
               <span class="seg">/v1/packages/version</span><span class="sl">/</span><span class="par">{registry}</span><span class="sl">/</span><span class="par">{version}</span><span class="sl">/</span><span class="par">{*repository}</span>
@@ -913,7 +961,7 @@
 
         <!-- ============== Publish ============== -->
         <article id="op-publish" class="space-y-5">
-          <div class="flex items-center gap-3 flex-wrap">
+          <div class="op-header">
             <span class="method method-post">POST</span>
             <span class="path">
               <span class="seg">/v1/packages</span><span class="sl">/</span><span class="par">{registry}</span><span class="sl">/</span><span class="par">{*repository}</span>
@@ -1003,7 +1051,7 @@
 
         <!-- ============== Yank ============== -->
         <article id="op-yank" class="space-y-5">
-          <div class="flex items-center gap-3 flex-wrap">
+          <div class="op-header">
             <span class="method method-delete">DELETE</span>
             <span class="path">
               <span class="seg">/v1/packages/version</span><span class="sl">/</span><span class="par">{registry}</span><span class="sl">/</span><span class="par">{version}</span><span class="sl">/</span><span class="par">{*repository}</span>
@@ -1041,11 +1089,11 @@
           </div>
         </article>
 
-        <div class="border-t rule"></div>
+        <div class="border-t border-lineSoft pt-4"></div>
 
         <!-- =========================== SEARCH =========================== -->
         <section>
-          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">Search</div>
+          <div class="group-eyebrow mono uppercase tracking-wider text-ink-500">Search</div>
           <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Interface search</h2>
           <p class="mt-2 text-[13px] text-ink-500 max-w-2xl leading-relaxed">
             Find packages by the WIT interfaces their worlds import or export.
@@ -1055,7 +1103,7 @@
         </section>
 
         <article id="op-by-import" class="space-y-5">
-          <div class="flex items-center gap-3 flex-wrap">
+          <div class="op-header">
             <span class="method method-get">GET</span>
             <span class="path"><span class="seg">/v1/search/by-import</span></span>
           </div>
@@ -1127,7 +1175,7 @@
         <div class="border-t border-lineSoft"></div>
 
         <article id="op-by-export" class="space-y-5">
-          <div class="flex items-center gap-3 flex-wrap">
+          <div class="op-header">
             <span class="method method-get">GET</span>
             <span class="path"><span class="seg">/v1/search/by-export</span></span>
           </div>
@@ -1154,11 +1202,11 @@
           </div>
         </article>
 
-        <div class="border-t rule"></div>
+        <div class="border-t border-lineSoft pt-4"></div>
 
         <!-- =========================== SCHEMAS =========================== -->
         <section>
-          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">Schemas</div>
+          <div class="group-eyebrow mono uppercase tracking-wider text-ink-500">Schemas</div>
           <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Object reference</h2>
           <p class="mt-2 text-[13px] text-ink-500 max-w-2xl leading-relaxed">
             Canonical JSON shapes returned by the API. Field types use the
@@ -1277,6 +1325,9 @@
             </table>
           </div>
         </article>
+
+          </div><!-- /space-y-12 -->
+        </div><!-- /region-surface -->
 
       </div><!-- /content -->
     </div><!-- /grid -->
