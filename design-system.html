@@ -820,9 +820,10 @@
       <a href="#breadcrumb" class="text-ink-700 hover:text-ink-900">18 — Breadcrumb & Pagination</a>
       <a href="#progress" class="text-ink-700 hover:text-ink-900">19 — Progress & Spinner</a>
       <a href="#empty" class="text-ink-700 hover:text-ink-900">20 — Empty State</a>
-      <a href="#regions" class="text-ink-700 hover:text-ink-900">21 — Regions</a>
-      <a href="#motion" class="text-ink-700 hover:text-ink-900">22 — Motion</a>
-      <a href="#details" class="text-ink-700 hover:text-ink-900">23 — Details</a>
+      <a href="#grid" class="text-ink-700 hover:text-ink-900">21 — Grid</a>
+      <a href="#regions" class="text-ink-700 hover:text-ink-900">22 — Regions</a>
+      <a href="#motion" class="text-ink-700 hover:text-ink-900">23 — Motion</a>
+      <a href="#details" class="text-ink-700 hover:text-ink-900">24 — Details</a>
       <span class="text-ink-400 mono uppercase tracking-wider text-[11px] mt-2">Components</span>
       <a href="#c-sidebar" class="text-ink-700 hover:text-ink-900">C01 — Nested Sidebar</a>
       <a href="#c-toc" class="text-ink-700 hover:text-ink-900">C02 — On This Page</a>
@@ -1608,123 +1609,20 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
           <div class="text-[12px] mono uppercase tracking-wider text-ink-500">11</div>
           <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Table</h2>
           <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
-            Soft 1px row separators. Tabular numerals; right-aligned values;
-            negatives in <code class="mono text-[12px]">text-negative</code>.
-            For status / categorical reference tables, use the
-            <a href="#c-item-details" class="text-ink-700 underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900">.id-http-status</a>
-            pill in the leading column.
+            Two patterns cover everything: a <strong>definition</strong> table (no
+            <code class="mono text-[12px]">&lt;thead&gt;</code>, identifier on the left, meaning on the
+            right) and a <strong>tabular</strong> table (labeled columns,
+            <code class="mono text-[12px]">tabular-nums</code> for figures). 13px body, 1.5px soft row
+            separators (<code class="mono text-[12px]">border-lineSoft</code>),
+            <code class="mono text-[12px]">py-3</code> rows. When the leading column is a category, use
+            the <a href="#c-item-details" class="text-ink-700 underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900">.id-http-status</a>
+            pill family.
           </p>
         </div>
-        <div class="space-y-10">
-          <!-- Numeric variant — financials, telemetry, anything with totals -->
+        <div class="space-y-12">
+          <!-- Definition · the workhorse — request/response fields, CLI flags, env vars, schema docs -->
           <div>
-            <div class="text-[12px] text-ink-500 mb-3">Numeric · right-aligned, tabular</div>
-            <div class="overflow-x-auto border-t-[1.5px] border-lineSoft">
-          <table class="w-full min-w-[560px] text-[13px]">
-            <thead>
-              <tr class="text-ink-400">
-                <th class="text-left font-normal py-4 pr-6 w-[200px]"></th>
-                <th class="text-right font-normal py-4 px-4">Cycle 11</th>
-                <th class="text-right font-normal py-4 px-4">Cycle 12</th>
-                <th class="text-right font-normal py-4 px-4">Cycle 13</th>
-                <th class="text-right font-normal py-4 px-4">Cycle 14</th>
-              </tr>
-            </thead>
-            <tbody class="text-ink-900">
-              <tr class="border-t-[1.5px] border-lineSoft">
-                <td class="py-5 pr-6 font-medium">Lorem inflow</td>
-                <td class="text-right px-4 tabular-nums">8 778</td>
-                <td class="text-right px-4 tabular-nums">10 246</td>
-                <td class="text-right px-4 tabular-nums text-ink-400">0</td>
-                <td class="text-right px-4 tabular-nums">5 642</td>
-              </tr>
-              <tr class="border-t-[1.5px] border-lineSoft">
-                <td class="py-5 pr-6 font-medium">Ipsum delta</td>
-                <td class="text-right px-4 tabular-nums">2 140</td>
-                <td class="text-right px-4 tabular-nums">3 184</td>
-                <td class="text-right px-4 tabular-nums">1 905</td>
-                <td class="text-right px-4 tabular-nums">2 760</td>
-              </tr>
-              <tr class="border-t-[1.5px] border-lineSoft">
-                <td class="py-5 pr-6 font-medium">Dolor outflow</td>
-                <td class="text-right px-4 tabular-nums text-negative">−1 423</td>
-                <td class="text-right px-4 tabular-nums text-negative">−984</td>
-                <td class="text-right px-4 tabular-nums text-negative">−762</td>
-                <td class="text-right px-4 tabular-nums text-negative">−1 889</td>
-              </tr>
-              <tr class="border-t-[1.5px] border-lineSoft">
-                <td class="py-5 pr-6 font-medium">Net amet</td>
-                <td class="text-right px-4 tabular-nums font-medium">9 495</td>
-                <td class="text-right px-4 tabular-nums font-medium">12 446</td>
-                <td class="text-right px-4 tabular-nums font-medium">1 143</td>
-                <td class="text-right px-4 tabular-nums font-medium">6 513</td>
-              </tr>
-            </tbody>
-          </table>
-            </div>
-          </div>
-
-          <!-- Status / reference variant — error codes, response codes, enum tables -->
-          <div>
-            <div class="text-[12px] text-ink-500 mb-3">Status · pill + mono code + meaning</div>
-            <div class="overflow-x-auto border-t-[1.5px] border-lineSoft">
-              <table class="w-full min-w-[560px] text-[13px]">
-                <thead>
-                  <tr class="text-ink-400">
-                    <th class="text-left font-normal py-3 pr-6 w-[120px]">Status</th>
-                    <th class="text-left font-normal py-3 pr-6 w-[180px]">Code</th>
-                    <th class="text-left font-normal py-3">Meaning</th>
-                  </tr>
-                </thead>
-                <tbody class="text-ink-900">
-                  <tr class="border-t-[1.5px] border-lineSoft">
-                    <td class="py-3 pr-6"><span class="id-http-status id-http-status-2xx">200</span></td>
-                    <td class="pr-6 mono text-ink-700">ok</td>
-                    <td class="text-ink-700">Request succeeded.</td>
-                  </tr>
-                  <tr class="border-t-[1.5px] border-lineSoft">
-                    <td class="py-3 pr-6"><span class="id-http-status id-http-status-4xx">400</span></td>
-                    <td class="pr-6 mono text-ink-700">invalid_request</td>
-                    <td class="text-ink-700">Malformed parameter or request body.</td>
-                  </tr>
-                  <tr class="border-t-[1.5px] border-lineSoft">
-                    <td class="py-3 pr-6"><span class="id-http-status id-http-status-4xx">401</span></td>
-                    <td class="pr-6 mono text-ink-700">unauthenticated</td>
-                    <td class="text-ink-700">Missing or invalid bearer token.</td>
-                  </tr>
-                  <tr class="border-t-[1.5px] border-lineSoft">
-                    <td class="py-3 pr-6"><span class="id-http-status id-http-status-4xx">404</span></td>
-                    <td class="pr-6 mono text-ink-700">not_found</td>
-                    <td class="text-ink-700">No such package, version, or interface.</td>
-                  </tr>
-                  <tr class="border-t-[1.5px] border-lineSoft">
-                    <td class="py-3 pr-6"><span class="id-http-status id-http-status-4xx">409</span></td>
-                    <td class="pr-6 mono text-ink-700">conflict</td>
-                    <td class="text-ink-700">Version already exists; cannot overwrite.</td>
-                  </tr>
-                  <tr class="border-t-[1.5px] border-lineSoft">
-                    <td class="py-3 pr-6"><span class="id-http-status id-http-status-4xx">429</span></td>
-                    <td class="pr-6 mono text-ink-700">rate_limited</td>
-                    <td class="text-ink-700">Too many requests. Retry after the indicated interval.</td>
-                  </tr>
-                  <tr class="border-t-[1.5px] border-lineSoft">
-                    <td class="py-3 pr-6"><span class="id-http-status id-http-status-5xx">500</span></td>
-                    <td class="pr-6 mono text-ink-700">internal_error</td>
-                    <td class="text-ink-700">Unexpected server-side failure.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p class="mt-3 text-[12px] text-ink-500">Tighter row padding
-              (<code class="mono text-[12px]">py-3</code> vs <code class="mono text-[12px]">py-5</code>)
-              than numeric tables — denser data, no need for breathing room around figures. Pill column
-              is fixed-width (<code class="mono text-[12px]">w-[120px]</code>) so the mono code column
-              aligns down the page.</p>
-          </div>
-
-          <!-- Definition variant — no column labels, name + meta on the left, prose on the right -->
-          <div>
-            <div class="text-[12px] text-ink-500 mb-3">Definition · no column labels, name + description</div>
+            <div class="text-[12px] text-ink-500 mb-3">Definition · identifier and meaning</div>
             <div class="overflow-x-auto border-t-[1.5px] border-lineSoft">
               <table class="w-full min-w-[560px] text-[13px]">
                 <tbody class="text-ink-900">
@@ -1737,38 +1635,11 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
                   </tr>
                   <tr class="border-b border-lineSoft">
                     <td class="py-3 pr-6 align-baseline whitespace-nowrap">
-                      <span class="mono">digest</span>
-                      <span class="ml-2 text-[11px] text-ink-500">string · required</span>
-                    </td>
-                    <td class="py-3 align-baseline text-ink-700">Manifest digest, prefixed with <span class="mono">sha256:</span>.</td>
-                  </tr>
-                  <tr class="border-b border-lineSoft">
-                    <td class="py-3 pr-6 align-baseline whitespace-nowrap">
                       <span class="mono">signature</span>
                       <span class="ml-2 text-[11px] text-ink-500">string · optional</span>
                     </td>
                     <td class="py-3 align-baseline text-ink-700">Detached cosign-compatible signature, base64 encoded.</td>
                   </tr>
-                </tbody>
-              </table>
-            </div>
-            <p class="mt-3 text-[12px] text-ink-500">Used for request body parameters, command-line
-              arguments and flags, environment variables, schema fields — anywhere the meaning of
-              each row is "name + type/cardinality, then what it does." No <code class="mono text-[12px]">&lt;thead&gt;</code>
-              because column labels would just repeat what each cell already shows. Left column auto-sizes
-              with <code class="mono text-[12px]">whitespace-nowrap</code>: mono name in
-              <code class="mono text-[12px]">ink-900</code>, then a proportional 11px
-              <code class="mono text-[12px]">ink-500</code> qualifier on the same baseline — name and
-              description share a baseline so the eye tracks left → right cleanly. Description column is
-              reading-flow prose at <code class="mono text-[12px]">ink-700</code>.</p>
-          </div>
-
-          <!-- Definition · enum values — chips in the meta slot -->
-          <div>
-            <div class="text-[12px] text-ink-500 mb-3">Definition · enum values as chips</div>
-            <div class="overflow-x-auto border-t-[1.5px] border-lineSoft">
-              <table class="w-full min-w-[560px] text-[13px]">
-                <tbody class="text-ink-900">
                   <tr class="border-b border-lineSoft">
                     <td class="py-3 pr-6 align-baseline whitespace-nowrap">
                       <span class="mono">--scope</span>
@@ -1782,92 +1653,88 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
                   </tr>
                   <tr class="border-b border-lineSoft">
                     <td class="py-3 pr-6 align-baseline whitespace-nowrap">
-                      <span class="mono">--format</span>
-                      <span class="ml-2 inline-flex items-baseline gap-1">
-                        <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">json</code>
-                        <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">yaml</code>
-                        <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">table</code>
-                      </span>
+                      <span class="mono">--config</span>
+                      <span class="mono text-ink-400">&lt;path&gt;</span>
+                      <span class="ml-2 text-[11px] text-ink-500">path</span>
                     </td>
-                    <td class="py-3 align-baseline text-ink-700">Output format. Defaults to <span class="mono">table</span> in a TTY, <span class="mono">json</span> otherwise.</td>
+                    <td class="py-3 align-baseline text-ink-700">Override the project config file location.</td>
                   </tr>
                 </tbody>
               </table>
             </div>
-            <p class="mt-3 text-[12px] text-ink-500">For enum-valued fields, the meta slot holds the
-              allowed values as small mono chips
-              (<code class="mono text-[12px]">bg-surfaceMuted</code>, 11px, ink-700) instead of the
-              <code class="mono text-[12px]">string · required</code> qualifier. Allowed values stay
-              visible at a glance, parallel to the kind-meta on other rows. The default value (when
-              there is one) is called out in the description.</p>
+            <p class="mt-3 text-[12px] text-ink-500">Used for request body fields, CLI flags, environment
+              variables, schema docs — anywhere each row is "name + what it does." No
+              <code class="mono text-[12px]">&lt;thead&gt;</code> because column labels would just repeat
+              what the cells already show. Left column auto-sizes with
+              <code class="mono text-[12px]">whitespace-nowrap</code>: mono identifier in
+              <code class="mono text-[12px]">ink-900</code> (with optional
+              <span class="mono text-ink-400">&lt;placeholder&gt;</span> in
+              <code class="mono text-[12px]">ink-400</code>), then a meta slot on the same baseline
+              holding either an 11px <code class="mono text-[12px]">ink-500</code> qualifier
+              (<code class="mono text-[12px]">string · required</code>, <code class="mono text-[12px]">path</code>)
+              or enum values as small mono chips
+              (<code class="mono text-[12px]">bg-surfaceMuted px-1 py-0.5 rounded-sm</code>). Right
+              column is reading-flow prose at <code class="mono text-[12px]">ink-700</code>.</p>
           </div>
 
-          <!-- Definition · three-column with labeled Type — for CLI flag/env-var reference tables -->
+          <!-- Tabular · with thead — labeled columns + numeric formatting + status pill -->
           <div>
-            <div class="text-[12px] text-ink-500 mb-3">Definition · three columns with labeled type</div>
-            <div class="overflow-x-auto">
-              <table class="w-full min-w-[560px] text-[13px] border-t-[1.5px] border-lineSoft">
+            <div class="text-[12px] text-ink-500 mb-3">Tabular · labeled columns with status and metrics</div>
+            <div class="overflow-x-auto border-t-[1.5px] border-lineSoft">
+              <table class="w-full min-w-[560px] text-[13px]">
                 <thead>
-                  <tr class="border-b border-line text-left text-[11px] mono uppercase tracking-wider text-ink-500">
-                    <th class="py-2 pr-6 font-normal w-[200px]">Flag</th>
-                    <th class="py-2 pr-6 font-normal w-[180px]">Type</th>
-                    <th class="py-2 font-normal">Description</th>
+                  <tr class="text-ink-400">
+                    <th class="text-left font-normal py-3 pr-6 w-[80px]">Status</th>
+                    <th class="text-left font-normal py-3 pr-6 w-[180px]">Code</th>
+                    <th class="text-right font-normal py-3 pr-6 w-[100px]">Calls</th>
+                    <th class="text-right font-normal py-3 pr-6 w-[120px]">Avg latency</th>
+                    <th class="text-left font-normal py-3">Meaning</th>
                   </tr>
                 </thead>
                 <tbody class="text-ink-900">
-                  <tr class="border-b border-lineSoft">
-                    <td class="py-3 pr-6 align-baseline whitespace-nowrap mono">-h, --help</td>
-                    <td class="py-3 pr-6 align-baseline text-[12px] text-ink-500">flag</td>
-                    <td class="py-3 align-baseline text-ink-700">Print help for the current command.</td>
+                  <tr class="border-t-[1.5px] border-lineSoft">
+                    <td class="py-3 pr-6 align-baseline"><span class="id-http-status id-http-status-2xx">200</span></td>
+                    <td class="py-3 pr-6 align-baseline mono text-ink-700">ok</td>
+                    <td class="py-3 pr-6 align-baseline text-right tabular-nums">1 240</td>
+                    <td class="py-3 pr-6 align-baseline text-right tabular-nums">38 ms</td>
+                    <td class="py-3 align-baseline text-ink-700">Request succeeded.</td>
                   </tr>
-                  <tr class="border-b border-lineSoft">
-                    <td class="py-3 pr-6 align-baseline whitespace-nowrap mono">-v, --verbose</td>
-                    <td class="py-3 pr-6 align-baseline text-[12px] text-ink-500">
-                      <span>flag</span>
-                      <span class="ml-1 inline-flex items-baseline align-baseline text-[10px] mono uppercase tracking-wider px-1.5 py-0.5 rounded-sm bg-surfaceMuted text-ink-700">repeatable</span>
-                    </td>
-                    <td class="py-3 align-baseline text-ink-700">Increase log verbosity. Repeat up to three times (<span class="mono">-vvv</span> = trace).</td>
+                  <tr class="border-t-[1.5px] border-lineSoft">
+                    <td class="py-3 pr-6 align-baseline"><span class="id-http-status id-http-status-4xx">400</span></td>
+                    <td class="py-3 pr-6 align-baseline mono text-ink-700">invalid_request</td>
+                    <td class="py-3 pr-6 align-baseline text-right tabular-nums">12</td>
+                    <td class="py-3 pr-6 align-baseline text-right tabular-nums">4 ms</td>
+                    <td class="py-3 align-baseline text-ink-700">Malformed parameter or request body.</td>
                   </tr>
-                  <tr class="border-b border-lineSoft">
-                    <td class="py-3 pr-6 align-baseline whitespace-nowrap">
-                      <span class="mono">--color</span>
-                      <span class="mono text-ink-400">&lt;when&gt;</span>
-                    </td>
-                    <td class="py-3 pr-6 align-baseline">
-                      <span class="inline-flex items-baseline gap-1">
-                        <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">auto</code>
-                        <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">always</code>
-                        <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">never</code>
-                      </span>
-                    </td>
-                    <td class="py-3 align-baseline text-ink-700">When to emit ANSI color. Defaults to <span class="mono">auto</span>.</td>
+                  <tr class="border-t-[1.5px] border-lineSoft">
+                    <td class="py-3 pr-6 align-baseline"><span class="id-http-status id-http-status-4xx">401</span></td>
+                    <td class="py-3 pr-6 align-baseline mono text-ink-700">unauthenticated</td>
+                    <td class="py-3 pr-6 align-baseline text-right tabular-nums text-ink-400">0</td>
+                    <td class="py-3 pr-6 align-baseline text-right tabular-nums text-ink-400">—</td>
+                    <td class="py-3 align-baseline text-ink-700">Missing or invalid bearer token.</td>
                   </tr>
-                  <tr class="border-b border-lineSoft">
-                    <td class="py-3 pr-6 align-baseline whitespace-nowrap">
-                      <span class="mono">--config</span>
-                      <span class="mono text-ink-400">&lt;path&gt;</span>
-                    </td>
-                    <td class="py-3 pr-6 align-baseline text-[12px] text-ink-500">path</td>
-                    <td class="py-3 align-baseline text-ink-700">Override the project config file location.</td>
-                  </tr>
-                  <tr class="border-b border-lineSoft">
-                    <td class="py-3 pr-6 align-baseline whitespace-nowrap mono">--no-network</td>
-                    <td class="py-3 pr-6 align-baseline text-[12px] text-ink-500">flag</td>
-                    <td class="py-3 align-baseline text-ink-700">Refuse to make any outbound request. Resolution falls back to the local cache.</td>
+                  <tr class="border-t-[1.5px] border-lineSoft">
+                    <td class="py-3 pr-6 align-baseline"><span class="id-http-status id-http-status-5xx">500</span></td>
+                    <td class="py-3 pr-6 align-baseline mono text-ink-700">internal_error</td>
+                    <td class="py-3 pr-6 align-baseline text-right tabular-nums">1</td>
+                    <td class="py-3 pr-6 align-baseline text-right tabular-nums text-negative">612 ms</td>
+                    <td class="py-3 align-baseline text-ink-700">Unexpected server-side failure.</td>
                   </tr>
                 </tbody>
               </table>
             </div>
-            <p class="mt-3 text-[12px] text-ink-500">Used for CLI flag references, environment variables,
-              and similar dense reference tables where the type vocabulary is small and worth scanning as
-              its own column. Three columns: <strong>name</strong> (mono ink-900, with optional
-              <span class="mono text-ink-400">&lt;placeholder&gt;</span> in ink-400),
-              <strong>type</strong> (single token in 12px ink-500, or enum chips, or
-              <code class="mono text-[12px]">flag</code> + a <code class="mono text-[12px]">repeatable</code>
-              tag), and <strong>description</strong> in reading-flow ink-700. Headers are
-              <code class="mono text-[12px]">11px mono uppercase ink-500</code> — same recipe as the
-              labeled-section caption used elsewhere — separated from the rows by a thin
-              <code class="mono text-[12px]">border-line</code> rule.</p>
+            <p class="mt-3 text-[12px] text-ink-500">Used when columns warrant labels — error / response
+              code reference, telemetry, anything with multiple typed columns. Headers are quiet:
+              <code class="mono text-[12px]">text-ink-400 font-normal</code> at the body type size,
+              same case as the data — they label columns without shouting. The first body row's
+              <code class="mono text-[12px]">border-t-[1.5px] border-lineSoft</code> is the only rule
+              between header and body, identical to the row separators below it. Numeric columns
+              get <code class="mono text-[12px]">tabular-nums text-right</code>; zeros and N/A drop
+              to <code class="mono text-[12px]">ink-400</code>; negatives or out-of-band values use
+              <code class="mono text-[12px]">text-negative</code>; totals use
+              <code class="mono text-[12px]">font-medium</code>. Categorical leading columns use the
+              <code class="mono text-[12px]">.id-http-status</code> pill family in a fixed-width column
+              so the next column aligns down the page.</p>
           </div>
         </div>
       </div>
@@ -2127,6 +1994,37 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
               <input type="search" placeholder="Search…"
                 class="block w-full h-9 pl-9 pr-3 rounded-md border border-line bg-surface text-[14px] placeholder:text-ink-400 focus:outline-none focus:border-ink-900" />
             </div>
+          </label>
+          <!-- Search · prominent with shortcut hint -->
+          <label class="block">
+            <span class="text-[12px] text-ink-500">Search · prominent with shortcut hint</span>
+            <div class="mt-1 relative">
+              <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400" width="16" height="16"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"
+                stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              <input type="search" placeholder="Search 12 480 packages…"
+                class="block w-full h-10 pl-10 pr-24 rounded-lg border border-line bg-canvas text-[14px] placeholder:text-ink-400 focus:outline-none focus:border-ink-900" />
+              <kbd
+                class="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 h-6 px-2 rounded border border-lineSoft bg-surfaceMuted text-[11px] mono text-ink-500">
+                <span>⌘</span><span>K</span>
+              </kbd>
+            </div>
+            <span class="mt-1 block text-[11px] text-ink-500">For browse / index landing surfaces where
+              search is the primary action. Departures from the
+              <code class="mono text-[10.5px]">md</code> default: <code class="mono text-[10.5px]">h-10</code>
+              (one step taller, anchors the section without competing with the heading);
+              <code class="mono text-[10.5px]">rounded-lg</code> (softer than the
+              <code class="mono text-[10.5px]">rounded-md</code> form default — search is a noun,
+              not a transactional control); <code class="mono text-[10.5px]">bg-canvas</code> instead
+              of <code class="mono text-[10.5px]">bg-surface</code> when the section sits on
+              <code class="mono text-[10.5px]">surface</code>; 16px icon at
+              <code class="mono text-[10.5px]">pl-10</code>; trailing
+              <code class="mono text-[10.5px]">&lt;kbd&gt;</code> hint
+              (<code class="mono text-[10.5px]">h-6 · 11px mono · border-lineSoft · bg-surfaceMuted</code>)
+              with <code class="mono text-[10.5px]">pr-24</code> on the input to clear it.</span>
           </label>
           <!-- Select -->
           <label class="block">
@@ -2896,12 +2794,186 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
     <div class="border-t rule mt-16"></div>
 
     <!-- ============================== -->
-    <!-- 21 REGIONS                     -->
+    <!-- 21 GRID                        -->
+    <!-- ============================== -->
+    <section id="grid" class="pt-12 md:pt-16">
+      <div class="grid md:grid-cols-[200px_1fr] gap-6 md:gap-12">
+        <div>
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">21</div>
+          <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Grid</h2>
+          <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
+            Pages live in a <code class="mono text-[12px]">max-w-[1440px]</code> container with
+            <code class="mono text-[12px]">px-4 md:px-6</code> gutters. Inside, a small set of
+            column shapes covers every layout: <strong>three-column</strong> (sidebar · reading ·
+            on-this-page) for documentation; <strong>two-column</strong> for narrative pages and
+            this style guide; <strong>single column</strong> bounded by a reading measure for prose.
+            Reading text is always capped at
+            <code class="mono text-[12px]">max-w-[72ch]</code> regardless of the column it sits in.
+          </p>
+        </div>
+        <div class="space-y-12">
+          <!-- Three-column · the docs reference layout -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Three-column · sidebar · reading · on this page</div>
+            <div class="border border-line rounded-lg overflow-hidden bg-canvas">
+              <div class="grid grid-cols-[100px_1fr_84px] gap-3 lg:gap-4 p-4 text-[10px]">
+                <div class="rounded-md border border-lineSoft bg-surfaceMuted p-2">
+                  <div class="mono uppercase tracking-wider text-ink-500">240px</div>
+                  <div class="mt-2 space-y-1.5">
+                    <div class="h-1.5 w-3/4 rounded-sm bg-ink-300"></div>
+                    <div class="h-1.5 w-2/3 rounded-sm bg-ink-300"></div>
+                    <div class="h-1.5 w-4/5 rounded-sm bg-ink-300"></div>
+                    <div class="h-1.5 w-1/2 rounded-sm bg-ink-300"></div>
+                    <div class="h-1.5 w-3/5 rounded-sm bg-ink-300"></div>
+                    <div class="h-1.5 w-2/3 rounded-sm bg-ink-300"></div>
+                  </div>
+                </div>
+                <div class="rounded-md border border-lineSoft bg-surface p-2">
+                  <div class="mono uppercase tracking-wider text-ink-500">1fr · max-w-[72ch]</div>
+                  <div class="mt-2 space-y-1.5">
+                    <div class="h-2 w-1/3 rounded-sm bg-ink-700"></div>
+                    <div class="mt-2 h-1 rounded-sm bg-ink-300"></div>
+                    <div class="h-1 rounded-sm bg-ink-300"></div>
+                    <div class="h-1 w-5/6 rounded-sm bg-ink-300"></div>
+                    <div class="h-1 rounded-sm bg-ink-300"></div>
+                    <div class="h-1 w-2/3 rounded-sm bg-ink-300"></div>
+                  </div>
+                </div>
+                <div class="rounded-md border border-lineSoft bg-surfaceMuted p-2">
+                  <div class="mono uppercase tracking-wider text-ink-500">200px</div>
+                  <div class="mt-2 space-y-1.5">
+                    <div class="h-1.5 w-3/4 rounded-sm bg-ink-300"></div>
+                    <div class="h-1.5 w-2/3 rounded-sm bg-ink-300"></div>
+                    <div class="h-1.5 w-1/2 rounded-sm bg-ink-300"></div>
+                    <div class="h-1.5 w-3/5 rounded-sm bg-ink-300"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <pre class="mt-3 p-3 rounded-md bg-surfaceMuted text-[12px] mono text-ink-700 overflow-x-auto">&lt;div class=&quot;max-w-[1440px] px-4 md:px-6 grid grid-cols-1
+            lg:grid-cols-[240px_1fr_200px] gap-8 lg:gap-10 pt-8 pb-24&quot;&gt;</pre>
+            <p class="mt-3 text-[12px] text-ink-500">Reference layout in
+              <a href="docs.html" class="underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900">docs.html</a>.
+              Three concrete column widths
+              (<code class="mono text-[12px]">240px / 1fr / 200px</code>) — the sidebar carries the
+              full nav tree, the centre column reads, the right column lists in-page anchors. Side
+              columns use <code class="mono text-[12px]">lg:sticky lg:top-16 lg:self-start
+              lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto</code> so they pin once the page
+              scrolls past the header. Below <code class="mono text-[12px]">lg</code> the layout
+              collapses to <code class="mono text-[12px]">grid-cols-1</code>; the right column is
+              hidden (<code class="mono text-[12px]">hidden lg:block</code>), the left becomes a
+              standard top-of-page nav. Gutters: <code class="mono text-[12px]">gap-8 lg:gap-10</code>
+              (32 → 40px) — generous because three regions need air to read as separate concerns.</p>
+          </div>
+
+          <!-- Two-column · narrative + sidekick -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Two-column · section label · content</div>
+            <div class="border border-line rounded-lg overflow-hidden bg-canvas">
+              <div class="grid grid-cols-[80px_1fr] gap-3 lg:gap-5 p-4 text-[10px]">
+                <div class="rounded-md border border-lineSoft bg-surfaceMuted p-2">
+                  <div class="mono uppercase tracking-wider text-ink-500">200px</div>
+                  <div class="mt-2 space-y-1.5">
+                    <div class="h-1.5 w-2/3 rounded-sm bg-ink-300"></div>
+                    <div class="h-1.5 w-3/4 rounded-sm bg-ink-300"></div>
+                  </div>
+                </div>
+                <div class="rounded-md border border-lineSoft bg-surface p-2">
+                  <div class="mono uppercase tracking-wider text-ink-500">1fr</div>
+                  <div class="mt-2 space-y-1.5">
+                    <div class="h-2 w-1/3 rounded-sm bg-ink-700"></div>
+                    <div class="mt-2 h-1 rounded-sm bg-ink-300"></div>
+                    <div class="h-1 w-5/6 rounded-sm bg-ink-300"></div>
+                    <div class="h-1 rounded-sm bg-ink-300"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <pre class="mt-3 p-3 rounded-md bg-surfaceMuted text-[12px] mono text-ink-700 overflow-x-auto">&lt;div class=&quot;grid md:grid-cols-[200px_1fr] gap-6 md:gap-12&quot;&gt;</pre>
+            <p class="mt-3 text-[12px] text-ink-500">The pattern this style guide uses for every
+              section. <code class="mono text-[12px]">200px</code> for the section label / synopsis;
+              <code class="mono text-[12px]">1fr</code> for the demos. Wider gutter
+              (<code class="mono text-[12px]">md:gap-12</code> = 48px) than the three-column layout
+              because there are only two columns to space.</p>
+          </div>
+
+          <!-- Single column · bounded reading measure -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Single column · reading measure</div>
+            <div class="border border-line rounded-lg overflow-hidden bg-canvas">
+              <div class="p-4 text-[10px] flex justify-center">
+                <div class="rounded-md border border-lineSoft bg-surface p-2 w-[60%]">
+                  <div class="mono uppercase tracking-wider text-ink-500">max-w-[72ch]</div>
+                  <div class="mt-2 space-y-1.5">
+                    <div class="h-2 w-1/3 rounded-sm bg-ink-700"></div>
+                    <div class="mt-2 h-1 rounded-sm bg-ink-300"></div>
+                    <div class="h-1 rounded-sm bg-ink-300"></div>
+                    <div class="h-1 w-5/6 rounded-sm bg-ink-300"></div>
+                    <div class="h-1 rounded-sm bg-ink-300"></div>
+                    <div class="h-1 w-2/3 rounded-sm bg-ink-300"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <pre class="mt-3 p-3 rounded-md bg-surfaceMuted text-[12px] mono text-ink-700 overflow-x-auto">&lt;article class=&quot;prose max-w-[72ch] mx-auto&quot;&gt;</pre>
+            <p class="mt-3 text-[12px] text-ink-500">Long-form prose, blog posts, README-style
+              pages. <code class="mono text-[12px]">72ch</code> is the body-copy reading measure
+              (~640px at 14px); larger and the eye loses the line. Even inside the three-column
+              grid, the reading column constrains its content to
+              <code class="mono text-[12px]">max-w-[72ch]</code> — the column gets the available
+              space, the prose doesn't fill it.</p>
+          </div>
+
+          <!-- Rules -->
+          <div>
+            <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Rules</h3>
+            <ul class="space-y-2 text-[13px] text-ink-700 leading-relaxed">
+              <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">01</span>Outer
+                container is always <code class="mono text-[12px] text-ink-900 px-1 py-0.5 rounded-sm bg-surfaceMuted">max-w-[1440px]
+                px-4 md:px-6</code>. Use full bleed (no
+                <code class="mono text-[12px] text-ink-900 px-1 py-0.5 rounded-sm bg-surfaceMuted">max-w</code>)
+                only for region surface swaps.</li>
+              <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">02</span>Pick the
+                widest layout that fits the content, not the page. A docs page with no in-page
+                anchors uses the two-column layout, not three-column with an empty column.</li>
+              <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">03</span>Side
+                columns are <strong>fixed-width</strong>
+                (<code class="mono text-[12px] text-ink-900 px-1 py-0.5 rounded-sm bg-surfaceMuted">240px</code>,
+                <code class="mono text-[12px] text-ink-900 px-1 py-0.5 rounded-sm bg-surfaceMuted">200px</code>);
+                only the centre column is <code class="mono text-[12px] text-ink-900 px-1 py-0.5 rounded-sm bg-surfaceMuted">1fr</code>.
+                This keeps the reading column stable as the viewport grows.</li>
+              <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">04</span>Gutter
+                scales with column count: two columns get
+                <code class="mono text-[12px] text-ink-900 px-1 py-0.5 rounded-sm bg-surfaceMuted">md:gap-12</code>
+                (48px), three columns get
+                <code class="mono text-[12px] text-ink-900 px-1 py-0.5 rounded-sm bg-surfaceMuted">lg:gap-10</code>
+                (40px). More columns means more boundaries, so each gets less air.</li>
+              <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">05</span>Reading
+                text is <strong>always</strong>
+                <code class="mono text-[12px] text-ink-900 px-1 py-0.5 rounded-sm bg-surfaceMuted">max-w-[72ch]</code>
+                inside its column. Demos, code, and tables can fill the column.</li>
+              <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">06</span>Side
+                columns become sticky at <code class="mono text-[12px] text-ink-900 px-1 py-0.5 rounded-sm bg-surfaceMuted box-decoration-clone">lg:</code>
+                and above with <code class="mono text-[12px] text-ink-900 px-1 py-0.5 rounded-sm bg-surfaceMuted box-decoration-clone">lg:sticky lg:top-16 lg:self-start lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto</code>.
+                Below that breakpoint they collapse into the document flow.</li>
+              <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">07</span>The
+                right column is the first to drop on narrow viewports
+                (<code class="mono text-[12px] text-ink-900 px-1 py-0.5 rounded-sm bg-surfaceMuted box-decoration-clone">hidden lg:block</code>).
+                On-this-page is a navigation aid, not load-bearing.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <div class="border-t rule mt-16"></div>
+
     <!-- ============================== -->
     <section id="regions" class="pt-12 md:pt-16">
       <div class="grid md:grid-cols-[200px_1fr] gap-6 md:gap-12">
         <div>
-          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">21</div>
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">22</div>
           <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Regions</h2>
           <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
             Pages are composed of stacked <em>regions</em>. The primary region uses the
@@ -2965,12 +3037,12 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
     <div class="border-t rule mt-16"></div>
 
     <!-- ============================== -->
-    <!-- 22 MOTION                      -->
+    <!-- 23 MOTION                      -->
     <!-- ============================== -->
     <section id="motion" class="pt-12 md:pt-16">
       <div class="grid md:grid-cols-[200px_1fr] gap-6 md:gap-12">
         <div>
-          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">22</div>
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">23</div>
           <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Motion</h2>
           <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
             Motion is functional: it explains state changes, never decorates them.
@@ -3126,12 +3198,12 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
     <div class="border-t rule mt-16"></div>
 
     <!-- ============================== -->
-    <!-- 23 DETAILS                     -->
+    <!-- 24 DETAILS                     -->
     <!-- ============================== -->
     <section id="details" class="pt-12 md:pt-16">
       <div class="grid md:grid-cols-[200px_1fr] gap-6 md:gap-12">
         <div>
-          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">23</div>
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">24</div>
           <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Details</h2>
           <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
             Compact key/value lists for sidebars and inspector panels. Three variants:

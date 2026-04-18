@@ -281,10 +281,21 @@
     .rpc-path .sl   { color: var(--c-ink-400); }
     .rpc-path .meth { color: var(--c-cat-plum-ink); font-weight: 600; }
 
-    /* Sticky sidebar (left) + sticky TOC (right) */
-    .sidebar { position: sticky; top: 64px; align-self: start; max-height: calc(100vh - 80px); overflow-y: auto; padding-right: 4px; }
+    /* Sticky side rails — applied at lg+ only, matching the docs grid spec.
+       Below lg the grid collapses to a single column, the TOC is hidden,
+       and the sidebar flows inline at the top of the page. */
+    @media (min-width: 1024px) {
+      .sidebar, .toc {
+        position: sticky;
+        top: 64px;
+        align-self: start;
+        max-height: calc(100vh - 5rem);
+        overflow-y: auto;
+      }
+      .sidebar { padding-right: 4px; }
+      .toc { padding-left: 4px; }
+    }
     .sidebar .group-label { font-size: 10px; }
-    .toc { position: sticky; top: 64px; align-self: start; max-height: calc(100vh - 80px); overflow-y: auto; padding-left: 4px; }
     .hairline { border-color: var(--c-line-soft); }
 
     /* Sigil — small kind chip used in the tree (port from DS C01). */
@@ -463,7 +474,7 @@
   <!-- STICKY TOPBAR                  -->
   <!-- ============================== -->
   <div class="topbar">
-    <div class="mx-auto max-w-[1280px] px-4 md:px-8">
+    <div class="max-w-[1440px] px-4 md:px-6">
       <div class="topbar-inner flex items-center gap-4">
         <a href="#top" class="flex items-center gap-2 min-w-0">
           <span class="topbar-title text-[13.5px] font-semibold tracking-tight">Registry gRPC</span>
@@ -511,7 +522,7 @@
     </div>
   </div>
 
-  <main id="top" class="mx-auto max-w-[1280px] px-4 md:px-8 pb-24">
+  <main id="top" class="max-w-[1440px] px-4 md:px-6 pb-24">
 
     <!-- ============================== -->
     <!-- HEADER                         -->
@@ -558,7 +569,7 @@
     <!-- ============================== -->
     <!-- LAYOUT GRID                    -->
     <!-- ============================== -->
-    <div class="grid lg:grid-cols-[220px_minmax(0,1fr)_200px] md:grid-cols-[220px_minmax(0,1fr)] gap-6 md:gap-12 pt-10">
+    <div class="grid grid-cols-1 lg:grid-cols-[240px_1fr_200px] gap-8 lg:gap-10 pt-8 pb-24">
 
       <!-- ============================== -->
       <!-- SIDEBAR                        -->

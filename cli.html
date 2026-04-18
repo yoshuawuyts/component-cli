@@ -450,33 +450,44 @@
     }
 
     /* Two-column definition list for arguments and flags.
-       Key column is mono and sized to its content (with a sensible
-       minimum); description wraps in the right column. Type and
-       required/danger annotations live as a small meta line under
-       the key, so the description column stays clean prose. */
+       Visually matches the design-system "definition" table (#table):
+       top + per-row hairline at border-lineSoft, py-3 rows, mono
+       identifier on the left with an inline 11px ink-500 meta slot,
+       reading-flow ink-700 prose on the right. */
     dl.opts{
       display:grid;
       grid-template-columns:minmax(180px,max-content) 1fr;
-      column-gap:32px;row-gap:18px;
+      column-gap:24px;row-gap:0;
       font-size:13px;margin:0;
+      border-top:1.5px solid var(--c-line-soft);
     }
     dl.opts dt{
       font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
-      color:var(--c-ink-900);padding-top:1px;line-height:1.45;
+      color:var(--c-ink-900);
+      padding:12px 24px 12px 0;
+      line-height:1.45;white-space:nowrap;
+      align-self:baseline;
+      border-bottom:1px solid var(--c-line-soft);
     }
-    dl.opts dt .alt{color:var(--c-ink-500);}
+    dl.opts dt .alt{color:var(--c-ink-400);}
     dl.opts dt .meta{
-      display:block;margin-top:4px;
+      margin-left:8px;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
       font-size:11px;color:var(--c-ink-500);font-weight:400;
     }
     dl.opts dt .meta .danger{color:var(--c-cat-pinkInk);}
-    dl.opts dt .meta .req{color:var(--c-ink-700);}
-    dl.opts dd{margin:0;color:var(--c-ink-700);line-height:1.6;}
+    dl.opts dt .meta .req{color:var(--c-ink-500);}
+    dl.opts dd{
+      margin:0;color:var(--c-ink-700);line-height:1.6;
+      padding:12px 0;
+      align-self:baseline;
+      border-bottom:1px solid var(--c-line-soft);
+    }
     dl.opts dd .hint{display:block;color:var(--c-ink-500);font-size:12px;margin-top:4px;}
     @media (max-width:720px){
-      dl.opts{grid-template-columns:1fr;row-gap:4px;}
-      dl.opts dd{margin:0 0 14px;}
-      dl.opts dd:last-of-type{margin-bottom:0;}
+      dl.opts{grid-template-columns:1fr;}
+      dl.opts dt{white-space:normal;padding:12px 0 4px;border-bottom:none;}
+      dl.opts dd{padding:0 0 12px;}
     }
   </style>
 </head>
@@ -487,7 +498,7 @@
   <!-- TOP BAR                        -->
   <!-- ============================== -->
   <div class="sticky top-0 z-20 bg-canvas/90 backdrop-blur border-b hairline">
-    <div class="mx-auto max-w-[1440px] px-4 md:px-6 h-12 flex items-center gap-4">
+    <div class="max-w-[1440px] px-4 md:px-6 h-12 flex items-center gap-4">
       <a href="#" class="flex items-center gap-2 text-ink-900 no-underline min-w-0">
         <span class="inline-grid place-items-center h-6 w-6 rounded-md bg-cat-teal text-cat-tealInk mono text-[11px] font-semibold">$</span>
         <span class="mono text-[13px] font-medium truncate">wasm</span>
@@ -524,7 +535,7 @@
   <!-- ============================== -->
   <!-- LAYOUT                         -->
   <!-- ============================== -->
-  <div class="mx-auto max-w-[1440px] px-4 md:px-6 grid grid-cols-1 lg:grid-cols-[260px_1fr_200px] gap-8 lg:gap-10 pt-8 pb-24">
+  <div class="max-w-[1440px] px-4 md:px-6 grid grid-cols-1 lg:grid-cols-[240px_1fr_200px] gap-8 lg:gap-10 pt-8 pb-24">
 
     <!-- ============================== -->
     <!-- LEFT SIDEBAR — COMMAND TREE   -->
@@ -1226,56 +1237,87 @@ Token (input hidden): <span class="dim">****</span>
           </h2>
           <span class="tag global">applies to all subcommands</span>
         </div>
-        <table class="def mt-2">
-          <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
-          <tbody>
-            <tr>
-              <td class="k">-h, --help</td>
-              <td class="t">flag</td>
-              <td class="d">Print help for the current command. Long form prints extended notes.</td>
-            </tr>
-            <tr>
-              <td class="k">-V, --version</td>
-              <td class="t">flag</td>
-              <td class="d">Print version and exit. Identical to <span class="icode">wasm self version</span>.</td>
-            </tr>
-            <tr>
-              <td class="k">-v, --verbose</td>
-              <td class="t">flag <span class="tag repeat ml-1 align-middle">repeatable</span></td>
-              <td class="d">Increase log verbosity. Repeat up to three times (<span class="icode">-vvv</span> = trace).</td>
-            </tr>
-            <tr>
-              <td class="k">-q, --quiet</td>
-              <td class="t">flag</td>
-              <td class="d">Suppress non-error output. Mutually exclusive with <span class="icode">--verbose</span>.</td>
-            </tr>
-            <tr>
-              <td class="k">--color <span class="alt">&lt;when&gt;</span></td>
-              <td class="t">auto · always · never</td>
-              <td class="d">When to emit ANSI color. Defaults to <span class="icode">auto</span>.</td>
-            </tr>
-            <tr>
-              <td class="k">--format <span class="alt">&lt;fmt&gt;</span></td>
-              <td class="t">human · json · ndjson</td>
-              <td class="d">Machine-readable output. <span class="icode">json</span>/<span class="icode">ndjson</span> are stable.</td>
-            </tr>
-            <tr>
-              <td class="k">--config <span class="alt">&lt;path&gt;</span></td>
-              <td class="t">path</td>
-              <td class="d">Override the project config file location.</td>
-            </tr>
-            <tr>
-              <td class="k">--cache-dir <span class="alt">&lt;path&gt;</span></td>
-              <td class="t">path</td>
-              <td class="d">Override the cache directory. Same effect as <span class="icode">$WASM_CACHE_DIR</span>.</td>
-            </tr>
-            <tr>
-              <td class="k">--no-network</td>
-              <td class="t">flag</td>
-              <td class="d">Refuse to make any outbound request. Resolution falls back to the local cache.</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="overflow-x-auto border-t-[1.5px] border-lineSoft mt-4">
+          <table class="w-full min-w-[560px] text-[13px]">
+            <tbody class="text-ink-900">
+              <tr class="border-b border-lineSoft">
+                <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                  <span class="mono">-h, --help</span>
+                  <span class="ml-2 text-[11px] text-ink-500">flag</span>
+                </td>
+                <td class="py-3 align-baseline text-ink-700">Print help for the current command. Long form prints extended notes.</td>
+              </tr>
+              <tr class="border-b border-lineSoft">
+                <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                  <span class="mono">-V, --version</span>
+                  <span class="ml-2 text-[11px] text-ink-500">flag</span>
+                </td>
+                <td class="py-3 align-baseline text-ink-700">Print version and exit. Identical to <span class="icode">wasm self version</span>.</td>
+              </tr>
+              <tr class="border-b border-lineSoft">
+                <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                  <span class="mono">-v, --verbose</span>
+                  <span class="ml-2 text-[11px] text-ink-500">flag · repeatable</span>
+                </td>
+                <td class="py-3 align-baseline text-ink-700">Increase log verbosity. Repeat up to three times (<span class="icode">-vvv</span> = trace).</td>
+              </tr>
+              <tr class="border-b border-lineSoft">
+                <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                  <span class="mono">-q, --quiet</span>
+                  <span class="ml-2 text-[11px] text-ink-500">flag</span>
+                </td>
+                <td class="py-3 align-baseline text-ink-700">Suppress non-error output. Mutually exclusive with <span class="icode">--verbose</span>.</td>
+              </tr>
+              <tr class="border-b border-lineSoft">
+                <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                  <span class="mono">--color</span>
+                  <span class="mono text-ink-400">&lt;when&gt;</span>
+                  <span class="ml-2 inline-flex items-baseline gap-1">
+                    <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">auto</code>
+                    <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">always</code>
+                    <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">never</code>
+                  </span>
+                </td>
+                <td class="py-3 align-baseline text-ink-700">When to emit ANSI color. Defaults to <span class="icode">auto</span>.</td>
+              </tr>
+              <tr class="border-b border-lineSoft">
+                <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                  <span class="mono">--format</span>
+                  <span class="mono text-ink-400">&lt;fmt&gt;</span>
+                  <span class="ml-2 inline-flex items-baseline gap-1">
+                    <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">human</code>
+                    <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">json</code>
+                    <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">ndjson</code>
+                  </span>
+                </td>
+                <td class="py-3 align-baseline text-ink-700">Machine-readable output. <span class="icode">json</span>/<span class="icode">ndjson</span> are stable.</td>
+              </tr>
+              <tr class="border-b border-lineSoft">
+                <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                  <span class="mono">--config</span>
+                  <span class="mono text-ink-400">&lt;path&gt;</span>
+                  <span class="ml-2 text-[11px] text-ink-500">path</span>
+                </td>
+                <td class="py-3 align-baseline text-ink-700">Override the project config file location.</td>
+              </tr>
+              <tr class="border-b border-lineSoft">
+                <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                  <span class="mono">--cache-dir</span>
+                  <span class="mono text-ink-400">&lt;path&gt;</span>
+                  <span class="ml-2 text-[11px] text-ink-500">path</span>
+                </td>
+                <td class="py-3 align-baseline text-ink-700">Override the cache directory. Same effect as <span class="icode">$WASM_CACHE_DIR</span>.</td>
+              </tr>
+              <tr class="border-b border-lineSoft">
+                <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                  <span class="mono">--no-network</span>
+                  <span class="ml-2 text-[11px] text-ink-500">flag</span>
+                </td>
+                <td class="py-3 align-baseline text-ink-700">Refuse to make any outbound request. Resolution falls back to the local cache.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <!-- ============================== -->
@@ -1289,51 +1331,68 @@ Token (input hidden): <span class="dim">****</span>
             <a href="#env-vars" class="anchor text-[12px]">§</a>
           </h2>
         </div>
-        <table class="def mt-2">
-          <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
-          <tbody>
-            <tr>
-              <td class="k">WASM_CONFIG_DIR</td>
-              <td class="t">~/.config/wasm</td>
-              <td class="d">Location of user-scope configuration and credentials.</td>
-            </tr>
-            <tr>
-              <td class="k">WASM_CACHE_DIR</td>
-              <td class="t">~/.cache/wasm</td>
-              <td class="d">Location of pulled artifacts and the resolution cache.</td>
-            </tr>
-            <tr>
-              <td class="k">WASM_REGISTRY</td>
-              <td class="t">—</td>
-              <td class="d">Override the default registry name for the current invocation.</td>
-            </tr>
-            <tr>
-              <td class="k">WASM_REGISTRY_TOKEN</td>
-              <td class="t">—</td>
-              <td class="d">Bearer token consulted by <span class="icode">login</span> and <span class="icode">publish</span> when no keychain entry exists.</td>
-            </tr>
-            <tr>
-              <td class="k">WASM_LOG</td>
-              <td class="t">warn</td>
-              <td class="d">Same syntax as <span class="icode">RUST_LOG</span>. Overrides <span class="icode">--verbose</span>.</td>
-            </tr>
-            <tr>
-              <td class="k">WASM_NO_COLOR</td>
-              <td class="t">unset</td>
-              <td class="d">If set to a truthy value, disables ANSI color regardless of <span class="icode">--color</span>.</td>
-            </tr>
-            <tr>
-              <td class="k">WASM_HTTP_TIMEOUT</td>
-              <td class="t">30s</td>
-              <td class="d">Per-request timeout for registry HTTP calls. Accepts <span class="icode">10s</span>, <span class="icode">2m</span>, etc.</td>
-            </tr>
-            <tr>
-              <td class="k">WASM_NO_KEYCHAIN</td>
-              <td class="t">unset</td>
-              <td class="d">Skip the OS keychain and use the file-based credential store.</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="overflow-x-auto border-t-[1.5px] border-lineSoft mt-4">
+          <table class="w-full min-w-[560px] text-[13px]">
+            <tbody class="text-ink-900">
+              <tr class="border-b border-lineSoft">
+                <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                  <span class="mono">WASM_CONFIG_DIR</span>
+                  <span class="ml-2 text-[11px] text-ink-500">default <span class="mono">~/.config/wasm</span></span>
+                </td>
+                <td class="py-3 align-baseline text-ink-700">Location of user-scope configuration and credentials.</td>
+              </tr>
+              <tr class="border-b border-lineSoft">
+                <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                  <span class="mono">WASM_CACHE_DIR</span>
+                  <span class="ml-2 text-[11px] text-ink-500">default <span class="mono">~/.cache/wasm</span></span>
+                </td>
+                <td class="py-3 align-baseline text-ink-700">Location of pulled artifacts and the resolution cache.</td>
+              </tr>
+              <tr class="border-b border-lineSoft">
+                <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                  <span class="mono">WASM_REGISTRY</span>
+                  <span class="ml-2 text-[11px] text-ink-500">unset</span>
+                </td>
+                <td class="py-3 align-baseline text-ink-700">Override the default registry name for the current invocation.</td>
+              </tr>
+              <tr class="border-b border-lineSoft">
+                <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                  <span class="mono">WASM_REGISTRY_TOKEN</span>
+                  <span class="ml-2 text-[11px] text-ink-500">unset</span>
+                </td>
+                <td class="py-3 align-baseline text-ink-700">Bearer token consulted by <span class="icode">login</span> and <span class="icode">publish</span> when no keychain entry exists.</td>
+              </tr>
+              <tr class="border-b border-lineSoft">
+                <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                  <span class="mono">WASM_LOG</span>
+                  <span class="ml-2 text-[11px] text-ink-500">default <span class="mono">warn</span></span>
+                </td>
+                <td class="py-3 align-baseline text-ink-700">Same syntax as <span class="icode">RUST_LOG</span>. Overrides <span class="icode">--verbose</span>.</td>
+              </tr>
+              <tr class="border-b border-lineSoft">
+                <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                  <span class="mono">WASM_NO_COLOR</span>
+                  <span class="ml-2 text-[11px] text-ink-500">unset</span>
+                </td>
+                <td class="py-3 align-baseline text-ink-700">If set to a truthy value, disables ANSI color regardless of <span class="icode">--color</span>.</td>
+              </tr>
+              <tr class="border-b border-lineSoft">
+                <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                  <span class="mono">WASM_HTTP_TIMEOUT</span>
+                  <span class="ml-2 text-[11px] text-ink-500">default <span class="mono">30s</span></span>
+                </td>
+                <td class="py-3 align-baseline text-ink-700">Per-request timeout for registry HTTP calls. Accepts <span class="icode">10s</span>, <span class="icode">2m</span>, etc.</td>
+              </tr>
+              <tr class="border-b border-lineSoft">
+                <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                  <span class="mono">WASM_NO_KEYCHAIN</span>
+                  <span class="ml-2 text-[11px] text-ink-500">unset</span>
+                </td>
+                <td class="py-3 align-baseline text-ink-700">Skip the OS keychain and use the file-based credential store.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <!-- ============================== -->

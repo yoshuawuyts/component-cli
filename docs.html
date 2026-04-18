@@ -371,13 +371,17 @@
       color:var(--c-ink-500);margin:14px 0 6px;
     }
 
-    /* Param list */
-    dl.params{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;font-size:13px;margin:0;}
-    dl.params dt{
+    /* Param table — DS §11 Definition pattern */
+    table.def{width:100%;font-size:13px;border-top:1.5px solid var(--c-line-soft);}
+    table.def tr{border-bottom:1.5px solid var(--c-line-soft);}
+    table.def td{padding:12px 0;vertical-align:baseline;}
+    table.def td:first-child{
+      padding-right:24px;white-space:nowrap;
       font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
-      color:var(--c-ink-900);white-space:nowrap;
+      color:var(--c-ink-900);
     }
-    dl.params dd{margin:0;color:var(--c-ink-700);line-height:1.55;}
+    table.def td:last-child{color:var(--c-ink-700);line-height:1.55;}
+    table.def .qual{margin-left:8px;font-size:11px;color:var(--c-ink-500);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;}
 
     /* Section heading */
     .section-head{
@@ -399,7 +403,7 @@
   <!-- TOP BAR                        -->
   <!-- ============================== -->
   <div class="sticky top-0 z-20 bg-canvas/90 backdrop-blur border-b hairline">
-    <div class="mx-auto max-w-[1440px] px-4 md:px-6 h-12 flex items-center gap-4">
+    <div class="max-w-[1440px] px-4 md:px-6 h-12 flex items-center gap-4">
       <!-- Brand + breadcrumb. The brand is the rust-monogram; the breadcrumb
            tells you WHERE in the crate you are. No dead-weight single item. -->
       <div class="flex items-center gap-2.5 min-w-0">
@@ -441,7 +445,7 @@
   <!-- ============================== -->
   <!-- LAYOUT                         -->
   <!-- ============================== -->
-  <div class="mx-auto max-w-[1440px] px-4 md:px-6 grid grid-cols-1 lg:grid-cols-[240px_1fr_200px] gap-8 lg:gap-10 pt-8 pb-24">
+  <div class="max-w-[1440px] px-4 md:px-6 grid grid-cols-1 lg:grid-cols-[240px_1fr_200px] gap-8 lg:gap-10 pt-8 pb-24">
 
     <!-- ============================== -->
     <!-- LEFT SIDEBAR                   -->
@@ -651,7 +655,10 @@
            regions; the surface change IS the boundary.               -->
       <!-- ============================== -->
       <div class="items-region relative mt-12 md:mt-16 pt-10 md:pt-14 pb-12 md:pb-16">
-        <div class="absolute left-1/2 -translate-x-1/2 top-0 w-screen h-full bg-surface -z-10"></div>
+        <!-- Full-bleed BG anchored to viewport-left (page is left-aligned).
+             Offset = outer padding + sidebar + grid gap.
+             sm: 16px · md: 24px · lg: 24 + 240 + 40 = 304px -->
+        <div class="absolute top-0 h-full bg-surface -z-10 left-[-16px] md:left-[-24px] lg:left-[-304px] w-screen"></div>
 
         <div class="flex items-baseline justify-between mb-6">
           <div>
@@ -1011,12 +1018,18 @@
               </div>
 
               <div class="sub-head">Parameters</div>
-              <dl class="params">
-                <dt>engine</dt>
-                <dd>The <a href="#"><span class="icode">Engine</span></a> to compile with. Compilation caches are keyed per-engine.</dd>
-                <dt>path</dt>
-                <dd>Path to a <span class="icode">.wasm</span> component binary. May be absolute or relative to the current working directory.</dd>
-              </dl>
+              <table class="def">
+                <tbody>
+                  <tr>
+                    <td>engine<span class="qual">&amp;Engine</span></td>
+                    <td>The <a href="#"><span class="icode">Engine</span></a> to compile with. Compilation caches are keyed per-engine.</td>
+                  </tr>
+                  <tr>
+                    <td>path<span class="qual">P: AsRef&lt;Path&gt;</span></td>
+                    <td>Path to a <span class="icode">.wasm</span> component binary. May be absolute or relative to the current working directory.</td>
+                  </tr>
+                </tbody>
+              </table>
 
               <div class="sub-head">Errors</div>
               <div class="prose max-w-[72ch]">
@@ -1062,12 +1075,18 @@
               </div>
 
               <div class="sub-head">Parameters</div>
-              <dl class="params">
-                <dt>engine</dt>
-                <dd>The <a href="#"><span class="icode">Engine</span></a> to compile with.</dd>
-                <dt>bytes</dt>
-                <dd>The raw bytes of a component binary. The slice need not outlive the returned <span class="icode">Component</span>.</dd>
-              </dl>
+              <table class="def">
+                <tbody>
+                  <tr>
+                    <td>engine<span class="qual">&amp;Engine</span></td>
+                    <td>The <a href="#"><span class="icode">Engine</span></a> to compile with.</td>
+                  </tr>
+                  <tr>
+                    <td>bytes<span class="qual">&amp;[u8]</span></td>
+                    <td>The raw bytes of a component binary. The slice need not outlive the returned <span class="icode">Component</span>.</td>
+                  </tr>
+                </tbody>
+              </table>
 
               <div class="sub-head">Errors</div>
               <div class="prose max-w-[72ch]">
