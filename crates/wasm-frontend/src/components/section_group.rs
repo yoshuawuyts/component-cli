@@ -111,7 +111,7 @@ pub(crate) fn item_row(
 
     let mut row = Division::builder();
     row.class(
-        "flex items-start gap-3 py-3 px-3 sm:px-4 bg-surface rounded-lg shadow-card mb-2 last:mb-0",
+        "flex items-start gap-3 py-3 px-3 sm:px-4 bg-surface border-b border-lineSoft last:border-b-0",
     );
 
     // Colored dot
@@ -131,7 +131,7 @@ pub(crate) fn item_row(
             let nr = name_row.class("flex items-baseline gap-2").anchor(|a| {
                 a.href(url.to_owned())
                     .class(format!(
-                        "font-mono text-[14px] font-medium hover:underline truncate {text_class}"
+                        "text-[14px] font-medium hover:underline truncate {text_class}"
                     ))
                     .text(name.to_owned())
             });

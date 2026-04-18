@@ -1,12 +1,49 @@
 //! Item detail page (type or function within an interface).
 
-use crate::components::{copy_button, data_table, section_heading};
+use crate::components::{copy_button, section_heading};
 use crate::wit_doc::{FunctionDoc, TypeDoc, TypeKind, TypeRef, WitDocument};
 use html::tables::{Table, TableRow};
 use html::text_content::Division;
 use wasm_meta_registry_client::{KnownPackage, PackageVersion};
 
 use super::package_shell;
+
+// ── Table styling constants ──────────────────────────────
+
+const TABLE_CLASS: &str = "w-full text-[13px]";
+const HEADER_ROW_CLASS: &str = "border-b border-line text-left text-ink-500";
+const ROW_CLASS: &str = "border-b-2 border-line";
+const NAME_CELL_CLASS: &str = "py-2 pr-4 font-mono text-accent";
+const VALUE_CELL_CLASS: &str = "py-2 pr-4 font-mono text-ink-900";
+const DESC_CELL_CLASS: &str = "py-2 text-ink-700";
+
+/// Build a header row with N columns.
+fn table_header(columns: &[&str]) -> TableRow {
+    let mut tr = TableRow::builder();
+    tr.class(HEADER_ROW_CLASS);
+    let last = columns.len().saturating_sub(1);
+    for (i, col) in columns.iter().enumerate() {
+        let cls = if i == last {
+            "py-2 font-medium"
+        } else {
+            "py-2 pr-4 font-medium"
+        };
+        tr.table_header(|th| th.class(cls).text(col.to_string()));
+    }
+    tr.build()
+}
+
+/// Build a data row from N cells. Each cell is `(class, text)`.
+fn table_row(cells: &[(&str, &str)]) -> TableRow {
+    let mut tr = TableRow::builder();
+    tr.class(ROW_CLASS);
+    for &(cls, text) in cells {
+        let cls = cls.to_owned();
+        let text = text.to_owned();
+        tr.table_cell(|td| td.class(cls).text(text));
+    }
+    tr.build()
+}
 
 /// Render the item detail page for a type.
 #[must_use]
@@ -50,12 +87,20 @@ pub(crate) fn render_type(
 
     let content = format!("{header}<div class=\"max-w-3xl\">{body}</div>");
 
+    let nav = super::sidebar::render_sidebar(&super::sidebar::SidebarContext {
+        display_name: &display_name,
+        version,
+        doc: _doc,
+        active: super::sidebar::SidebarActive::Item(iface_name, &ty.name),
+    });
+
     let ctx = package_shell::SidebarContext {
         pkg,
         version,
         version_detail,
         importers: &[],
         exporters: &[],
+        nav_html: Some(nav.to_string()),
     };
     let iface_url = format!(
         "/{}/{version}/interface/{iface_name}",
@@ -105,12 +150,20 @@ pub(crate) fn render_function(
 
     let content = header;
 
+    let nav = super::sidebar::render_sidebar(&super::sidebar::SidebarContext {
+        display_name: &display_name,
+        version,
+        doc: _doc,
+        active: super::sidebar::SidebarActive::Item(iface_name, &func.name),
+    });
+
     let ctx = package_shell::SidebarContext {
         pkg,
         version,
         version_detail,
         importers: &[],
         exporters: &[],
+        nav_html: Some(nav.to_string()),
     };
     let iface_url = format!(
         "/{}/{version}/interface/{iface_name}",
@@ -221,8 +274,8 @@ fn render_field_table(heading: &str, fields: &[crate::wit_doc::FieldDoc]) -> Div
     div.heading_2(|h2| h2.class(section_heading::CLASS).text(heading.to_owned()));
 
     let mut table = Table::builder();
-    table.class(data_table::TABLE_CLASS);
-    table.push(data_table::header_3("Name", "Type", "Description"));
+    table.class(TABLE_CLASS);
+    table.push(table_header(&["Name", "Type", "Description"]));
     for field in fields {
         table.push(render_field_row(
             &field.name,
@@ -237,14 +290,14 @@ fn render_field_table(heading: &str, fields: &[crate::wit_doc::FieldDoc]) -> Div
 /// Render a single field/param row.
 fn render_field_row(name: &str, ty: &TypeRef, docs: Option<&str>) -> TableRow {
     TableRow::builder()
-        .class(data_table::ROW_CLASS)
-        .table_cell(|td| td.class(data_table::NAME_CELL_CLASS).text(name.to_owned()))
+        .class(ROW_CLASS)
+        .table_cell(|td| td.class(NAME_CELL_CLASS).text(name.to_owned()))
         .table_cell(|td| {
-            td.class(data_table::VALUE_CELL_CLASS)
+            td.class(VALUE_CELL_CLASS)
                 .push(super::wit_render::render_type_ref(ty))
         })
         .table_cell(|td| {
-            td.class(data_table::DESC_CELL_CLASS)
+            td.class(DESC_CELL_CLASS)
                 .text(crate::markdown::render_inline(docs.unwrap_or("")))
         })
         .build()
@@ -256,17 +309,14 @@ fn render_variant_table(cases: &[crate::wit_doc::CaseDoc]) -> Division {
     div.heading_2(|h2| h2.class(section_heading::CLASS).text("Cases"));
 
     let mut table = Table::builder();
-    table.class(data_table::TABLE_CLASS);
-    table.push(data_table::header_3("Case", "Payload", "Description"));
+    table.class(TABLE_CLASS);
+    table.push(table_header(&["Case", "Payload", "Description"]));
     for case in cases {
         table.table_row(|tr| {
-            tr.class(data_table::ROW_CLASS)
+            tr.class(ROW_CLASS)
+                .table_cell(|td| td.class(NAME_CELL_CLASS).text(case.name.clone()))
                 .table_cell(|td| {
-                    td.class(data_table::NAME_CELL_CLASS)
-                        .text(case.name.clone())
-                })
-                .table_cell(|td| {
-                    td.class(data_table::VALUE_CELL_CLASS);
+                    td.class(VALUE_CELL_CLASS);
                     if let Some(t) = &case.ty {
                         td.push(super::wit_render::render_type_ref(t));
                     } else {
@@ -275,7 +325,7 @@ fn render_variant_table(cases: &[crate::wit_doc::CaseDoc]) -> Division {
                     td
                 })
                 .table_cell(|td| {
-                    td.class(data_table::DESC_CELL_CLASS)
+                    td.class(DESC_CELL_CLASS)
                         .text(crate::markdown::render_inline(
                             case.docs.as_deref().unwrap_or(""),
                         ))
@@ -291,13 +341,16 @@ fn render_enum_list(cases: &[crate::wit_doc::EnumCaseDoc]) -> Division {
     let mut div = Division::builder();
     div.heading_2(|h2| h2.class(section_heading::CLASS).text("Cases"));
     let mut table = Table::builder();
-    table.class(data_table::TABLE_CLASS);
-    table.push(data_table::header_2("Case", "Description"));
+    table.class(TABLE_CLASS);
+    table.push(table_header(&["Case", "Description"]));
     for case in cases {
-        table.push(data_table::row_2(
-            &case.name,
-            &crate::markdown::render_inline(case.docs.as_deref().unwrap_or("")),
-        ));
+        table.push(table_row(&[
+            (NAME_CELL_CLASS, &case.name),
+            (
+                DESC_CELL_CLASS,
+                &crate::markdown::render_inline(case.docs.as_deref().unwrap_or("")),
+            ),
+        ]));
     }
     div.push(table.build());
     div.build()
@@ -308,13 +361,16 @@ fn render_flags_list(flags: &[crate::wit_doc::FlagDoc]) -> Division {
     let mut div = Division::builder();
     div.heading_2(|h2| h2.class(section_heading::CLASS).text("Flags"));
     let mut table = Table::builder();
-    table.class(data_table::TABLE_CLASS);
-    table.push(data_table::header_2("Flag", "Description"));
+    table.class(TABLE_CLASS);
+    table.push(table_header(&["Flag", "Description"]));
     for flag in flags {
-        table.push(data_table::row_2(
-            &flag.name,
-            &crate::markdown::render_inline(flag.docs.as_deref().unwrap_or("")),
-        ));
+        table.push(table_row(&[
+            (NAME_CELL_CLASS, &flag.name),
+            (
+                DESC_CELL_CLASS,
+                &crate::markdown::render_inline(flag.docs.as_deref().unwrap_or("")),
+            ),
+        ]));
     }
     div.push(table.build());
     div.build()

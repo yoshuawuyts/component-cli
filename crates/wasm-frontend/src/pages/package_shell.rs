@@ -23,6 +23,8 @@ pub(crate) struct SidebarContext<'a> {
     pub importers: &'a [KnownPackage],
     /// Packages that export this one.
     pub exporters: &'a [KnownPackage],
+    /// Optional navigation card HTML (interfaces/worlds/items list).
+    pub nav_html: Option<String>,
 }
 
 /// Render the shared page shell: two-column layout with sidebar,
@@ -87,22 +89,18 @@ fn render_page_inner(
         }
     };
     let topbar_search = search_bar::compact("search-input");
-    let rightbar_search = search_bar::compact("search-input-lg");
     let body = format!(
         r#"<style>
-  .page-grid {{
+  .page-layout {{
     display: flex;
     flex-direction: column;
     min-height: 100vh;
   }}
-  .page-grid .sidebar {{
+  .page-layout .sidebar {{
     display: none;
   }}
-  .page-grid .topbar {{
-    display: flex;
-  }}
   @media (min-width: 768px) {{
-    .page-grid {{
+    .page-layout {{
       display: grid;
       grid-template-columns: 260px 1fr;
       grid-template-rows: auto 1fr;
@@ -111,34 +109,29 @@ fn render_page_inner(
         "sidebar main";
       gap: 0 2.5rem;
     }}
-    .page-grid .sidebar {{
-      display: flex;
+    .page-layout .sidebar {{
+      display: block;
+      grid-area: sidebar;
+      height: 100vh;
+      overflow-y: auto;
+      scrollbar-width: thin;
     }}
-  }}
-  @media (min-width: 1280px) {{
-    .page-grid {{
-      grid-template-columns: 260px 1fr auto;
-      grid-template-areas:
-        "sidebar main rightbar"
-        "sidebar main rightbar";
+    .page-layout .topbar {{
+      grid-area: topbar;
     }}
-    .page-grid .topbar {{
+    .page-layout .main {{
+      grid-area: main;
+      overflow-y: auto;
+      height: calc(100vh - 52px);
+    }}
+    .page-layout .mobile-header {{
       display: none;
     }}
-    .page-grid .rightbar {{
-      display: block;
-    }}
-  }}
-  .sidebar-scroll {{
-    scrollbar-width: none;
-  }}
-  .sidebar-scroll::-webkit-scrollbar {{
-    display: none;
   }}
 </style>
-<div class="page-grid pt-3 xl:pt-6">
-  <!-- Mobile header: visible < md -->
-  <div class="flex md:hidden items-center justify-between px-4 pt-4 pb-3 gap-4">
+<div class="page-layout">
+  <!-- Mobile header -->
+  <div class="mobile-header flex md:hidden items-center justify-between px-4 pt-4 pb-3 gap-4">
     <a href="/" class="font-semibold text-[14px] text-ink-900 hover:text-accent transition-colors shrink-0">wasm</a>
     <div class="flex items-center gap-3">
       <a href="/docs" class="text-[13px] text-ink-500 hover:text-ink-900 transition-colors">Docs</a>
@@ -147,31 +140,27 @@ fn render_page_inner(
       </form>
     </div>
   </div>
-  <aside class="sidebar space-y-5 sidebar-scroll" style="grid-area:sidebar;position:sticky;top:1.5rem;align-self:start;display:flex;flex-direction:column;height:calc(100vh - 3rem);overflow-y:auto;padding-right:0.75rem;padding-left:0.75rem">
-    <div class="space-y-5 flex-1">
-    <div class="mb-4"><a href="/" class="font-semibold text-ink-900 hover:text-accent transition-colors">wasm</a></div>
+  <!-- Sidebar -->
+  <aside class="sidebar px-4 pt-6">
+    <div class="mb-6"><a href="/" class="font-semibold text-ink-900 hover:text-accent transition-colors">wasm</a></div>
     {sidebar_meta}
-    </div>
-    <p class="text-[13px] text-ink-400 pb-6">Made by <a href="https://yosh.is" class="hover:text-ink-900 transition-colors">Yosh Wuyts</a><br>Intended to be donated to the <a href="https://bytecodealliance.org" class="hover:text-ink-900 transition-colors">Bytecode Alliance</a></p>
+    <p class="text-[13px] text-ink-400 mt-8 pb-6">Made by <a href="https://yosh.is" class="hover:text-ink-900 transition-colors">Yosh Wuyts</a><br>Intended to be donated to the <a href="https://bytecodealliance.org" class="hover:text-ink-900 transition-colors">Bytecode Alliance</a></p>
   </aside>
-  <div class="topbar flex items-center justify-end gap-4 pb-2 pr-4" style="grid-area:topbar;align-self:start">
-    <a href="/docs" class="text-[13px] text-ink-500 hover:text-ink-900 transition-colors">Docs</a>
-    <a href="/downloads" class="text-[13px] text-ink-500 hover:text-ink-900 transition-colors">Downloads</a>
-    {topbar_search}
-  </div>
-  <div style="grid-area:main;min-width:0" class="px-4 md:pr-4 md:pl-0">
-    <div class="flex items-center gap-1 text-[14px] text-ink-500 mb-4">
+  <!-- Top navbar -->
+  <nav class="topbar hidden md:flex items-center gap-4 px-4 pt-4 pb-3">
+    <div class="flex items-center gap-1 text-[14px] text-ink-500 shrink-0">
       {pkg_name_html}{breadcrumb_html}
     </div>
-    {content}
-  </div>
-  <aside class="rightbar hidden pr-4" style="grid-area:rightbar;position:sticky;top:1.5rem;align-self:start">
-    <div class="flex items-center gap-4">
+    <div class="flex-1 max-w-md">{topbar_search}</div>
+    <div class="flex items-center gap-3 shrink-0 ml-auto">
       <a href="/docs" class="text-[13px] text-ink-500 hover:text-ink-900 transition-colors">Docs</a>
       <a href="/downloads" class="text-[13px] text-ink-500 hover:text-ink-900 transition-colors">Downloads</a>
-      {rightbar_search}
     </div>
-  </aside>
+  </nav>
+  <!-- Main content -->
+  <div class="main px-4 pb-12" style="min-width:0">
+    {content}
+  </div>
 </div>"#
     );
 
@@ -214,7 +203,7 @@ fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
     let annotations = version_detail.and_then(|d| d.annotations.as_ref());
 
     let mut sidebar = Division::builder();
-    sidebar.class("text-[12px]");
+    sidebar.class("space-y-4");
 
     // ── Version selector ─────────────────────────────────
     if !pkg.tags.is_empty() {
@@ -227,7 +216,6 @@ fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
 
     // ── Metadata detail rows ─────────────────────────────
     sidebar.division(|meta| {
-        meta.class("");
         {
             let registry_url = format!("https://{}/{}", pkg.registry, pkg.repository);
             let registry_display = friendly_registry_name(&pkg.registry);
@@ -287,28 +275,9 @@ fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
         meta
     });
 
-    // ── Install command ──────────────────────────────────
-    sidebar.division(|d| {
-        d.class("my-3 border-t-[1.5px] border-rule pt-3")
-            .division(|label| label.class(SIDEBAR_LABEL).text("Install"))
-            .push(render_install_command(display_name, version))
-    });
-
-    // ── Imports & Exports ────────────────────────────────
-    if let Some(detail) = ctx.version_detail {
-        let (imports, exports) = collect_imports_exports(detail, pkg, ctx.version);
-        if !imports.is_empty() {
-            sidebar.division(|d| {
-                d.class("my-3 border-t-[1.5px] border-rule pt-3")
-                    .push(build_iface_sidebar_section("Imports", &imports))
-            });
-        }
-        if !exports.is_empty() {
-            sidebar.division(|d| {
-                d.class("my-3 border-t-[1.5px] border-rule pt-3")
-                    .push(build_iface_sidebar_section("Exports", &exports))
-            });
-        }
+    // ── Navigation card (interfaces/worlds/items) ────────
+    if let Some(nav) = &ctx.nav_html {
+        sidebar.text(nav.clone());
     }
 
     // ── Dependencies ─────────────────────────────────────
@@ -321,7 +290,7 @@ fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
             ul.class("space-y-1");
             for dep in &pkg.dependencies {
                 ul.list_item(|li| {
-                    li.class("font-mono text-[12px]");
+                    li.class("text-[12px]");
                     match dep.package.split_once(':') {
                         Some((ns, name)) => {
                             li.anchor(|a| {
@@ -351,240 +320,17 @@ fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
         sidebar.division(|wrapper| {
             wrapper
                 .class("my-3 border-t-[1.5px] border-rule pt-3")
-                .heading_3(|h3| {
-                    h3.class(SIDEBAR_LABEL)
-                        .text(format!("Dependents ({total_dependents})"))
-                });
-
-            let mut all: Vec<&KnownPackage> =
-                ctx.importers.iter().chain(ctx.exporters.iter()).collect();
-            all.sort_by(|a, b| a.repository.cmp(&b.repository));
-            all.dedup_by(|a, b| a.repository == b.repository);
-
-            let mut ul = html::text_content::UnorderedList::builder();
-            ul.class("space-y-1");
-            for dep_pkg in all.iter().take(10) {
-                let name = match (&dep_pkg.wit_namespace, &dep_pkg.wit_name) {
-                    (Some(ns), Some(n)) => format!("{ns}:{n}"),
-                    _ => dep_pkg.repository.clone(),
-                };
-                ul.list_item(|li| {
-                    li.class("text-[12px]");
-                    match (&dep_pkg.wit_namespace, &dep_pkg.wit_name) {
-                        (Some(ns), Some(n)) => {
-                            li.anchor(|a| {
-                                a.href(format!("/{ns}/{n}"))
-                                    .class("text-accent hover:underline font-mono")
-                                    .text(name.clone())
-                            });
-                        }
-                        _ => {
-                            li.span(|s| s.class("text-ink-900 font-mono").text(name.clone()));
-                        }
-                    }
-                    li
-                });
-            }
-            wrapper.push(ul.build());
-
-            if all.len() > 10 {
-                wrapper.paragraph(|p| {
-                    p.class("text-[12px] text-ink-400 mt-1")
-                        .text(format!("and {} more", all.len() - 10))
-                });
-            }
+                .heading_3(|h3| h3.class(SIDEBAR_LABEL).text("Dependents"));
+            wrapper.anchor(|a| {
+                a.href(format!("/search?q={}", display_name))
+                    .class("text-[13px] text-accent hover:underline")
+                    .text("Search for dependent packages \u{2192}")
+            });
             wrapper
         });
     }
 
     sidebar.build()
-}
-
-/// A sidebar interface entry.
-struct SidebarIfaceItem {
-    /// Display text (e.g. "incoming-handler" or "wasi:io").
-    label: String,
-    /// URL to link to.
-    href: String,
-    /// Version suffix, if any (e.g. "0.2.11").
-    version: Option<String>,
-    /// Worlds this interface belongs to (name, href), for internal items.
-    worlds: Vec<(String, String)>,
-    /// Whether this is an internal interface (sorts first).
-    is_internal: bool,
-}
-
-/// Collect deduplicated import and export refs from all worlds.
-///
-/// Internal interfaces (belonging to the same package) show just the
-/// interface name and the world they belong to (e.g. `incoming-handler (proxy)`).
-/// External packages are grouped by package name with version.
-fn collect_imports_exports(
-    detail: &PackageVersion,
-    pkg: &KnownPackage,
-    version: &str,
-) -> (Vec<SidebarIfaceItem>, Vec<SidebarIfaceItem>) {
-    let display_name = display_name_for(pkg);
-    let url_base = url_base_for(pkg, version);
-    let mut imports: Vec<SidebarIfaceItem> = Vec::new();
-    let mut exports: Vec<SidebarIfaceItem> = Vec::new();
-    let mut import_idx: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-    let mut export_idx: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-
-    for world in &detail.worlds {
-        let world_entry = if world.name == "root" {
-            None
-        } else {
-            Some((
-                world.name.clone(),
-                format!("{url_base}/world/{}", world.name),
-            ))
-        };
-        for iface in &world.imports {
-            if iface.package == display_name {
-                let iface_name = iface.interface.as_deref().unwrap_or(&iface.package);
-                let key = iface_name.to_string();
-                if let Some(&idx) = import_idx.get(&key) {
-                    if let Some(item) = imports.get_mut(idx)
-                        && let Some(we) = &world_entry
-                    {
-                        item.worlds.push(we.clone());
-                    }
-                } else {
-                    import_idx.insert(key, imports.len());
-                    imports.push(SidebarIfaceItem {
-                        label: iface_name.to_string(),
-                        href: format!("{url_base}/interface/{iface_name}"),
-                        version: None,
-                        worlds: world_entry.clone().into_iter().collect(),
-                        is_internal: true,
-                    });
-                }
-            } else {
-                let key = format_iface_label(iface);
-                if let std::collections::hash_map::Entry::Vacant(e) = import_idx.entry(key) {
-                    let (ns, name) = iface
-                        .package
-                        .split_once(':')
-                        .unwrap_or(("", &iface.package));
-                    let href = match &iface.version {
-                        Some(v) => format!("/{ns}/{name}/{v}"),
-                        None => format!("/{ns}/{name}"),
-                    };
-                    e.insert(imports.len());
-                    imports.push(SidebarIfaceItem {
-                        label: iface.package.clone(),
-                        href,
-                        version: iface.version.clone(),
-                        worlds: vec![],
-                        is_internal: false,
-                    });
-                }
-            }
-        }
-        for iface in &world.exports {
-            if iface.package == display_name {
-                let iface_name = iface.interface.as_deref().unwrap_or(&iface.package);
-                let key = iface_name.to_string();
-                if let Some(&idx) = export_idx.get(&key) {
-                    if let Some(item) = exports.get_mut(idx)
-                        && let Some(we) = &world_entry
-                    {
-                        item.worlds.push(we.clone());
-                    }
-                } else {
-                    export_idx.insert(key, exports.len());
-                    exports.push(SidebarIfaceItem {
-                        label: iface_name.to_string(),
-                        href: format!("{url_base}/interface/{iface_name}"),
-                        version: None,
-                        worlds: world_entry.clone().into_iter().collect(),
-                        is_internal: true,
-                    });
-                }
-            } else {
-                let key = format_iface_label(iface);
-                if let std::collections::hash_map::Entry::Vacant(e) = export_idx.entry(key) {
-                    let (ns, name) = iface
-                        .package
-                        .split_once(':')
-                        .unwrap_or(("", &iface.package));
-                    let href = match &iface.version {
-                        Some(v) => format!("/{ns}/{name}/{v}"),
-                        None => format!("/{ns}/{name}"),
-                    };
-                    e.insert(exports.len());
-                    exports.push(SidebarIfaceItem {
-                        label: iface.package.clone(),
-                        href,
-                        version: iface.version.clone(),
-                        worlds: vec![],
-                        is_internal: false,
-                    });
-                }
-            }
-        }
-    }
-
-    (imports, exports)
-}
-
-/// Format an interface ref as "package@version" (grouped by package, no sub-interface).
-fn format_iface_label(iface: &wasm_meta_registry_client::WitInterfaceRef) -> String {
-    let mut s = iface.package.clone();
-    if let Some(v) = &iface.version {
-        s.push('@');
-        s.push_str(v);
-    }
-    s
-}
-
-/// Build a sidebar section listing interface refs (imports or exports).
-///
-/// Internal items (with a world annotation) are sorted first.
-fn build_iface_sidebar_section(heading: &str, items: &[SidebarIfaceItem]) -> Division {
-    let heading = heading.to_string();
-
-    // Sort: internal items first, then external.
-    let mut sorted: Vec<&SidebarIfaceItem> = items.iter().collect();
-    sorted.sort_by_key(|item| !item.is_internal);
-
-    let mut wrapper = Division::builder();
-    wrapper.heading_3(|h3| h3.class(SIDEBAR_LABEL).text(heading));
-    let mut ul = html::text_content::UnorderedList::builder();
-    ul.class("space-y-1");
-    for item in &sorted {
-        ul.list_item(|li| {
-            li.class("font-mono text-[12px]");
-            li.anchor(|a| {
-                a.href(item.href.clone())
-                    .class("text-accent hover:underline");
-                a.span(|s| s.text(item.label.clone()));
-                if let Some(v) = &item.version {
-                    a.span(|s| s.class("text-ink-400 ml-1").text(format!("@{v}")));
-                }
-                a
-            });
-            if !item.worlds.is_empty() {
-                for (i, (w, w_href)) in item.worlds.iter().enumerate() {
-                    li.anchor(|a| {
-                        a.href(w_href.clone())
-                            .class("text-ink-400 hover:underline ml-1");
-                        if i == 0 {
-                            a.text(format!("({w}"));
-                        } else {
-                            a.text(format!(", {w}"));
-                        }
-                        a
-                    });
-                }
-                li.span(|s| s.class("text-ink-400").text(")"));
-            }
-            li
-        });
-    }
-    wrapper.push(ul.build());
-    wrapper.build()
 }
 
 /// Compute the display name from package WIT metadata.
@@ -732,7 +478,7 @@ fn render_version_select(pkg: &KnownPackage, current_version: &str, url_name: &s
 }
 
 /// Render the install command section with a copy button.
-fn render_install_command(display_name: &str, version: &str) -> Division {
+pub(crate) fn render_install_command(display_name: &str, version: &str) -> Division {
     let command = format!("wasm install {display_name}@{version}");
 
     let copy_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>";
@@ -755,7 +501,7 @@ fn render_install_command(display_name: &str, version: &str) -> Division {
         .division(|div| {
             div.class(
                 "flex items-center gap-2 rounded-md border border-line \
-                 px-3 py-2 font-mono text-[12px] text-ink-900",
+                 px-3 py-2 text-[12px] text-ink-900",
             )
             .code(|code| {
                 code.class("flex-1 select-all overflow-hidden whitespace-nowrap text-ellipsis")

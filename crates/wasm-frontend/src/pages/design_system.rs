@@ -6,8 +6,8 @@
 use html::text_content::Division;
 
 use crate::components::{
-    badge, button, code_block, copy_button, data_table, detail_row, empty_state, icon, link_button,
-    metric, nav_list, package_card, package_row, search_bar, section_group, section_heading,
+    badge, button, code_block, copy_button, detail_row, empty_state, icon, link_button, metric,
+    nav_list, package_card, package_row, search_bar, section_group, section_heading,
 };
 use crate::layout;
 
@@ -76,9 +76,7 @@ pub(crate) fn render() -> String {
         .push(div())
         .push(render_copy_buttons()) // P5
         .push(div())
-        .push(render_data_tables()) // P6
-        .push(div())
-        .push(render_nav_lists()) // P7
+        .push(render_nav_lists()) // P6
         .push(div())
         .push(render_section_headings()) // P8
         .push(div())
@@ -124,10 +122,18 @@ fn sub(text: &str) -> Division {
         .build()
 }
 
-fn swatch(label: &str, bg: &str) -> Division {
+fn swatch(label: &str, bg: &str, hex: &str, oklch: &str) -> Division {
     Division::builder()
         .division(|s| s.class(format!("{bg} h-[88px] rounded-lg border border-lineSoft")))
         .division(|n| n.class("mt-2 text-[13px]").text(label.to_owned()))
+        .division(|h| {
+            h.class("text-[12px] text-ink-500 font-mono")
+                .text(hex.to_owned())
+        })
+        .division(|o| {
+            o.class("text-[11px] text-ink-400 font-mono")
+                .text(oklch.to_owned())
+        })
         .build()
 }
 
@@ -199,10 +205,9 @@ fn render_toc() -> Division {
         ("#groups", "P3 \u{2014} Section Groups"),
         ("#codeblocks", "P4 \u{2014} Code Blocks"),
         ("#copybuttons", "P5 \u{2014} Copy Buttons"),
-        ("#datatables", "P6 \u{2014} Data Tables"),
-        ("#navlists", "P7 \u{2014} Nav Lists"),
-        ("#secheadings", "P8 \u{2014} Section Headings"),
-        ("#sidebarsec", "P9 \u{2014} Sidebar Details"),
+        ("#navlists", "P6 \u{2014} Nav Lists"),
+        ("#secheadings", "P7 \u{2014} Section Headings"),
+        ("#sidebarsec", "P8 \u{2014} Sidebar Details"),
     ];
 
     let mut nav = Division::builder();
@@ -224,21 +229,36 @@ fn render_colors() -> Division {
         .push(sec("colors", "01", "Color", "Neutral surfaces and ink form the structural base. Pastel categoricals encode chart series with paired ink tones for legibility."))
         .push(sub("Surfaces"))
         .division(|g| g.class("grid grid-cols-2 sm:grid-cols-3 gap-4")
-            .push(swatch("Canvas", "bg-canvas")).push(swatch("Surface", "bg-surface")).push(swatch("Surface Muted", "bg-surfaceMuted")))
+            .push(swatch("Canvas", "bg-canvas", "#F4F4F5", "oklch(.967 .001 286)"))
+            .push(swatch("Surface", "bg-surface", "#FFFFFF", "oklch(1 0 0)"))
+            .push(swatch("Surface Muted", "bg-surfaceMuted", "#E8E8EA", "oklch(.928 .003 286)")))
         .division(|d| d.class("mt-8").push(sub("Ink"))
             .division(|g| g.class("grid grid-cols-2 sm:grid-cols-5 gap-4")
-                .push(swatch("900", "bg-ink-900")).push(swatch("700", "bg-ink-700")).push(swatch("500", "bg-ink-500")).push(swatch("400", "bg-ink-400")).push(swatch("300", "bg-ink-300"))))
+                .push(swatch("Ink 900", "bg-ink-900", "#18181B", "oklch(.210 .006 286)"))
+                .push(swatch("Ink 700", "bg-ink-700", "#3F3F46", "oklch(.370 .013 286)"))
+                .push(swatch("Ink 500", "bg-ink-500", "#71717A", "oklch(.552 .016 286)"))
+                .push(swatch("Ink 400", "bg-ink-400", "#A1A1AA", "oklch(.705 .015 286)"))
+                .push(swatch("Ink 300", "bg-ink-300", "#D4D4D8", "oklch(.871 .006 286)"))))
         .division(|d| d.class("mt-8").push(sub("Lines"))
             .division(|g| g.class("grid grid-cols-2 sm:grid-cols-3 gap-4")
-                .push(swatch("Line", "bg-line")).push(swatch("Line Soft", "bg-lineSoft"))))
+                .push(swatch("Line", "bg-line", "#D4D4D8", "oklch(.871 .006 286)"))
+                .push(swatch("Line Soft", "bg-lineSoft", "#E4E4E7", "oklch(.920 .004 286)"))))
         .division(|d| d.class("mt-8").push(sub("Semantic"))
             .division(|g| g.class("grid grid-cols-2 sm:grid-cols-3 gap-4")
-                .push(swatch("Positive", "bg-positive")).push(swatch("Negative", "bg-negative")).push(swatch("Accent", "bg-accent"))))
+                .push(swatch("Positive", "bg-positive", "#1F8A4C", "oklch(.561 .149 149)"))
+                .push(swatch("Negative", "bg-negative", "#9B4F5E", "oklch(.490 .080 13)"))))
         .division(|d| d.class("mt-8").push(sub("Categorical"))
             .division(|g| g.class("grid grid-cols-2 sm:grid-cols-5 gap-4")
-                .push(swatch("Blue", "bg-cat-blue")).push(swatch("Pink", "bg-cat-pink")).push(swatch("Green", "bg-cat-green"))
-                .push(swatch("Peach", "bg-cat-peach")).push(swatch("Lilac", "bg-cat-lilac")).push(swatch("Cream", "bg-cat-cream"))
-                .push(swatch("Teal", "bg-cat-teal")).push(swatch("Rust", "bg-cat-rust")).push(swatch("Plum", "bg-cat-plum")).push(swatch("Slate", "bg-cat-slate"))))
+                .push(swatch("Blue", "bg-cat-blue", "#D6E4FF", "oklch(.910 .046 264)"))
+                .push(swatch("Pink", "bg-cat-pink", "#FBD9DF", "oklch(.910 .037 9)"))
+                .push(swatch("Green", "bg-cat-green", "#D2ECD8", "oklch(.918 .039 148)"))
+                .push(swatch("Peach", "bg-cat-peach", "#F8E2C2", "oklch(.911 .049 79)"))
+                .push(swatch("Lilac", "bg-cat-lilac", "#E4DAF1", "oklch(.852 .051 287)"))
+                .push(swatch("Cream", "bg-cat-cream", "#F4ECC2", "oklch(.937 .055 100)"))
+                .push(swatch("Teal", "bg-cat-teal", "#BFE3EE", "oklch(.890 .037 215)"))
+                .push(swatch("Rust", "bg-cat-rust", "#F4D2C0", "oklch(.880 .045 50)"))
+                .push(swatch("Plum", "bg-cat-plum", "#E8C5E8", "oklch(.851 .065 322)"))
+                .push(swatch("Slate", "bg-cat-slate", "#DADCE0", "oklch(.882 .005 264)"))))
         .build()
 }
 
@@ -255,8 +275,34 @@ fn render_typography() -> Division {
             .push(tsample("Body", "text-[15px] leading-relaxed text-ink-700", "The quick brown fox jumps over the lazy dog.", "15 / 1.6 / 400"))
             .push(tsample("UI", "text-[14px]", "Navigation item \u{00b7} Table cell", "14 / 400 \u{2014} 13 / 500 (medium)"))
             .push(tsample("Caption", "text-[12px] text-ink-500", "Aenean lectus \u{00b7} Vivamus aliquet", "12 / 400 / ink-500"))
-            .push(tsample("Micro", "text-[11px] text-ink-500", "Tempor incididunt \u{00b7} ut labore", "11 / 400"))
-            .push(tsample("Inline", "text-[15px] leading-relaxed text-ink-700", "Read the <a href=\"#\" class=\"text-ink-900 underline decoration-line decoration-1 underline-offset-[3px]\">guide</a>, then run <code class=\"px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 font-mono text-[0.875em]\">wasm install</code>. Press <kbd class=\"inline-flex items-center px-1.5 h-5 rounded-sm border border-line bg-surface text-ink-700 font-mono text-[11px]\">\\u{2318}K</kbd> to search.", "link \\u{00b7} code \\u{00b7} kbd")))
+            .push(tsample("Micro", "text-[11px] text-ink-500", "Tempor incididunt \u{00b7} ut labore", "11 / 400")))
+        // Inline formatting — uses raw HTML since it contains styled elements
+        .division(|row| {
+            row.class("py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline border-t border-lineSoft")
+                .division(|l| l.class("text-[12px] text-ink-500 font-mono").text("Inline"))
+                .division(|c| {
+                    c.division(|d| d.class("text-[15px] leading-relaxed text-ink-700")
+                        .text("Read the <a href=\"#\" class=\"text-ink-900 underline decoration-line decoration-1 underline-offset-[3px]\">guide</a>, then run <code class=\"px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 font-mono text-[0.875em]\">wasm install</code>. Press <kbd class=\"inline-flex items-center px-1.5 h-5 rounded-sm border border-line bg-surface text-ink-700 font-mono text-[11px]\">\u{2318}K</kbd> to search.".to_owned()))
+                    .division(|d| d.class("text-[12px] text-ink-500 mt-1 font-mono")
+                        .text(format!("link \u{00b7} code \u{00b7} kbd")))
+                })
+        })
+        // Markdown rendering — full block-level content
+        .division(|row| {
+            row.class("py-5 grid grid-cols-[120px_1fr] gap-6 items-start border-t border-lineSoft")
+                .division(|l| l.class("text-[12px] text-ink-500 font-mono pt-1").text("Markdown"))
+                .division(|c| {
+                    c.division(|article| article.class("text-[15px] leading-relaxed text-ink-700 space-y-4")
+                        .text("<h3 class=\"text-[20px] font-semibold tracking-tight text-ink-900 leading-tight\">Configuring the registry</h3>".to_owned())
+                        .text("<p>The <code class=\"px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 font-mono text-[0.875em]\">wasm.toml</code> manifest lives at the root of every package.</p>".to_owned())
+                        .text("<h4 class=\"text-[16px] font-semibold tracking-tight text-ink-900 leading-snug pt-2\">Manifest fields</h4>".to_owned())
+                        .text("<ul class=\"list-disc pl-5 space-y-1 marker:text-ink-400\"><li><code class=\"px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 font-mono text-[0.875em]\">name</code> \u{2014} reverse-DNS package identifier</li><li><code class=\"px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 font-mono text-[0.875em]\">version</code> \u{2014} semantic version</li></ul>".to_owned())
+                        .text("<blockquote class=\"border-l-2 border-ink-900 pl-4 text-ink-700 italic\">Registries are append-only. A version, once published, cannot be overwritten.</blockquote>".to_owned())
+                        .text("<pre class=\"overflow-x-auto rounded-md border border-line bg-surfaceMuted text-ink-900 font-mono text-[13px] leading-relaxed p-4\"><code>[package]\nname    = \"example.com/hello-world\"\nversion = \"0.1.0\"</code></pre>".to_owned()))
+                    .division(|d| d.class("text-[12px] text-ink-500 mt-3 font-mono")
+                        .text(format!("h3 / h4 \u{00b7} p \u{00b7} ul \u{00b7} blockquote \u{00b7} pre")))
+                })
+        })
         .build()
 }
 
@@ -1071,43 +1117,7 @@ fn render_copy_buttons() -> Division {
         .build()
 }
 
-// ── P6 Data Tables ───────────────────────────────────────
-
-fn render_data_tables() -> Division {
-    use html::tables::Table;
-
-    Division::builder()
-        .push(sec(
-            "datatables",
-            "P6",
-            "Data Tables",
-            "Structured tables for record fields, variant cases, enum members, and flags. Two shapes: 3-column (name, type, description) and 2-column (name, description).",
-        ))
-        .push(sub("3-column"))
-        .division(|d| {
-            let mut table = Table::builder();
-            table.class(data_table::TABLE_CLASS);
-            table.push(data_table::header_3("Name", "Type", "Description"));
-            table.push(data_table::row_2("timeout", "Timeout after N milliseconds."));
-            table.push(data_table::row_2("buffer-size", "Maximum bytes to buffer."));
-            d.push(table.build());
-            d
-        })
-        .division(|d| {
-            d.class("mt-8").push(sub("2-column"));
-            let mut table = Table::builder();
-            table.class(data_table::TABLE_CLASS);
-            table.push(data_table::header_2("Flag", "Description"));
-            table.push(data_table::row_2("readable", "The stream has data available."));
-            table.push(data_table::row_2("writable", "The stream can accept more data."));
-            table.push(data_table::row_2("closed", "The stream has been closed."));
-            d.push(table.build());
-            d
-        })
-        .build()
-}
-
-// ── P7 Nav Lists ─────────────────────────────────────────
+// ── P6 Nav Lists ─────────────────────────────────────────
 
 fn render_nav_lists() -> Division {
     use html::text_content::UnorderedList;

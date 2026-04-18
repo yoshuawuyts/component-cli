@@ -17,10 +17,10 @@ pub(crate) enum NavState {
 pub(crate) fn item(label: &str, href: &str, state: NavState) -> ListItem {
     let cls = match state {
         NavState::Active => {
-            "flex items-center px-3 h-9 rounded-md bg-surfaceMuted text-ink-900 font-medium text-[14px] font-mono truncate"
+            "flex items-center px-3 h-9 rounded-md bg-surfaceMuted text-ink-900 font-medium text-[14px] truncate"
         }
         NavState::Inactive => {
-            "flex items-center px-3 h-9 rounded-md text-ink-700 hover:bg-surfaceMuted text-[14px] font-mono truncate"
+            "flex items-center px-3 h-9 rounded-md text-ink-700 hover:bg-surfaceMuted text-[14px] truncate"
         }
     };
     ListItem::builder()

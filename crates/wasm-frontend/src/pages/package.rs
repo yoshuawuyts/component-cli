@@ -52,8 +52,23 @@ pub(crate) fn render(
         String::new()
     };
 
-    let body_html =
-        format!("{header}<div class=\"space-y-10 max-w-4xl pt-4 pb-12\">{wit_content}</div>");
+    let install_html = package_shell::render_install_command(&display_name, version).to_string();
+
+    let body_html = format!(
+        "{header}<div class=\"mt-4 mb-8 max-w-4xl\">{install_html}</div><div class=\"space-y-10 max-w-4xl pt-4 pb-12\">{wit_content}</div>"
+    );
+
+    // Build nav card showing interfaces/worlds (same as sub-pages)
+    let nav_html = wit_doc.as_ref().map(|doc| {
+        // No specific item is active on the root package page
+        let nav_ctx = super::sidebar::SidebarContext {
+            display_name: &display_name,
+            version,
+            doc,
+            active: super::sidebar::SidebarActive::Interface(""),
+        };
+        super::sidebar::render_sidebar(&nav_ctx).to_string()
+    });
 
     let shell_ctx = package_shell::SidebarContext {
         pkg,
@@ -61,6 +76,7 @@ pub(crate) fn render(
         version_detail,
         importers,
         exporters,
+        nav_html,
     };
     package_shell::render_page(&shell_ctx, &display_name, &body_html)
 }

@@ -49,11 +49,12 @@ fn render_nav_card(ctx: &SidebarContext<'_>, pkg_url: &str) -> Division {
 
     // Package link at top
     card.division(|d| {
-        d.class("mb-3 pb-3 border-b-[1.5px] border-rule").anchor(|a| {
-            a.href(pkg_url.to_owned())
-                .class("text-accent hover:underline font-medium text-[13px]")
-                .text(ctx.display_name.to_owned())
-        })
+        d.class("mb-3 pb-3 border-b-[1.5px] border-rule")
+            .anchor(|a| {
+                a.href(pkg_url.to_owned())
+                    .class("text-accent hover:underline font-medium text-[13px]")
+                    .text(ctx.display_name.to_owned())
+            })
     });
 
     // Worlds section

@@ -40,13 +40,13 @@ pub(crate) fn heading_with_copy_and_version(
 
     let version_badge = version.map_or_else(String::new, |v| {
         format!(
-            r#" <span class="text-[11px] font-normal px-1.5 py-0.5 rounded bg-surfaceMuted text-ink-500 font-mono ml-1">{v}</span>"#
+            r#" <span class="text-[11px] font-normal px-1.5 py-0.5 rounded bg-surfaceMuted text-ink-500 ml-1">{v}</span>"#
         )
     });
 
     format!(
         r#"<div class="max-w-3xl mb-6">
-  <h2 class="text-[28px] sm:text-[36px] font-semibold tracking-tight font-mono flex items-baseline gap-2 group flex-wrap">
+  <h2 class="text-[28px] sm:text-[36px] font-semibold tracking-tight flex items-baseline gap-2 group flex-wrap">
     <span class="{color_class}">{name}</span>{version_badge}
     <button id="copy-fqn-btn" class="text-ink-400 hover:text-ink-900 transition-opacity cursor-pointer opacity-0 group-hover:opacity-100" style="font-size:0.5em;vertical-align:middle" title="Copy item path to clipboard">{copy_icon}</button>
   </h2>

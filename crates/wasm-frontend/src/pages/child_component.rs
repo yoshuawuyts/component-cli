@@ -99,6 +99,7 @@ pub(crate) fn render(
         version_detail,
         importers: &[],
         exporters: &[],
+        nav_html: None,
     };
     package_shell::render_page_with_crumbs(&ctx, &title, &body, &[])
 }
@@ -130,8 +131,7 @@ fn render_producers_section(producers: &[wasm_meta_registry_client::ProducerEntr
         ul.list_item(|li| {
             li.class("py-1");
             li.span(|s| {
-                s.class("font-mono text-[14px] min-w-0 truncate")
-                    .title(tooltip);
+                s.class("text-[14px] min-w-0 truncate").title(tooltip);
                 s.span(|n| n.class("text-accent").text(name));
                 if !display_version.is_empty() {
                     s.span(|v| {
@@ -170,7 +170,7 @@ fn render_bom_section(deps: &[wasm_meta_registry_client::BomEntry]) -> String {
             li.class("py-1");
             if let Some(url) = href {
                 li.anchor(|a| {
-                    a.href(url).class("font-mono text-[14px] hover:underline");
+                    a.href(url).class("text-[14px] hover:underline");
                     a.span(|s| s.class("text-ink-500").text(format!("pkg:{purl_type}/")));
                     a.span(|s| s.class("text-accent").text(name));
                     a.span(|s| s.class("text-ink-400 ml-1").text(format!("@{version}")));
@@ -179,7 +179,7 @@ fn render_bom_section(deps: &[wasm_meta_registry_client::BomEntry]) -> String {
                 .title(purl);
             } else {
                 li.span(|s| {
-                    s.class("font-mono text-[14px]");
+                    s.class("text-[14px]");
                     s.span(|ps| ps.class("text-ink-500").text(format!("pkg:{purl_type}/")));
                     s.span(|ns| ns.class("text-ink-900").text(name));
                     s.span(|vs| vs.class("text-ink-400 ml-1").text(format!("@{version}")));

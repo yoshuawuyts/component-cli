@@ -61,14 +61,30 @@ pub(crate) fn render(
 
     let body_html = format!("{header}{}", content.build());
 
+    let nav = super::sidebar::render_sidebar(&super::sidebar::SidebarContext {
+        display_name: &display_name,
+        version,
+        doc: _doc,
+        active: super::sidebar::SidebarActive::World(&world.name),
+    });
+
     let ctx = package_shell::SidebarContext {
         pkg,
         version,
         version_detail,
         importers: &[],
         exporters: &[],
+        nav_html: Some(nav.to_string()),
     };
-    package_shell::render_page_with_crumbs(&ctx, &title, &body_html, &[])
+    package_shell::render_page_with_crumbs(
+        &ctx,
+        &title,
+        &body_html,
+        &[crate::nav::Crumb {
+            label: format!("world/{}", world.name),
+            href: None,
+        }],
+    )
 }
 
 /// Build a lookup map of interface name → doc string from the API's enriched

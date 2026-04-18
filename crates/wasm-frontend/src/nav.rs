@@ -42,12 +42,12 @@ pub(crate) fn render(crumbs: &[Crumb]) -> String {
     let search = search_bar::compact("search-input");
 
     format!(
-        r#"<nav class="w-full max-w-6xl mx-auto px-4 sm:px-6 md:px-8 pt-4 pb-3 flex items-center justify-between gap-4" aria-label="Main">
-  <div class="flex items-center gap-1 text-[14px] text-ink-500 min-w-0">
+        r#"<nav class="w-full max-w-6xl mx-auto px-4 sm:px-6 md:px-8 pt-4 pb-3 flex items-center gap-4" aria-label="Main">
+  <div class="flex items-center gap-1 text-[14px] text-ink-500 shrink-0">
     <a href="/" class="font-semibold text-ink-900 hover:text-accent transition-colors shrink-0">wasm</a>{breadcrumb_html}
   </div>
-  <div class="flex items-center gap-3 sm:gap-4 shrink-0">
-    <div class="hidden sm:block">{search}</div>
+  <div class="flex-1 hidden sm:block max-w-md">{search}</div>
+  <div class="flex items-center gap-3 sm:gap-4 shrink-0 ml-auto">
     <a href="/docs" class="text-[13px] text-ink-500 hover:text-ink-900 transition-colors">Docs</a>
     <a href="/downloads" class="text-[13px] text-ink-500 hover:text-ink-900 transition-colors hidden sm:inline">Downloads</a>
   </div>

@@ -95,12 +95,21 @@ pub(crate) fn render(
 
     let body_html = format!("{header_row}{}", content.build());
 
+    // Build nav card with interface items for the sidebar
+    let nav = super::sidebar::render_sidebar(&super::sidebar::SidebarContext {
+        display_name: &display_name,
+        version,
+        doc: _doc,
+        active: super::sidebar::SidebarActive::Interface(&iface.name),
+    });
+
     let ctx = package_shell::SidebarContext {
         pkg,
         version,
         version_detail,
         importers: &[],
         exporters: &[],
+        nav_html: Some(nav.to_string()),
     };
     package_shell::render_page_with_crumbs(&ctx, &title, &body_html, &[])
 }
