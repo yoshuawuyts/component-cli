@@ -1729,32 +1729,25 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
               <table class="w-full min-w-[560px] text-[13px]">
                 <tbody class="text-ink-900">
                   <tr class="border-b border-lineSoft">
-                    <td class="py-3 pr-6 align-top w-[200px]">
-                      <div class="mono">version</div>
-                      <div class="text-[11.5px] text-ink-500 mono mt-0.5">string · required</div>
+                    <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                      <span class="mono">version</span>
+                      <span class="ml-2 text-[11px] text-ink-500">string · required</span>
                     </td>
-                    <td class="py-3 text-ink-700">SemVer tag, e.g. <span class="mono">0.2.4</span>.</td>
+                    <td class="py-3 align-baseline text-ink-700">SemVer tag, e.g. <span class="mono">0.2.4</span>.</td>
                   </tr>
                   <tr class="border-b border-lineSoft">
-                    <td class="py-3 pr-6 align-top">
-                      <div class="mono">digest</div>
-                      <div class="text-[11.5px] text-ink-500 mono mt-0.5">string · required</div>
+                    <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                      <span class="mono">digest</span>
+                      <span class="ml-2 text-[11px] text-ink-500">string · required</span>
                     </td>
-                    <td class="py-3 text-ink-700">Manifest digest, prefixed with <span class="mono">sha256:</span>.</td>
+                    <td class="py-3 align-baseline text-ink-700">Manifest digest, prefixed with <span class="mono">sha256:</span>.</td>
                   </tr>
                   <tr class="border-b border-lineSoft">
-                    <td class="py-3 pr-6 align-top">
-                      <div class="mono">signature</div>
-                      <div class="text-[11.5px] text-ink-500 mono mt-0.5">string · optional</div>
+                    <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                      <span class="mono">signature</span>
+                      <span class="ml-2 text-[11px] text-ink-500">string · optional</span>
                     </td>
-                    <td class="py-3 text-ink-700">Detached cosign-compatible signature, base64 encoded.</td>
-                  </tr>
-                  <tr class="border-b border-lineSoft">
-                    <td class="py-3 pr-6 align-top">
-                      <div class="mono">--scope</div>
-                      <div class="text-[11.5px] text-ink-500 mono mt-0.5">user · project · system</div>
-                    </td>
-                    <td class="py-3 text-ink-700">Where to write the registry entry. Defaults to <span class="mono">user</span>.</td>
+                    <td class="py-3 align-baseline text-ink-700">Detached cosign-compatible signature, base64 encoded.</td>
                   </tr>
                 </tbody>
               </table>
@@ -1762,11 +1755,51 @@ authors = ["Lorem Ipsum &lt;lorem@example.com&gt;"]
             <p class="mt-3 text-[12px] text-ink-500">Used for request body parameters, command-line
               arguments and flags, environment variables, schema fields — anywhere the meaning of
               each row is "name + type/cardinality, then what it does." No <code class="mono text-[12px]">&lt;thead&gt;</code>
-              because column labels would just repeat what each cell already shows. Left column is
-              fixed-width (<code class="mono text-[12px]">w-[200px]</code>) with mono name on the first
-              line and 11.5px <code class="mono text-[12px]">ink-500</code> mono meta below
-              (<code class="mono text-[12px]">type · required|optional</code> or an enum of allowed
-              values); right column is reading-flow prose at <code class="mono text-[12px]">ink-700</code>.</p>
+              because column labels would just repeat what each cell already shows. Left column auto-sizes
+              with <code class="mono text-[12px]">whitespace-nowrap</code>: mono name in
+              <code class="mono text-[12px]">ink-900</code>, then a proportional 11px
+              <code class="mono text-[12px]">ink-500</code> qualifier on the same baseline — name and
+              description share a baseline so the eye tracks left → right cleanly. Description column is
+              reading-flow prose at <code class="mono text-[12px]">ink-700</code>.</p>
+          </div>
+
+          <!-- Definition · enum values — chips in the meta slot -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Definition · enum values as chips</div>
+            <div class="overflow-x-auto border-t-[1.5px] border-lineSoft">
+              <table class="w-full min-w-[560px] text-[13px]">
+                <tbody class="text-ink-900">
+                  <tr class="border-b border-lineSoft">
+                    <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                      <span class="mono">--scope</span>
+                      <span class="ml-2 inline-flex items-baseline gap-1">
+                        <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">user</code>
+                        <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">project</code>
+                        <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">system</code>
+                      </span>
+                    </td>
+                    <td class="py-3 align-baseline text-ink-700">Where to write the registry entry. Defaults to <span class="mono">user</span>.</td>
+                  </tr>
+                  <tr class="border-b border-lineSoft">
+                    <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                      <span class="mono">--format</span>
+                      <span class="ml-2 inline-flex items-baseline gap-1">
+                        <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">json</code>
+                        <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">yaml</code>
+                        <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">table</code>
+                      </span>
+                    </td>
+                    <td class="py-3 align-baseline text-ink-700">Output format. Defaults to <span class="mono">table</span> in a TTY, <span class="mono">json</span> otherwise.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="mt-3 text-[12px] text-ink-500">For enum-valued fields, the meta slot holds the
+              allowed values as small mono chips
+              (<code class="mono text-[12px]">bg-surfaceMuted</code>, 11px, ink-700) instead of the
+              <code class="mono text-[12px]">string · required</code> qualifier. Allowed values stay
+              visible at a glance, parallel to the kind-meta on other rows. The default value (when
+              there is one) is called out in the description.</p>
           </div>
         </div>
       </div>
