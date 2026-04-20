@@ -2,7 +2,7 @@
 
 /// Render this section.
 pub(crate) fn render() -> String {
-    let content = r#"<div class="space-y-12">
+    let inner = r#"
           <!-- Definition · the workhorse — request/response fields, CLI flags, env vars, schema docs -->
           <div>
             <div class="text-[12px] text-ink-500 mb-3">Definition · identifier and meaning</div>
@@ -124,13 +124,18 @@ pub(crate) fn render() -> String {
               so the next column aligns down the page.
             </p>
           </div>
-        </div>"#;
+        "#;
+    let content = html::text_content::Division::builder()
+        .class("space-y-12")
+        .text(inner)
+        .build()
+        .to_string();
     super::section(
         "table",
         "11",
         "Table",
         "Two patterns cover everything: a <strong>definition</strong> table (no <code class=\"mono text-[12px]\">&lt;thead&gt;</code>, identifier on the left, meaning on the right) and a <strong>tabular</strong> table (labeled columns, <code class=\"mono text-[12px]\">tabular-nums</code> for figures). 13px body, 1.5px soft row separators (<code class=\"mono text-[12px]\">border-lineSoft</code>), <code class=\"mono text-[12px]\">py-3</code> rows. When the leading column is a category, use the <a href=\"#c-item-details\" class=\"text-ink-700 underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900\">.id-http-status</a> pill family.",
-        content,
+        &content,
     )
 }
 

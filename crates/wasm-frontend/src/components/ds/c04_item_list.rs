@@ -2,7 +2,7 @@
 
 /// Render this section.
 pub(crate) fn render() -> String {
-    let content = r##"<div class="space-y-8">
+    let inner = r##"
           <!-- Live demo -->
           <div>
             <div class="text-[12px] text-ink-500 mb-3">Subcommands of <span class="mono">wasm registry</span></div>
@@ -147,13 +147,18 @@ pub(crate) fn render() -> String {
               </li>
             </ul>
           </div>
-        </div>"##;
+        "##;
+    let content = html::text_content::Division::builder()
+        .class("space-y-8")
+        .text(inner)
+        .build()
+        .to_string();
     super::section(
         "c-item-list",
         "C04",
         "Item List",
         "Compact index of a group's children \u{2014} subcommands, endpoints, schemas. Each row is a sigil, a name + one-line description, and trailing meta. Rows separate with hairline rules, no card chrome.",
-        content,
+        &content,
     )
 }
 

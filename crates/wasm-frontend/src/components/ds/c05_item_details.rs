@@ -2,7 +2,7 @@
 
 /// Render this section.
 pub(crate) fn render() -> String {
-    let content = r##"<div class="space-y-8">
+    let inner = r##"
           <!-- Live demo: HTTP POST (cornerstone — full feature set) -->
           <div>
             <div class="text-[12px] text-ink-500 mb-3">Cornerstone · POST with auth and request body</div>
@@ -150,13 +150,18 @@ pub(crate) fn render() -> String {
               "you need credentials" semantics across the design system.
             </p>
           </div>
-        </div>"##;
+        "##;
+    let content = html::text_content::Division::builder()
+        .class("space-y-8")
+        .text(inner)
+        .build()
+        .to_string();
     super::section(
         "c-item-details",
         "C05",
         "Item Details",
         "Reference page for a single endpoint, RPC, schema, or command. A method/kind pill anchors the symbol below the title; a one-sentence tagline explains it; an optional structured request-body table, a responses list, and paired example panels stack below in fixed order. Used as the destination from <a href=\"#c-item-list\" class=\"text-ink-700 underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900\">Item List</a> rows.",
-        content,
+        &content,
     )
 }
 

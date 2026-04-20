@@ -1,68 +1,84 @@
 //! 02 — Typography.
 
+use html::text_content::Division;
+
+/// Type sample: (label, text_class, sample_text, spec).
+const SAMPLES: &[(&str, &str, &str, &str)] = &[
+    (
+        "Display",
+        "text-[44px] leading-[1.05] font-semibold tracking-tight",
+        "Aa Display",
+        "44 / 1.05 / -0.01em / 600",
+    ),
+    (
+        "H1",
+        "text-[28px] leading-[1.15] font-semibold tracking-tight",
+        "Lorem ipsum dolor",
+        "28 / 1.15 / 600",
+    ),
+    (
+        "H2",
+        "text-[22px] font-semibold tracking-tight",
+        "Sit amet consectetur",
+        "22 / 600",
+    ),
+    (
+        "Lead",
+        "text-[20px] font-semibold tracking-tight leading-tight",
+        "42.7 k",
+        "20 / tight / 600 \u{2014} metric value",
+    ),
+    (
+        "Body",
+        "text-[15px] leading-relaxed text-ink-700",
+        "The quick brown fox jumps over the lazy dog.",
+        "15 / 1.6 / 400",
+    ),
+    (
+        "UI",
+        "text-[14px]",
+        "Navigation item \u{00b7} Table cell",
+        "14 / 400 \u{2014} 13 / 500 (medium)",
+    ),
+    (
+        "Caption",
+        "text-[12px] text-ink-500",
+        "Aenean lectus \u{00b7} Vivamus aliquet",
+        "12 / 400 / ink-500",
+    ),
+    (
+        "Micro",
+        "text-[11px] text-ink-500",
+        "Tempor incididunt \u{00b7} ut labore",
+        "11 / 400",
+    ),
+];
+
+fn type_row(label: &str, text_class: &str, sample: &str, spec: &str) -> Division {
+    let label = label.to_owned();
+    let text_class = text_class.to_owned();
+    let sample = sample.to_owned();
+    let spec = spec.to_owned();
+    Division::builder()
+        .class("py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline")
+        .division(|l| l.class("text-[12px] text-ink-500 mono").text(label))
+        .division(|c| {
+            c.division(|d| d.class(text_class).text(sample))
+                .division(|d| d.class("text-[12px] text-ink-500 mt-1 mono").text(spec))
+        })
+        .build()
+}
+
 /// Render this section.
 pub(crate) fn render() -> String {
-    let content = r##"<div class="divide-y divide-lineSoft">
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline">
-            <div class="text-[12px] text-ink-500 mono">Display</div>
-            <div>
-              <div class="text-[44px] leading-[1.05] font-semibold tracking-tight">Aa Display</div>
-              <div class="text-[12px] text-ink-500 mt-1 mono">44 / 1.05 / -0.01em / 600</div>
-            </div>
-          </div>
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline">
-            <div class="text-[12px] text-ink-500 mono">H1</div>
-            <div>
-              <div class="text-[28px] leading-[1.15] font-semibold tracking-tight">Lorem ipsum dolor</div>
-              <div class="text-[12px] text-ink-500 mt-1 mono">28 / 1.15 / 600</div>
-            </div>
-          </div>
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline">
-            <div class="text-[12px] text-ink-500 mono">H2</div>
-            <div>
-              <div class="text-[22px] font-semibold tracking-tight">Sit amet consectetur</div>
-              <div class="text-[12px] text-ink-500 mt-1 mono">22 / 600</div>
-            </div>
-          </div>
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline">
-            <div class="text-[12px] text-ink-500 mono">Lead</div>
-            <div>
-              <div class="text-[20px] font-semibold tracking-tight leading-tight">42.7 k</div>
-              <div class="text-[12px] text-ink-500 mt-1 mono">20 / tight / 600 — metric value</div>
-            </div>
-          </div>
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline">
-            <div class="text-[12px] text-ink-500 mono">Body</div>
-            <div>
-              <div class="text-[15px] leading-relaxed text-ink-700">The quick brown fox jumps over the lazy dog.</div>
-              <div class="text-[12px] text-ink-500 mt-1 mono">15 / 1.6 / 400</div>
-            </div>
-          </div>
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline">
-            <div class="text-[12px] text-ink-500 mono">UI</div>
-            <div>
-              <div class="text-[14px]">Navigation item · Table cell</div>
-              <div class="text-[12px] text-ink-500 mt-1 mono">14 / 400 — 13 / 500 (medium)</div>
-            </div>
-          </div>
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline">
-            <div class="text-[12px] text-ink-500 mono">Caption</div>
-            <div>
-              <div class="text-[12px] text-ink-500">Aenean lectus · Vivamus aliquet</div>
-              <div class="text-[12px] text-ink-500 mt-1 mono">12 / 400 / ink-500</div>
-            </div>
-          </div>
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline">
-            <div class="text-[12px] text-ink-500 mono">Micro</div>
-            <div>
-              <div class="text-[11px] text-ink-500">Tempor incididunt · ut labore</div>
-              <div class="text-[12px] text-ink-500 mt-1 mono">11 / 400</div>
-            </div>
-          </div>
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline">
-            <div class="text-[12px] text-ink-500 mono">Inline</div>
-            <div>
-              <div class="text-[15px] leading-relaxed text-ink-700">
+    let mut rows = Division::builder();
+    rows.class("divide-y divide-lineSoft");
+    for (label, cls, sample, spec) in SAMPLES {
+        rows.push(type_row(label, cls, sample, spec));
+    }
+
+    // Inline row — contains raw HTML for mixed inline elements
+    let inline_html = r##"<div class="text-[15px] leading-relaxed text-ink-700">
                 Read the <a href="#"
                   class="text-ink-900 underline decoration-line decoration-1 underline-offset-[3px] hover:decoration-ink-900">installation
                   guide</a>,
@@ -77,14 +93,24 @@ pub(crate) fn render() -> String {
                 see <a href="#"
                   class="text-ink-900 underline decoration-line decoration-1 underline-offset-[3px] hover:decoration-ink-900">migration
                   notes</a>.
-              </div>
-              <div class="text-[12px] text-ink-500 mt-2 mono">link · code · strong · em · kbd · del</div>
-            </div>
-          </div>
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-start">
-            <div class="text-[12px] text-ink-500 mono pt-1">Markdown</div>
-            <div>
-              <article class="text-[15px] leading-relaxed text-ink-700 space-y-4">
+              </div>"##;
+
+    rows.push(
+        Division::builder()
+            .class("py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline")
+            .division(|l| l.class("text-[12px] text-ink-500 mono").text("Inline"))
+            .division(|c| {
+                c.text(inline_html.to_owned()).division(|d| {
+                    d.class("text-[12px] text-ink-500 mt-2 mono").text(
+                        "link \u{00b7} code \u{00b7} strong \u{00b7} em \u{00b7} kbd \u{00b7} del",
+                    )
+                })
+            })
+            .build(),
+    );
+
+    // Markdown row — complex nested content
+    let markdown_html = r##"<article class="text-[15px] leading-relaxed text-ink-700 space-y-4">
                 <h3 class="text-[20px] font-semibold tracking-tight text-ink-900 leading-tight">Configuring the registry
                 </h3>
                 <p>
@@ -151,17 +177,30 @@ pub(crate) fn render() -> String {
                   and <code
                     class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-700 mono text-[0.875em]">[features]</code>.
                 </p>
-              </article>
-              <div class="text-[12px] text-ink-500 mt-3 mono">h3 / h4 · p · ul · ol · blockquote · pre</div>
-            </div>
-          </div>
-        </div>"##;
+              </article>"##;
+
+    rows.push(
+        Division::builder()
+            .class("py-5 grid grid-cols-[120px_1fr] gap-6 items-start")
+            .division(|l| l.class("text-[12px] text-ink-500 mono pt-1").text("Markdown"))
+            .division(|c| {
+                c.text(markdown_html.to_owned())
+                    .division(|d| {
+                        d.class("text-[12px] text-ink-500 mt-3 mono")
+                            .text("h3 / h4 \u{00b7} p \u{00b7} ul \u{00b7} ol \u{00b7} blockquote \u{00b7} pre")
+                    })
+            })
+            .build(),
+    );
+
+    let content = rows.build().to_string();
+
     super::section(
         "typography",
         "02",
         "Typography",
         "System UI stack for native rendering across platforms. Tight tracking on display sizes; relaxed for body.",
-        content,
+        &content,
     )
 }
 

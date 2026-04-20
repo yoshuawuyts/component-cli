@@ -2,7 +2,7 @@
 
 /// Render this section.
 pub(crate) fn render() -> String {
-    let content = r#"<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+    let inner = r#"
           <!-- Stacked -->
           <div>
             <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Stacked</h3>
@@ -182,13 +182,18 @@ pub(crate) fn render() -> String {
               </div>
             </div>
           </div>
-        </div>"#;
+        "#;
+    let content = html::text_content::Division::builder()
+        .class("grid grid-cols-1 md:grid-cols-3 gap-8")
+        .text(inner)
+        .build()
+        .to_string();
     super::section(
         "details",
         "24",
         "Details",
         "Compact key/value lists for sidebars and inspector panels. Three variants: stacked for spacious layouts, inline for narrow rails, and sectioned when groups need separation.",
-        content,
+        &content,
     )
 }
 

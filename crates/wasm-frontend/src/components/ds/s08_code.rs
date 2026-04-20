@@ -2,7 +2,7 @@
 
 /// Render this section.
 pub(crate) fn render() -> String {
-    let content = r#"<div class="space-y-12">
+    let inner = r#"
 
           <!-- Plain · single panel -->
           <div>
@@ -146,13 +146,18 @@ pub(crate) fn render() -> String {
               </li>
             </ul>
           </div>
-        </div>"#;
+        "#;
+    let content = html::text_content::Division::builder()
+        .class("space-y-12")
+        .text(inner)
+        .build()
+        .to_string();
     super::section(
         "code",
         "08",
         "Code Samples",
         "One panel \u{2014} <code class=\"mono text-[12px]\">pre.id-code</code> \u{2014} sitting on <code class=\"mono text-[12px]\">--c-surface</code>, with token colours pulled from the theme-aware <code class=\"mono text-[12px]\">--color-wit-*</code> palette so chroma stays balanced on both light and dark pages. Three forms: a plain block, a tabbed multi-language block, and a paired request / response grid.",
-        content,
+        &content,
     )
 }
 

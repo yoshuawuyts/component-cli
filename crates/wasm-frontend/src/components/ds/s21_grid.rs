@@ -2,7 +2,7 @@
 
 /// Render this section.
 pub(crate) fn render() -> String {
-    let content = r#"<div class="space-y-12">
+    let inner = r#"
           <!-- Three-column · the docs reference layout -->
           <div>
             <div class="text-[12px] text-ink-500 mb-3">Three-column · sidebar · reading · on this page</div>
@@ -182,13 +182,18 @@ pub(crate) fn render() -> String {
               </li>
             </ul>
           </div>
-        </div>"#;
+        "#;
+    let content = html::text_content::Division::builder()
+        .class("space-y-12")
+        .text(inner)
+        .build()
+        .to_string();
     super::section(
         "grid",
         "21",
         "Grid",
         "Pages live in a <code class=\"mono text-[12px]\">max-w-[1440px]</code> container with <code class=\"mono text-[12px]\">px-4 md:px-6</code> gutters. Inside, a small set of column shapes covers every layout: <strong>three-column</strong> (sidebar \u{00b7} reading \u{00b7} on-this-page) for documentation; <strong>two-column</strong> for narrative pages and this style guide; <strong>single column</strong> bounded by a reading measure for prose. Reading text is always capped at <code class=\"mono text-[12px]\">max-w-[72ch]</code> regardless of the column it sits in.",
-        content,
+        &content,
     )
 }
 

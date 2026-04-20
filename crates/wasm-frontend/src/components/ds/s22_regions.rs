@@ -1,73 +1,104 @@
 //! 22 — Regions.
 
+use html::text_content::Division;
+
+const RULES: &[(&str, &str)] = &[
+    (
+        "01",
+        "The primary region (top of page) sits on <code class=\"px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]\">canvas</code>. Use it for the main subject.",
+    ),
+    (
+        "02",
+        "Secondary regions sit on <code class=\"px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]\">surface</code>. The boundary is the surface swap itself \u{2014} no rule, no border.",
+    ),
+    (
+        "03",
+        "Use full-bleed background swap on wide screens so the boundary reads as a true section break, not a card.",
+    ),
+    (
+        "04",
+        "Maximum two surface swaps per page. Beyond that, switch to a new page or tabs.",
+    ),
+    (
+        "05",
+        "Within a region, use <code class=\"px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]\">lineSoft</code> for internal subdivisions (table rows, list separators).",
+    ),
+];
+
 /// Render this section.
 pub(crate) fn render() -> String {
-    let content = r#"<div class="space-y-8">
-          <!-- Live demo -->
-          <div class="border border-line rounded-lg overflow-hidden">
-            <!-- Primary region -->
-            <div class="bg-canvas p-6">
-              <div class="text-[11px] mono uppercase tracking-wider text-ink-500">Primary region · canvas</div>
-              <div class="mt-3 text-[18px] font-semibold tracking-tight">Lorem ipsum dolor sit</div>
-              <div class="mt-4 grid grid-cols-3 gap-3">
-                <div class="h-12 rounded bg-surfaceMuted"></div>
-                <div class="h-12 rounded bg-surfaceMuted"></div>
-                <div class="h-12 rounded bg-surfaceMuted"></div>
-              </div>
-            </div>
-            <!-- Secondary region -->
-            <div class="bg-surface p-6">
-              <div class="text-[11px] mono uppercase tracking-wider text-ink-500">Secondary region · surface</div>
-              <div class="mt-3 text-[18px] font-semibold tracking-tight">Aenean lectus pellentesque</div>
-              <div class="mt-4 h-px bg-lineSoft"></div>
-              <div class="mt-4 grid grid-cols-4 gap-3 text-[12px] text-ink-500">
-                <div>Vestibulum</div>
-                <div>Convallis</div>
-                <div>Tempor</div>
-                <div>Faucibus</div>
-              </div>
-            </div>
-          </div>
+    let mut rules_ul = html::text_content::UnorderedList::builder();
+    rules_ul.class("space-y-2 text-[13px] text-ink-700 leading-relaxed");
+    for (num, text) in RULES {
+        let num = (*num).to_owned();
+        let text = (*text).to_owned();
+        rules_ul.list_item(|li| {
+            li.class("flex gap-3")
+                .span(|s| s.class("mono text-ink-500 w-12 shrink-0").text(num))
+                .paragraph(|p| p.text(text))
+        });
+    }
 
-          <!-- Rules -->
-          <div>
-            <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Rules</h3>
-            <ul class="space-y-2 text-[13px] text-ink-700 leading-relaxed">
-              <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">01</span>
-                <p>The primary region (top of
-                  page) sits on <code
-                    class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">canvas</code>. Use
-                  it
-                  for the main subject.</p>
-              </li>
-              <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">02</span>
-                <p>Secondary regions sit on
-                  <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">surface</code>.
-                  The boundary is the surface swap itself — no rule, no border.
-                </p>
-              </li>
-              <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">03</span>
-                <p>Use full-bleed background
-                  swap on wide screens so the boundary reads as a true section break, not a card.</p>
-              </li>
-              <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">04</span>
-                <p>Maximum two surface swaps
-                  per page. Beyond that, switch to a new page or tabs.</p>
-              </li>
-              <li class="flex gap-3"><span class="mono text-ink-500 w-12 shrink-0">05</span>
-                <p>Within a region, use <code
-                    class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">lineSoft</code> for
-                  internal subdivisions (table rows, list separators).</p>
-              </li>
-            </ul>
-          </div>
-        </div>"#;
+    let content = Division::builder()
+        .class("space-y-8")
+        .division(|demo| {
+            demo.class("border border-line rounded-lg overflow-hidden")
+                .division(|primary| {
+                    primary
+                        .class("bg-canvas p-6")
+                        .division(|d| {
+                            d.class("text-[11px] mono uppercase tracking-wider text-ink-500")
+                                .text("Primary region \u{00b7} canvas")
+                        })
+                        .division(|d| {
+                            d.class("mt-3 text-[18px] font-semibold tracking-tight")
+                                .text("Lorem ipsum dolor sit")
+                        })
+                        .division(|grid| {
+                            grid.class("mt-4 grid grid-cols-3 gap-3")
+                                .division(|d| d.class("h-12 rounded bg-surfaceMuted"))
+                                .division(|d| d.class("h-12 rounded bg-surfaceMuted"))
+                                .division(|d| d.class("h-12 rounded bg-surfaceMuted"))
+                        })
+                })
+                .division(|secondary| {
+                    secondary
+                        .class("bg-surface p-6")
+                        .division(|d| {
+                            d.class("text-[11px] mono uppercase tracking-wider text-ink-500")
+                                .text("Secondary region \u{00b7} surface")
+                        })
+                        .division(|d| {
+                            d.class("mt-3 text-[18px] font-semibold tracking-tight")
+                                .text("Aenean lectus pellentesque")
+                        })
+                        .division(|d| d.class("mt-4 h-px bg-lineSoft"))
+                        .division(|grid| {
+                            grid.class("mt-4 grid grid-cols-4 gap-3 text-[12px] text-ink-500")
+                                .division(|d| d.text("Vestibulum"))
+                                .division(|d| d.text("Convallis"))
+                                .division(|d| d.text("Tempor"))
+                                .division(|d| d.text("Faucibus"))
+                        })
+                })
+        })
+        .division(|rules| {
+            rules
+                .heading_3(|h| {
+                    h.class("text-[13px] mono uppercase tracking-wider text-ink-500 mb-3")
+                        .text("Rules")
+                })
+                .push(rules_ul.build())
+        })
+        .build()
+        .to_string();
+
     super::section(
         "regions",
         "22",
         "Regions",
-        "Pages are composed of stacked <em>regions</em>. The primary region uses the canvas surface; secondary regions (supporting data, references, appendices) switch to the white surface. The surface swap signals “this is additional content” \u{2014} no rules or borders are drawn between regions.",
-        content,
+        "Pages are composed of stacked <em>regions</em>. The primary region uses the canvas surface; secondary regions (supporting data, references, appendices) switch to the white surface. The surface swap signals \u{201c}this is additional content\u{201d} \u{2014} no rules or borders are drawn between regions.",
+        &content,
     )
 }
 

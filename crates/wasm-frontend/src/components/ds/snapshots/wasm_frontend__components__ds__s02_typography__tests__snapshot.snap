@@ -2,67 +2,7 @@
 source: crates/wasm-frontend/src/components/ds/s02_typography.rs
 expression: render()
 ---
-<section class="pt-12 md:pt-16" id="typography"><div class="grid md:grid-cols-[200px_1fr] gap-6 md:gap-12"><div><div class="text-[12px] mono uppercase tracking-wider text-ink-500">02</div><h2 class="mt-2 text-[24px] font-semibold tracking-tight">Typography</h2><p class="mt-2 text-[13px] text-ink-500 leading-relaxed">System UI stack for native rendering across platforms. Tight tracking on display sizes; relaxed for body.</p></div><div class="divide-y divide-lineSoft">
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline">
-            <div class="text-[12px] text-ink-500 mono">Display</div>
-            <div>
-              <div class="text-[44px] leading-[1.05] font-semibold tracking-tight">Aa Display</div>
-              <div class="text-[12px] text-ink-500 mt-1 mono">44 / 1.05 / -0.01em / 600</div>
-            </div>
-          </div>
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline">
-            <div class="text-[12px] text-ink-500 mono">H1</div>
-            <div>
-              <div class="text-[28px] leading-[1.15] font-semibold tracking-tight">Lorem ipsum dolor</div>
-              <div class="text-[12px] text-ink-500 mt-1 mono">28 / 1.15 / 600</div>
-            </div>
-          </div>
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline">
-            <div class="text-[12px] text-ink-500 mono">H2</div>
-            <div>
-              <div class="text-[22px] font-semibold tracking-tight">Sit amet consectetur</div>
-              <div class="text-[12px] text-ink-500 mt-1 mono">22 / 600</div>
-            </div>
-          </div>
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline">
-            <div class="text-[12px] text-ink-500 mono">Lead</div>
-            <div>
-              <div class="text-[20px] font-semibold tracking-tight leading-tight">42.7 k</div>
-              <div class="text-[12px] text-ink-500 mt-1 mono">20 / tight / 600 — metric value</div>
-            </div>
-          </div>
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline">
-            <div class="text-[12px] text-ink-500 mono">Body</div>
-            <div>
-              <div class="text-[15px] leading-relaxed text-ink-700">The quick brown fox jumps over the lazy dog.</div>
-              <div class="text-[12px] text-ink-500 mt-1 mono">15 / 1.6 / 400</div>
-            </div>
-          </div>
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline">
-            <div class="text-[12px] text-ink-500 mono">UI</div>
-            <div>
-              <div class="text-[14px]">Navigation item · Table cell</div>
-              <div class="text-[12px] text-ink-500 mt-1 mono">14 / 400 — 13 / 500 (medium)</div>
-            </div>
-          </div>
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline">
-            <div class="text-[12px] text-ink-500 mono">Caption</div>
-            <div>
-              <div class="text-[12px] text-ink-500">Aenean lectus · Vivamus aliquet</div>
-              <div class="text-[12px] text-ink-500 mt-1 mono">12 / 400 / ink-500</div>
-            </div>
-          </div>
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline">
-            <div class="text-[12px] text-ink-500 mono">Micro</div>
-            <div>
-              <div class="text-[11px] text-ink-500">Tempor incididunt · ut labore</div>
-              <div class="text-[12px] text-ink-500 mt-1 mono">11 / 400</div>
-            </div>
-          </div>
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline">
-            <div class="text-[12px] text-ink-500 mono">Inline</div>
-            <div>
-              <div class="text-[15px] leading-relaxed text-ink-700">
+<section class="pt-12 md:pt-16" id="typography"><div class="grid md:grid-cols-[200px_1fr] gap-6 md:gap-12"><div><div class="text-[12px] mono uppercase tracking-wider text-ink-500">02</div><h2 class="mt-2 text-[24px] font-semibold tracking-tight">Typography</h2><p class="mt-2 text-[13px] text-ink-500 leading-relaxed">System UI stack for native rendering across platforms. Tight tracking on display sizes; relaxed for body.</p></div><div class="divide-y divide-lineSoft"><div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline"><div class="text-[12px] text-ink-500 mono">Display</div><div><div class="text-[44px] leading-[1.05] font-semibold tracking-tight">Aa Display</div><div class="text-[12px] text-ink-500 mt-1 mono">44 / 1.05 / -0.01em / 600</div></div></div><div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline"><div class="text-[12px] text-ink-500 mono">H1</div><div><div class="text-[28px] leading-[1.15] font-semibold tracking-tight">Lorem ipsum dolor</div><div class="text-[12px] text-ink-500 mt-1 mono">28 / 1.15 / 600</div></div></div><div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline"><div class="text-[12px] text-ink-500 mono">H2</div><div><div class="text-[22px] font-semibold tracking-tight">Sit amet consectetur</div><div class="text-[12px] text-ink-500 mt-1 mono">22 / 600</div></div></div><div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline"><div class="text-[12px] text-ink-500 mono">Lead</div><div><div class="text-[20px] font-semibold tracking-tight leading-tight">42.7 k</div><div class="text-[12px] text-ink-500 mt-1 mono">20 / tight / 600 — metric value</div></div></div><div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline"><div class="text-[12px] text-ink-500 mono">Body</div><div><div class="text-[15px] leading-relaxed text-ink-700">The quick brown fox jumps over the lazy dog.</div><div class="text-[12px] text-ink-500 mt-1 mono">15 / 1.6 / 400</div></div></div><div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline"><div class="text-[12px] text-ink-500 mono">UI</div><div><div class="text-[14px]">Navigation item · Table cell</div><div class="text-[12px] text-ink-500 mt-1 mono">14 / 400 — 13 / 500 (medium)</div></div></div><div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline"><div class="text-[12px] text-ink-500 mono">Caption</div><div><div class="text-[12px] text-ink-500">Aenean lectus · Vivamus aliquet</div><div class="text-[12px] text-ink-500 mt-1 mono">12 / 400 / ink-500</div></div></div><div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline"><div class="text-[12px] text-ink-500 mono">Micro</div><div><div class="text-[11px] text-ink-500">Tempor incididunt · ut labore</div><div class="text-[12px] text-ink-500 mt-1 mono">11 / 400</div></div></div><div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-baseline"><div class="text-[12px] text-ink-500 mono">Inline</div><div><div class="text-[15px] leading-relaxed text-ink-700">
                 Read the <a href="#"
                   class="text-ink-900 underline decoration-line decoration-1 underline-offset-[3px] hover:decoration-ink-900">installation
                   guide</a>,
@@ -77,14 +17,7 @@ expression: render()
                 see <a href="#"
                   class="text-ink-900 underline decoration-line decoration-1 underline-offset-[3px] hover:decoration-ink-900">migration
                   notes</a>.
-              </div>
-              <div class="text-[12px] text-ink-500 mt-2 mono">link · code · strong · em · kbd · del</div>
-            </div>
-          </div>
-          <div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-start">
-            <div class="text-[12px] text-ink-500 mono pt-1">Markdown</div>
-            <div>
-              <article class="text-[15px] leading-relaxed text-ink-700 space-y-4">
+              </div><div class="text-[12px] text-ink-500 mt-2 mono">link · code · strong · em · kbd · del</div></div></div><div class="py-5 grid grid-cols-[120px_1fr] gap-6 items-start"><div class="text-[12px] text-ink-500 mono pt-1">Markdown</div><div><article class="text-[15px] leading-relaxed text-ink-700 space-y-4">
                 <h3 class="text-[20px] font-semibold tracking-tight text-ink-900 leading-tight">Configuring the registry
                 </h3>
                 <p>
@@ -151,8 +84,4 @@ expression: render()
                   and <code
                     class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-700 mono text-[0.875em]">[features]</code>.
                 </p>
-              </article>
-              <div class="text-[12px] text-ink-500 mt-3 mono">h3 / h4 · p · ul · ol · blockquote · pre</div>
-            </div>
-          </div>
-        </div></div></section>
+              </article><div class="text-[12px] text-ink-500 mt-3 mono">h3 / h4 · p · ul · ol · blockquote · pre</div></div></div></div></div></section>

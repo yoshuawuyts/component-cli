@@ -29,7 +29,12 @@ pub(crate) fn render() -> String {
         .build()
         .to_string();
 
-    format!(r#"{divider}{h2}{p}<div class="mt-6 border-t rule"></div>"#,)
+    let rule = Division::builder()
+        .class("mt-6 border-t rule")
+        .build()
+        .to_string();
+
+    format!("{divider}{h2}{p}{rule}")
 }
 
 #[cfg(test)]
