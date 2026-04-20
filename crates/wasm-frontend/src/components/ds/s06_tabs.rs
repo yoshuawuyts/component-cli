@@ -56,48 +56,11 @@ pub(crate) fn render() -> String {
 }
 
 #[cfg(test)]
-const SNAPSHOT: &str = r##"
-    <section id="tabs" class="pt-12 md:pt-16">
-      <div class="grid md:grid-cols-[200px_1fr] gap-6 md:gap-12">
-        <div>
-          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">06</div>
-          <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Tabs & Pills</h2>
-          <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
-            Segmented controls for binary scoping; underline tabs for sub-views; pills
-            for filterable chips.
-          </p>
-        </div>
-        <div class="space-y-8">
-          <div>
-            <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Segmented</h3>
-            <div class="flex p-1 rounded-lg bg-surfaceMuted w-[200px]">
-              <button class="flex-1 h-7 rounded-md bg-ink-900 text-canvas text-[13px] font-medium">Lorem</button>
-              <button class="flex-1 h-7 rounded-md text-[13px] text-ink-500">Ipsum</button>
-            </div>
-          </div>
-          <div>
-            <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Underline tabs</h3>
-            <div class="flex items-center gap-6 border-b-[1.5px] border-rule">
-              <button class="relative pb-3 text-[15px] font-medium">
-                Aenean
-                <span class="absolute left-0 right-0 -bottom-[1.5px] h-[1.5px] bg-ink-900"></span>
-              </button>
-              <button class="pb-3 text-[15px] text-ink-500">Mauris</button>
-              <button class="pb-3 text-[15px] text-ink-500">Vivamus</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-"##;
-
-#[cfg(test)]
 mod tests {
     use super::*;
-    use crate::components::ds::normalize_html;
 
     #[test]
-    fn matches_snapshot() {
-        assert_eq!(normalize_html(&render()), normalize_html(SNAPSHOT));
+    fn snapshot() {
+        insta::assert_snapshot!(render());
     }
 }

@@ -34,50 +34,11 @@ pub(crate) fn render() -> String {
 }
 
 #[cfg(test)]
-const SNAPSHOT: &str = r##"
-    <section id="empty" class="pt-12 md:pt-16">
-      <div class="grid md:grid-cols-[200px_1fr] gap-6 md:gap-12">
-        <div>
-          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">20</div>
-          <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Empty State</h2>
-          <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
-            Centered illustration glyph, title, body, and primary CTA. Used for empty
-            tables, search misses, and first-run views.
-          </p>
-        </div>
-        <div class="border border-line rounded-lg p-12 text-center bg-surface">
-          <div class="mx-auto h-12 w-12 grid place-items-center rounded-full bg-surfaceMuted text-ink-500">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
-              stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-          </div>
-          <div class="mt-4 text-[16px] font-semibold tracking-tight">No lorem yet</div>
-          <p class="mt-1 text-[13px] text-ink-500 max-w-xs mx-auto">
-            Pellentesque habitant morbi tristique. Get started by creating your first
-            entry.
-          </p>
-          <button
-            class="mt-5 h-9 px-3 inline-flex items-center gap-2 rounded-lg bg-surfaceMuted text-ink-900 text-[13px] hover:bg-ink-300">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <path d="M5 12h14" />
-              <path d="M12 5v14" />
-            </svg>
-            Create entry
-          </button>
-        </div>
-      </div>
-    </section>
-"##;
-
-#[cfg(test)]
 mod tests {
     use super::*;
-    use crate::components::ds::normalize_html;
 
     #[test]
-    fn matches_snapshot() {
-        assert_eq!(normalize_html(&render()), normalize_html(SNAPSHOT));
+    fn snapshot() {
+        insta::assert_snapshot!(render());
     }
 }

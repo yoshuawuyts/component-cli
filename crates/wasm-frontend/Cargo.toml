@@ -35,6 +35,7 @@ wasm-meta-registry-client = { workspace = true }
 [target.'cfg(not(all(target_os = "wasi", target_env = "p2")))'.dependencies]
 wasm-meta-registry-client = { workspace = true, features = ["client"] }
 [dev-dependencies]
+insta = { workspace = true }
 tokio = { workspace = true }
 
 [lints]
