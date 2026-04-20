@@ -1,0 +1,41 @@
+//! 07 — Navigation.
+
+/// Render the HTML for this section.
+pub(crate) fn render() -> &'static str {
+    r##"
+    <section id="nav" class="pt-12 md:pt-16">
+      <div class="grid md:grid-cols-[200px_1fr] gap-6 md:gap-12">
+        <div>
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">07</div>
+          <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Navigation</h2>
+          <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
+            Sidebar list. Active item uses a muted surface fill with full ink weight.
+            Groups separated by a soft rule.
+          </p>
+        </div>
+        <div class="max-w-[260px]">
+          <ul class="space-y-px text-[14px]">
+            <li><a href="#"
+                class="flex items-center px-3 h-9 rounded-md bg-surfaceMuted text-ink-900 font-medium">Tellus</a></li>
+            <li><a href="#"
+                class="flex items-center px-3 h-9 rounded-md hover:bg-surfaceMuted text-ink-700">Pellentesque
+                Habitant</a></li>
+            <li><a href="#" class="flex items-center px-3 h-9 rounded-md hover:bg-surfaceMuted text-ink-700">Vestibulum
+                Ante</a></li>
+            <li><a href="#" class="flex items-center px-3 h-9 rounded-md hover:bg-surfaceMuted text-ink-700">Convallis
+                Dolor</a></li>
+          </ul>
+          <div class="my-4 border-t-[1.5px] border-rule"></div>
+          <ul class="space-y-px text-[14px]">
+            <li><a href="#"
+                class="flex items-center px-3 h-9 rounded-md hover:bg-surfaceMuted text-ink-700">Faucibus</a></li>
+            <li><a href="#"
+                class="flex items-center px-3 h-9 rounded-md hover:bg-surfaceMuted text-ink-700">Suspendisse</a></li>
+            <li><a href="#" class="flex items-center px-3 h-9 rounded-md hover:bg-surfaceMuted text-ink-700">Aliquam
+                Erat</a></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+"##
+}

@@ -9,6 +9,7 @@ pub(crate) mod button;
 pub(crate) mod code_block;
 pub(crate) mod copy_button;
 pub(crate) mod detail_row;
+pub(crate) mod ds;
 pub(crate) mod empty_state;
 pub(crate) mod home_link;
 pub(crate) mod icon;

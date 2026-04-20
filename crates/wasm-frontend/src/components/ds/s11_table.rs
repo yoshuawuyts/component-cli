@@ -1,0 +1,149 @@
+//! 11 — Table.
+
+/// Render the HTML for this section.
+pub(crate) fn render() -> &'static str {
+    r##"
+    <section id="table" class="pt-12 md:pt-16">
+      <div class="grid md:grid-cols-[200px_1fr] gap-6 md:gap-12">
+        <div>
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">11</div>
+          <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Table</h2>
+          <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
+            Two patterns cover everything: a <strong>definition</strong> table (no
+            <code class="mono text-[12px]">&lt;thead&gt;</code>, identifier on the left, meaning on the
+            right) and a <strong>tabular</strong> table (labeled columns,
+            <code class="mono text-[12px]">tabular-nums</code> for figures). 13px body, 1.5px soft row
+            separators (<code class="mono text-[12px]">border-lineSoft</code>),
+            <code class="mono text-[12px]">py-3</code> rows. When the leading column is a category, use
+            the <a href="#c-item-details"
+              class="text-ink-700 underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900">.id-http-status</a>
+            pill family.
+          </p>
+        </div>
+        <div class="space-y-12">
+          <!-- Definition · the workhorse — request/response fields, CLI flags, env vars, schema docs -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Definition · identifier and meaning</div>
+            <div class="overflow-x-auto border-t-[1.5px] border-lineSoft">
+              <table class="w-full min-w-[560px] text-[13px]">
+                <tbody class="text-ink-900">
+                  <tr class="border-b border-lineSoft">
+                    <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                      <span class="mono">version</span>
+                      <span class="ml-2 text-[11px] text-ink-500">string · required</span>
+                    </td>
+                    <td class="py-3 align-baseline text-ink-700">SemVer tag, e.g. <span class="mono">0.2.4</span>.</td>
+                  </tr>
+                  <tr class="border-b border-lineSoft">
+                    <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                      <span class="mono">signature</span>
+                      <span class="ml-2 text-[11px] text-ink-500">string · optional</span>
+                    </td>
+                    <td class="py-3 align-baseline text-ink-700">Detached cosign-compatible signature, base64 encoded.
+                    </td>
+                  </tr>
+                  <tr class="border-b border-lineSoft">
+                    <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                      <span class="mono">--scope</span>
+                      <span class="ml-2 inline-flex items-baseline gap-1">
+                        <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">user</code>
+                        <code
+                          class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">project</code>
+                        <code class="mono text-[11px] text-ink-700 bg-surfaceMuted px-1 py-0.5 rounded-sm">system</code>
+                      </span>
+                    </td>
+                    <td class="py-3 align-baseline text-ink-700">Where to write the registry entry. Defaults to <span
+                        class="mono">user</span>.</td>
+                  </tr>
+                  <tr class="border-b border-lineSoft">
+                    <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                      <span class="mono">--config</span>
+                      <span class="mono text-ink-400">&lt;path&gt;</span>
+                      <span class="ml-2 text-[11px] text-ink-500">path</span>
+                    </td>
+                    <td class="py-3 align-baseline text-ink-700">Override the project config file location.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="mt-3 text-[12px] text-ink-500">Used for request body fields, CLI flags, environment
+              variables, schema docs — anywhere each row is "name + what it does." No
+              <code class="mono text-[12px]">&lt;thead&gt;</code> because column labels would just repeat
+              what the cells already show. Left column auto-sizes with
+              <code class="mono text-[12px]">whitespace-nowrap</code>: mono identifier in
+              <code class="mono text-[12px]">ink-900</code> (with optional
+              <span class="mono text-ink-400">&lt;placeholder&gt;</span> in
+              <code class="mono text-[12px]">ink-400</code>), then a meta slot on the same baseline
+              holding either an 11px <code class="mono text-[12px]">ink-500</code> qualifier
+              (<code class="mono text-[12px]">string · required</code>, <code class="mono text-[12px]">path</code>)
+              or enum values as small mono chips
+              (<code class="mono text-[12px]">bg-surfaceMuted px-1 py-0.5 rounded-sm</code>). Right
+              column is reading-flow prose at <code class="mono text-[12px]">ink-700</code>.
+            </p>
+          </div>
+
+          <!-- Tabular · with thead — labeled columns + numeric formatting + status pill -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Tabular · labeled columns with status and metrics</div>
+            <div class="overflow-x-auto border-t-[1.5px] border-lineSoft">
+              <table class="w-full min-w-[560px] text-[13px]">
+                <thead>
+                  <tr class="text-ink-400">
+                    <th class="text-left font-normal py-3 pr-6 w-[80px]">Status</th>
+                    <th class="text-left font-normal py-3 pr-6 w-[180px]">Code</th>
+                    <th class="text-right font-normal py-3 pr-6 w-[100px]">Calls</th>
+                    <th class="text-right font-normal py-3 pr-6 w-[120px]">Avg latency</th>
+                    <th class="text-left font-normal py-3">Meaning</th>
+                  </tr>
+                </thead>
+                <tbody class="text-ink-900">
+                  <tr class="border-t-[1.5px] border-lineSoft">
+                    <td class="py-3 pr-6 align-baseline"><span class="id-http-status id-http-status-2xx">200</span></td>
+                    <td class="py-3 pr-6 align-baseline mono text-ink-700">ok</td>
+                    <td class="py-3 pr-6 align-baseline text-right tabular-nums">1 240</td>
+                    <td class="py-3 pr-6 align-baseline text-right tabular-nums">38 ms</td>
+                    <td class="py-3 align-baseline text-ink-700">Request succeeded.</td>
+                  </tr>
+                  <tr class="border-t-[1.5px] border-lineSoft">
+                    <td class="py-3 pr-6 align-baseline"><span class="id-http-status id-http-status-4xx">400</span></td>
+                    <td class="py-3 pr-6 align-baseline mono text-ink-700">invalid_request</td>
+                    <td class="py-3 pr-6 align-baseline text-right tabular-nums">12</td>
+                    <td class="py-3 pr-6 align-baseline text-right tabular-nums">4 ms</td>
+                    <td class="py-3 align-baseline text-ink-700">Malformed parameter or request body.</td>
+                  </tr>
+                  <tr class="border-t-[1.5px] border-lineSoft">
+                    <td class="py-3 pr-6 align-baseline"><span class="id-http-status id-http-status-4xx">401</span></td>
+                    <td class="py-3 pr-6 align-baseline mono text-ink-700">unauthenticated</td>
+                    <td class="py-3 pr-6 align-baseline text-right tabular-nums text-ink-400">0</td>
+                    <td class="py-3 pr-6 align-baseline text-right tabular-nums text-ink-400">—</td>
+                    <td class="py-3 align-baseline text-ink-700">Missing or invalid bearer token.</td>
+                  </tr>
+                  <tr class="border-t-[1.5px] border-lineSoft">
+                    <td class="py-3 pr-6 align-baseline"><span class="id-http-status id-http-status-5xx">500</span></td>
+                    <td class="py-3 pr-6 align-baseline mono text-ink-700">internal_error</td>
+                    <td class="py-3 pr-6 align-baseline text-right tabular-nums">1</td>
+                    <td class="py-3 pr-6 align-baseline text-right tabular-nums text-negative">612 ms</td>
+                    <td class="py-3 align-baseline text-ink-700">Unexpected server-side failure.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="mt-3 text-[12px] text-ink-500">Used when columns warrant labels — error / response
+              code reference, telemetry, anything with multiple typed columns. Headers are quiet:
+              <code class="mono text-[12px]">text-ink-400 font-normal</code> at the body type size,
+              same case as the data — they label columns without shouting. The first body row's
+              <code class="mono text-[12px]">border-t-[1.5px] border-lineSoft</code> is the only rule
+              between header and body, identical to the row separators below it. Numeric columns
+              get <code class="mono text-[12px]">tabular-nums text-right</code>; zeros and N/A drop
+              to <code class="mono text-[12px]">ink-400</code>; negatives or out-of-band values use
+              <code class="mono text-[12px]">text-negative</code>; totals use
+              <code class="mono text-[12px]">font-medium</code>. Categorical leading columns use the
+              <code class="mono text-[12px]">.id-http-status</code> pill family in a fixed-width column
+              so the next column aligns down the page.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+"##
+}

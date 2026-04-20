@@ -1,0 +1,75 @@
+//! 14 — Checkbox, Radio, Switch.
+
+/// Render the HTML for this section.
+pub(crate) fn render() -> &'static str {
+    r##"
+    <section id="toggles" class="pt-12 md:pt-16">
+      <div class="grid md:grid-cols-[200px_1fr] gap-6 md:gap-12">
+        <div>
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">14</div>
+          <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Checkbox · Radio · Switch</h2>
+          <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
+            All controls render in ink-900 when active. 16px hit area minimum on each
+            control; full-row click target via wrapping label.
+          </p>
+        </div>
+        <div class="space-y-8">
+          <div>
+            <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Checkbox</h3>
+            <div class="space-y-2">
+              <label class="flex items-center gap-2 text-[14px]">
+                <span class="grid place-items-center h-4 w-4 rounded bg-ink-900 text-canvas">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                </span>
+                Aenean lectus
+              </label>
+              <label class="flex items-center gap-2 text-[14px]">
+                <span class="h-4 w-4 rounded border border-line bg-surface"></span>
+                Vestibulum ante
+              </label>
+              <label class="flex items-center gap-2 text-[14px] text-ink-400">
+                <span class="h-4 w-4 rounded border border-lineSoft bg-surfaceMuted"></span>
+                Disabled
+              </label>
+            </div>
+          </div>
+          <div>
+            <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Radio</h3>
+            <div class="space-y-2">
+              <label class="flex items-center gap-2 text-[14px]">
+                <span class="grid place-items-center h-4 w-4 rounded-full border border-ink-900">
+                  <span class="h-2 w-2 rounded-full bg-ink-900"></span>
+                </span>
+                Lorem option
+              </label>
+              <label class="flex items-center gap-2 text-[14px]">
+                <span class="h-4 w-4 rounded-full border border-line bg-surface"></span>
+                Ipsum option
+              </label>
+            </div>
+          </div>
+          <div>
+            <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">Switch</h3>
+            <div class="space-y-3">
+              <label class="flex items-center gap-3 text-[14px]">
+                <span class="relative inline-flex h-5 w-9 items-center rounded-full bg-ink-900">
+                  <span class="inline-block h-4 w-4 rounded-full bg-surface translate-x-[18px]"></span>
+                </span>
+                Enabled
+              </label>
+              <label class="flex items-center gap-3 text-[14px]">
+                <span class="relative inline-flex h-5 w-9 items-center rounded-full bg-ink-300">
+                  <span class="inline-block h-4 w-4 rounded-full bg-surface translate-x-[2px]"></span>
+                </span>
+                Disabled
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+"##
+}

@@ -1,0 +1,417 @@
+//! C06 — Navbar.
+
+/// Render the HTML for this section.
+pub(crate) fn render() -> &'static str {
+    r##"
+    <section id="c-navbar" class="pt-12 md:pt-16">
+      <div class="grid md:grid-cols-[200px_1fr] gap-6 md:gap-12">
+        <div>
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">C06</div>
+          <h2 class="mt-2 text-[24px] font-semibold tracking-tight">Navbar</h2>
+          <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
+            Sticky page chrome: brand mark, command palette trigger, primary nav, theme toggle.
+            Sits above all content with a translucent
+            <code class="mono text-[12px]">bg-canvas/90</code> + <code class="mono text-[12px]">backdrop-blur</code>
+            so scrolling content reads through without losing legibility.
+          </p>
+        </div>
+        <div class="space-y-12">
+
+          <!-- Desktop -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Desktop · ≥ 1024px</div>
+            <div class="rounded-lg border border-line overflow-hidden bg-canvas">
+              <div class="relative">
+                <div class="sticky top-0 z-10 bg-canvas/90 backdrop-blur border-b hairline">
+                  <div class="px-4 md:px-6 h-12 grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] items-center gap-4">
+                    <!-- Left · breadcrumb -->
+                    <div class="flex items-center gap-2 min-w-0">
+                      <a href="#" aria-label="Home"
+                        class="inline-flex items-center justify-center h-6 w-6 rounded-md text-ink-700 no-underline hover:text-ink-900 hover:bg-surfaceMuted transition-colors">
+                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path
+                            d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2h-4a1 1 0 0 1-1-1v-5a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v5a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2z" />
+                        </svg>
+                      </a>
+                      <nav aria-label="Breadcrumb"
+                        class="flex items-center gap-1.5 mono text-[13px] text-ink-500 min-w-0">
+                        <a href="#" class="no-underline hover:text-ink-900 truncate">wasi</a>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-ink-300 flex-shrink-0" aria-hidden="true">
+                          <path d="m9 18 6-6-6-6" />
+                        </svg>
+                        <span class="text-ink-900 font-medium truncate">http</span>
+                      </nav>
+                    </div>
+                    <!-- Center · search -->
+                    <button type="button"
+                      class="w-full h-8 px-2.5 rounded-md border border-line bg-surface text-[13px] text-ink-500 flex items-center gap-2 hover:bg-surfaceMuted hover:text-ink-700 transition-colors">
+                      <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
+                        stroke-linecap="round">
+                        <circle cx="7" cy="7" r="4.5" />
+                        <path d="m10.5 10.5 3 3" />
+                      </svg>
+                      <span class="truncate">Search commands, flags, env vars…</span>
+                      <span
+                        class="ml-auto mono text-[10px] text-ink-500 border border-lineSoft rounded-sm px-1.5 py-0.5 bg-surfaceMuted">⌘K</span>
+                    </button>
+                    <!-- Right · nav links -->
+                    <div class="flex items-center gap-1 text-[12px] text-ink-500">
+                      <a href="#"
+                        class="inline-flex items-center h-7 px-2 rounded-md hover:bg-surfaceMuted hover:text-ink-900">Guides</a>
+                      <a href="#"
+                        class="inline-flex items-center h-7 px-2 rounded-md hover:bg-surfaceMuted hover:text-ink-900">Reference</a>
+                      <a href="#"
+                        class="inline-flex items-center h-7 px-2 rounded-md hover:bg-surfaceMuted hover:text-ink-900">Changelog</a>
+                      <button type="button" aria-label="Toggle color theme"
+                        class="inline-flex items-center justify-center h-7 w-7 rounded-md border border-line bg-surface text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 transition-colors">
+                        <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                          stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7Z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="px-6 py-6 space-y-2.5">
+                  <div class="h-2 rounded bg-surfaceMuted w-[88%]"></div>
+                  <div class="h-2 rounded bg-surfaceMuted w-[72%]"></div>
+                  <div class="h-2 rounded bg-surfaceMuted w-[80%]"></div>
+                  <div class="h-2 rounded bg-surfaceMuted w-[64%]"></div>
+                  <div class="h-2 rounded bg-surfaceMuted w-[78%]"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tablet -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Tablet · 640–1023px</div>
+            <div class="rounded-lg border border-line overflow-hidden bg-canvas max-w-[680px]">
+              <div class="relative">
+                <div class="sticky top-0 z-10 bg-canvas/90 backdrop-blur border-b hairline">
+                  <div class="px-4 h-12 grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] items-center gap-3">
+                    <div class="flex items-center gap-2 min-w-0">
+                      <a href="#" aria-label="Home"
+                        class="inline-flex items-center justify-center h-6 w-6 rounded-md text-ink-700 no-underline hover:text-ink-900 hover:bg-surfaceMuted transition-colors">
+                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path
+                            d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2h-4a1 1 0 0 1-1-1v-5a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v5a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2z" />
+                        </svg>
+                      </a>
+                      <nav aria-label="Breadcrumb"
+                        class="flex items-center gap-1.5 mono text-[13px] text-ink-500 min-w-0">
+                        <a href="#" class="no-underline hover:text-ink-900 truncate">wasi</a>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-ink-300 flex-shrink-0" aria-hidden="true">
+                          <path d="m9 18 6-6-6-6" />
+                        </svg>
+                        <span class="text-ink-900 font-medium truncate">http</span>
+                      </nav>
+                    </div>
+                    <button type="button"
+                      class="w-full h-8 px-2.5 rounded-md border border-line bg-surface text-[13px] text-ink-500 flex items-center gap-2 hover:bg-surfaceMuted hover:text-ink-700 transition-colors">
+                      <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                        stroke-width="1.5" stroke-linecap="round">
+                        <circle cx="7" cy="7" r="4.5" />
+                        <path d="m10.5 10.5 3 3" />
+                      </svg>
+                      <span class="truncate">Search…</span>
+                      <span
+                        class="ml-auto mono text-[10px] text-ink-500 border border-lineSoft rounded-sm px-1.5 py-0.5 bg-surfaceMuted">⌘K</span>
+                    </button>
+                    <div class="flex items-center gap-1 text-[12px] text-ink-500">
+                      <a href="#"
+                        class="inline-flex items-center h-7 px-2 rounded-md hover:bg-surfaceMuted hover:text-ink-900">Reference</a>
+                      <button type="button" aria-label="Toggle color theme"
+                        class="inline-flex items-center justify-center h-7 w-7 rounded-md border border-line bg-surface text-ink-700 hover:bg-surfaceMuted hover:text-ink-900">
+                        <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                          stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7Z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="px-4 py-5 space-y-2.5">
+                  <div class="h-2 rounded bg-surfaceMuted w-[80%]"></div>
+                  <div class="h-2 rounded bg-surfaceMuted w-[68%]"></div>
+                  <div class="h-2 rounded bg-surfaceMuted w-[74%]"></div>
+                  <div class="h-2 rounded bg-surfaceMuted w-[60%]"></div>
+                </div>
+              </div>
+            </div>
+            <p class="mt-3 text-[12px] text-ink-500">Drops the secondary tagline and trims primary
+              nav to the most-used link. Search collapses placeholder copy but keeps full width
+              and the <code class="mono text-[12px]">⌘K</code> hint.</p>
+          </div>
+
+          <!-- Mobile · three states -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Mobile · &lt; 640px · three states</div>
+            <div class="flex flex-wrap gap-6 items-start">
+
+              <!-- State 1 — Collapsed -->
+              <div class="w-[280px]">
+                <div class="rounded-lg border border-line overflow-hidden bg-canvas">
+                  <div class="relative">
+                    <div class="sticky top-0 z-10 bg-canvas/90 backdrop-blur border-b hairline">
+                      <div class="px-3 h-12 flex items-center gap-2">
+                        <button type="button" aria-label="Open menu"
+                          class="inline-flex items-center justify-center h-8 w-8 -ml-1 rounded-md text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 flex-shrink-0">
+                          <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
+                            stroke-linecap="round">
+                            <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11" />
+                          </svg>
+                        </button>
+                        <nav aria-label="Breadcrumb"
+                          class="flex items-center gap-1 mono text-[13px] text-ink-500 min-w-0">
+                          <a href="#" class="no-underline hover:text-ink-900 truncate">wasi</a>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-ink-300 flex-shrink-0" aria-hidden="true">
+                            <path d="m9 18 6-6-6-6" />
+                          </svg>
+                          <span class="text-ink-900 font-medium truncate">http</span>
+                        </nav>
+                        <button type="button" aria-label="Search"
+                          class="ml-auto inline-flex items-center justify-center h-8 w-8 -mr-1 rounded-md text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 flex-shrink-0">
+                          <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
+                            stroke-linecap="round">
+                            <circle cx="7" cy="7" r="4.5" />
+                            <path d="m10.5 10.5 3 3" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="px-3 py-4 space-y-2.5">
+                      <div class="h-2 rounded bg-surfaceMuted w-[88%]"></div>
+                      <div class="h-2 rounded bg-surfaceMuted w-[70%]"></div>
+                      <div class="h-2 rounded bg-surfaceMuted w-[82%]"></div>
+                    </div>
+                  </div>
+                </div>
+                <p class="mt-3 text-[11px] mono uppercase tracking-wider text-ink-500">Default</p>
+                <p class="mt-1 text-[12px] text-ink-500">Hamburger left, breadcrumb middle, search
+                  right. Three things, no chrome.</p>
+              </div>
+
+              <!-- State 2 — Drawer open -->
+              <div class="w-[280px]">
+                <div class="rounded-lg border border-line overflow-hidden bg-canvas relative">
+                  <!-- Bar still sits in place; the open hamburger visually presses -->
+                  <div class="sticky top-0 z-30 bg-canvas/90 backdrop-blur border-b hairline">
+                    <div class="px-3 h-12 flex items-center gap-2">
+                      <button type="button" aria-label="Close menu"
+                        class="inline-flex items-center justify-center h-8 w-8 -ml-1 rounded-md text-ink-900 bg-surfaceMuted flex-shrink-0">
+                        <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
+                          stroke-linecap="round">
+                          <path d="m3.5 3.5 9 9M12.5 3.5l-9 9" />
+                        </svg>
+                      </button>
+                      <nav aria-label="Breadcrumb"
+                        class="flex items-center gap-1 mono text-[13px] text-ink-500 min-w-0">
+                        <a href="#" class="no-underline hover:text-ink-900 truncate">wasi</a>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-ink-300 flex-shrink-0" aria-hidden="true">
+                          <path d="m9 18 6-6-6-6" />
+                        </svg>
+                        <span class="text-ink-900 font-medium truncate">http</span>
+                      </nav>
+                      <button type="button" aria-label="Search" disabled
+                        class="ml-auto inline-flex items-center justify-center h-8 w-8 -mr-1 rounded-md text-ink-400 flex-shrink-0">
+                        <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
+                          stroke-linecap="round">
+                          <circle cx="7" cy="7" r="4.5" />
+                          <path d="m10.5 10.5 3 3" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <!-- Drawer panel -->
+                  <div class="relative">
+                    <!-- Scrim over content beneath bar -->
+                    <div class="absolute inset-0 bg-ink-900/30" aria-hidden="true"></div>
+                    <!-- Sliding panel from the left -->
+                    <div class="relative w-[230px] bg-canvas border-r hairline shadow-card">
+                      <nav class="p-3 space-y-0.5 text-[13px]">
+                        <a href="#"
+                          class="flex items-center gap-2.5 h-8 px-2 rounded-md text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 no-underline">
+                          <svg class="h-3.5 w-3.5 text-ink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                            <path
+                              d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2h-4a1 1 0 0 1-1-1v-5a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v5a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2z" />
+                          </svg>
+                          Home
+                        </a>
+                        <a href="#"
+                          class="flex items-center gap-2.5 h-8 px-2 rounded-md text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 no-underline">
+                          <svg class="h-3.5 w-3.5 text-ink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                          </svg>
+                          Guides
+                        </a>
+                        <a href="#"
+                          class="flex items-center gap-2.5 h-8 px-2 rounded-md bg-surfaceMuted text-ink-900 no-underline font-medium">
+                          <svg class="h-3.5 w-3.5 text-ink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="4 17 10 11 4 5" />
+                            <line x1="12" x2="20" y1="19" y2="19" />
+                          </svg>
+                          Reference
+                        </a>
+                        <a href="#"
+                          class="flex items-center gap-2.5 h-8 px-2 rounded-md text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 no-underline">
+                          <svg class="h-3.5 w-3.5 text-ink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <polyline points="12 6 12 12 16 14" />
+                          </svg>
+                          Changelog
+                        </a>
+                        <div class="border-t hairline my-2"></div>
+                        <button type="button"
+                          class="w-full flex items-center gap-2.5 h-8 px-2 rounded-md text-ink-700 hover:bg-surfaceMuted hover:text-ink-900">
+                          <svg class="h-3.5 w-3.5 text-ink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                          </svg>
+                          Theme
+                          <span class="ml-auto text-[11px] text-ink-500 mono">auto</span>
+                        </button>
+                      </nav>
+                    </div>
+                  </div>
+                </div>
+                <p class="mt-3 text-[11px] mono uppercase tracking-wider text-ink-500">Drawer open</p>
+                <p class="mt-1 text-[12px] text-ink-500">Tap hamburger → 230px panel slides in from
+                  the left, scrim dims the page. Home, primary nav, and theme toggle live here.
+                  Hamburger flips to an <code class="mono text-[12px]">×</code>.</p>
+              </div>
+
+              <!-- State 3 — Search active -->
+              <div class="w-[280px]">
+                <div class="rounded-lg border border-line overflow-hidden bg-canvas">
+                  <div class="relative">
+                    <div class="sticky top-0 z-10 bg-canvas/90 backdrop-blur border-b hairline">
+                      <div class="px-3 h-12 flex items-center gap-2">
+                        <button type="button" aria-label="Cancel search"
+                          class="inline-flex items-center justify-center h-8 w-8 -ml-1 rounded-md text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 flex-shrink-0">
+                          <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="m11 3.5-5 5 5 5" />
+                          </svg>
+                        </button>
+                        <div
+                          class="flex-1 h-8 px-2.5 rounded-md border border-ink-900 bg-canvas text-[13px] text-ink-900 flex items-center gap-2 min-w-0">
+                          <svg class="h-3.5 w-3.5 text-ink-500 flex-shrink-0" viewBox="0 0 16 16" fill="none"
+                            stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                            <circle cx="7" cy="7" r="4.5" />
+                            <path d="m10.5 10.5 3 3" />
+                          </svg>
+                          <span class="mono truncate">wasi:htt<span
+                              class="inline-block w-[1px] h-3.5 bg-ink-900 align-middle ml-px"></span></span>
+                        </div>
+                      </div>
+                    </div>
+                    <!-- Result list -->
+                    <div class="py-1.5 text-[13px]">
+                      <div class="px-2 pt-1 pb-1.5 mono uppercase tracking-wider text-[10px] text-ink-500">
+                        Packages</div>
+                      <a href="#"
+                        class="flex items-center gap-2.5 px-3 py-1.5 hover:bg-surfaceMuted no-underline">
+                        <span class="sigil"
+                          style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">G</span>
+                        <span class="mono text-ink-900">wasi:<span class="font-semibold">http</span></span>
+                      </a>
+                      <a href="#"
+                        class="flex items-center gap-2.5 px-3 py-1.5 hover:bg-surfaceMuted no-underline">
+                        <span class="sigil"
+                          style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">G</span>
+                        <span class="mono text-ink-700">wasi:<span class="font-semibold">http</span>-types</span>
+                      </a>
+                      <div class="px-2 pt-2 pb-1.5 mono uppercase tracking-wider text-[10px] text-ink-500">
+                        Commands</div>
+                      <a href="#"
+                        class="flex items-center gap-2.5 px-3 py-1.5 hover:bg-surfaceMuted no-underline">
+                        <span class="sigil"
+                          style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">c</span>
+                        <span class="mono text-ink-700">wasm <span class="font-semibold">http</span> serve</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+                <p class="mt-3 text-[11px] mono uppercase tracking-wider text-ink-500">Search active</p>
+                <p class="mt-1 text-[12px] text-ink-500">Tap search → input expands across the bar,
+                  hamburger swaps to a back chevron, breadcrumb hides. Results render directly under
+                  the bar in the existing surface.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Anatomy / rules -->
+          <div>
+            <div class="text-[12px] text-ink-500 mb-3">Anatomy</div>
+            <ul class="text-[13px] text-ink-700 leading-relaxed space-y-1.5 pl-5 list-disc marker:text-ink-400">
+              <li>
+                <p><strong>Translucent surface</strong> —
+                  <code class="mono text-[12px]">sticky top-0 z-20 bg-canvas/90 backdrop-blur</code> with
+                  a <code class="mono text-[12px]">.hairline</code> bottom border. Content scrolls
+                  <em>under</em> the bar; the 90% canvas + blur keeps the chrome legible without
+                  erasing the page beneath. Never use a solid surface — that breaks the layered feel.
+                </p>
+              </li>
+              <li>
+                <p><strong>Height &amp; rhythm</strong> — fixed at <code class="mono text-[12px]">h-12</code>
+                  (48px). Inner gutters match the page container
+                  (<code class="mono text-[12px]">px-4 md:px-6</code>) so the brand mark aligns with
+                  the leftmost column of content below.</p>
+              </li>
+              <li>
+                <p><strong>Brand cluster</strong> — 24×24 sigil + 13px mono name + optional 11px
+                  ink-500 mono context label that hides below
+                  <code class="mono text-[12px]">sm</code>. Wrapped in a single
+                  <code class="mono text-[12px]">&lt;a&gt;</code> back to the home page.
+                </p>
+              </li>
+              <li>
+                <p><strong>Command palette trigger</strong> — a button (not an input). Uses the
+                  form system's compact recipe trimmed to bar height:
+                  <code class="mono text-[12px]">h-8 rounded-md border-line bg-surface</code>,
+                  placeholder colour <code class="mono text-[12px]">text-ink-500</code>, leading 14px
+                  magnifier (<code class="mono text-[12px]">ink-400</code>), trailing
+                  <code class="mono text-[12px]">⌘K</code> kbd hint matching Section 13's prominent
+                  search variant. Clicking opens the palette modal — the input lives there, not in
+                  the bar.
+                </p>
+              </li>
+              <li>
+                <p><strong>Nav links</strong> — 12px ink-500 in
+                  <code class="mono text-[12px]">h-7 px-2 rounded-md</code> hit areas with
+                  <code class="mono text-[12px]">hover:bg-surfaceMuted hover:text-ink-900</code>. No
+                  underline, no separator dots — spacing carries the rhythm.
+                </p>
+              </li>
+              <li>
+                <p><strong>Theme toggle</strong> — same shape as the form system's icon button
+                  (<code class="mono text-[12px]">h-7</code> bordered, surface bg). Always visible at
+                  every viewport so users can correct an unwanted theme without hunting.</p>
+              </li>
+              <li>
+                <p><strong>Responsive collapse</strong> — drop the brand tagline below
+                  <code class="mono text-[12px]">sm</code>; trim primary nav at
+                  <code class="mono text-[12px]">md</code>; collapse the search button to a
+                  <code class="mono text-[12px]">h-8 w-8</code> icon button below
+                  <code class="mono text-[12px]">sm</code> and stash all links behind a hamburger.
+                </p>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+"##
+}
