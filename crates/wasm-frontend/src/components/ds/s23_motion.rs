@@ -7,14 +7,14 @@ const SVG_ENTRANCE: &str = r#"<svg class="ease-curve mt-3" viewBox="0 0 200 56" 
 const SVG_EXIT: &str = r#"<svg class="ease-curve mt-3" viewBox="0 0 200 56" preserveAspectRatio="none"><path class="track" d="M0,56 L200,56 M0,0 L0,56" /><path class="curve" d="M0,56 C80,56 200,56 200,0" /></svg>"#;
 const SVG_SPRING: &str = r#"<svg class="ease-curve mt-3" viewBox="0 0 200 56" preserveAspectRatio="none"><path class="track" d="M0,56 L200,56 M0,0 L0,56" /><path class="curve" d="M0,56 C68,56 120,-18 200,0" /></svg>"#;
 
-struct Curve {
-    name: &'static str,
-    value: &'static str,
-    svg: &'static str,
-    desc: &'static str,
+pub(crate) struct Curve {
+    pub(crate) name: &'static str,
+    pub(crate) value: &'static str,
+    pub(crate) svg: &'static str,
+    pub(crate) desc: &'static str,
 }
 
-const CURVES: &[Curve] = &[
+pub(crate) const CURVES: &[Curve] = &[
     Curve {
         name: "Standard",
         value: "cubic-bezier(.2,0,0,1)",
@@ -41,7 +41,7 @@ const CURVES: &[Curve] = &[
     },
 ];
 
-const DURATIONS: &[(&str, &str, &str)] = &[
+pub(crate) const DURATIONS: &[(&str, &str, &str)] = &[
     ("fast", "120ms", "Color, opacity, focus rings."),
     (
         "base",
@@ -52,14 +52,14 @@ const DURATIONS: &[(&str, &str, &str)] = &[
     ("page", "360ms", "Route transitions, modal open."),
 ];
 
-const PREVIEWS: &[(&str, &str)] = &[
+pub(crate) const PREVIEWS: &[(&str, &str)] = &[
     ("fast \u{00b7} std", "t-fast"),
     ("base \u{00b7} std", "t-base"),
     ("slow \u{00b7} std", "t-slow"),
     ("page \u{00b7} spring", "t-spring"),
 ];
 
-const RULES: &[(&str, &str)] = &[
+pub(crate) const RULES: &[(&str, &str)] = &[
     (
         "01",
         r#"Animate <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">transform</code> and <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">opacity</code> only. Avoid <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">width</code>, <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">height</code>, <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">top</code>."#,
@@ -83,11 +83,21 @@ const RULES: &[(&str, &str)] = &[
 ];
 
 /// Render this section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    curves: &[Curve],
+    durations: &[(&str, &str, &str)],
+    previews: &[(&str, &str)],
+    rules: &[(&str, &str)],
+) -> String {
     // Curves grid
     let mut curves_grid = Division::builder();
     curves_grid.class("grid grid-cols-1 md:grid-cols-2 gap-4");
-    for c in CURVES {
+    for c in curves {
         let card = Division::builder()
             .class("p-4 rounded-md border border-lineSoft")
             .division(|hdr| {
@@ -104,12 +114,15 @@ pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> St
     // Durations
     let mut dur_rows = Division::builder();
     dur_rows.class("divide-y divide-lineSoft border-t border-lineSoft");
-    for (name, ms, desc) in DURATIONS {
+    for (name, ms, desc) in durations {
+        let name = (*name).to_owned();
+        let ms = (*ms).to_owned();
+        let desc = (*desc).to_owned();
         let row = Division::builder()
             .class("py-3 grid grid-cols-[80px_80px_1fr] gap-4 items-center text-[13px]")
-            .span(|s| s.class("mono").text(*name))
-            .span(|s| s.class("mono text-ink-500").text(*ms))
-            .span(|s| s.class("text-ink-700").text(*desc))
+            .span(|s| s.class("mono").text(name))
+            .span(|s| s.class("mono text-ink-500").text(ms))
+            .span(|s| s.class("text-ink-700").text(desc))
             .build();
         dur_rows.push(row);
     }
@@ -117,13 +130,15 @@ pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> St
     // Preview tracks
     let mut preview_rows = Division::builder();
     preview_rows.class("space-y-2");
-    for (label, target_class) in PREVIEWS {
+    for (label, target_class) in previews {
+        let label = (*label).to_owned();
+        let target_cls = format!("motion-target {target_class}");
         let row = Division::builder()
             .class("motion-track group flex items-center gap-4 p-2 rounded-md border border-lineSoft hover:bg-canvas")
-            .span(|s| s.class("mono text-[12px] text-ink-500 w-20").text(*label))
+            .span(|s| s.class("mono text-[12px] text-ink-500 w-20").text(label))
             .division(|track| {
                 track.class("relative flex-1 h-8")
-                    .division(|target| target.class(format!("motion-target {target_class}")))
+                    .division(|target| target.class(target_cls.clone()))
             })
             .build();
         preview_rows.push(row);
@@ -132,7 +147,7 @@ pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> St
     // Rules
     let mut rules_ul = html::text_content::UnorderedList::builder();
     rules_ul.class("space-y-2 text-[13px] text-ink-700 leading-relaxed");
-    for (num, text) in RULES {
+    for (num, text) in rules {
         let num = (*num).to_owned();
         let text = (*text).to_owned();
         let li = html::text_content::ListItem::builder()
@@ -194,6 +209,10 @@ mod tests {
             "23",
             "Motion",
             r#"Motion is functional: it explains state changes, never decorates them. Most transitions sit between 120–260ms on the <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">standard</code> curve. Anything longer needs a reason."#,
+            CURVES,
+            DURATIONS,
+            PREVIEWS,
+            RULES,
         )));
     }
 }

@@ -91,18 +91,18 @@ fn build_def_table() -> Table {
         .build()
 }
 
-struct TabEntry {
-    status_class: &'static str,
-    status_text: &'static str,
-    code: &'static str,
-    calls_extra: &'static str,
-    calls: &'static str,
-    latency_extra: &'static str,
-    latency: &'static str,
-    meaning: &'static str,
+pub(crate) struct TabEntry {
+    pub(crate) status_class: &'static str,
+    pub(crate) status_text: &'static str,
+    pub(crate) code: &'static str,
+    pub(crate) calls_extra: &'static str,
+    pub(crate) calls: &'static str,
+    pub(crate) latency_extra: &'static str,
+    pub(crate) latency: &'static str,
+    pub(crate) meaning: &'static str,
 }
 
-const TAB_ENTRIES: &[TabEntry] = &[
+pub(crate) const TAB_ENTRIES: &[TabEntry] = &[
     TabEntry {
         status_class: "id-http-status id-http-status-2xx",
         status_text: "200",
@@ -145,7 +145,7 @@ const TAB_ENTRIES: &[TabEntry] = &[
     },
 ];
 
-fn build_tab_table() -> Table {
+fn build_tab_table(entries: &[TabEntry]) -> Table {
     let thead = TableHead::builder()
         .table_row(|tr| {
             tr.class("text-ink-400")
@@ -171,7 +171,7 @@ fn build_tab_table() -> Table {
 
     let mut tbody = TableBody::builder();
     tbody.class("text-ink-900");
-    for e in TAB_ENTRIES {
+    for e in entries {
         let row = TableRow::builder()
             .class("border-t-[1.5px] border-lineSoft")
             .table_cell(|td| {
@@ -213,7 +213,13 @@ const DEF_DESC: &str = r#"Used for request body fields, CLI flags, environment v
 const TAB_DESC: &str = r#"Used when columns warrant labels — error / response code reference, telemetry, anything with multiple typed columns. Headers are quiet: <code class="mono text-[12px]">text-ink-400 font-normal</code> at the body type size, same case as the data — they label columns without shouting. The first body row's <code class="mono text-[12px]">border-t-[1.5px] border-lineSoft</code> is the only rule between header and body, identical to the row separators below it. Numeric columns get <code class="mono text-[12px]">tabular-nums text-right</code>; zeros and N/A drop to <code class="mono text-[12px]">ink-400</code>; negatives or out-of-band values use <code class="mono text-[12px]">text-negative</code>; totals use <code class="mono text-[12px]">font-medium</code>. Categorical leading columns use the <code class="mono text-[12px]">.id-http-status</code> pill family in a fixed-width column so the next column aligns down the page."#;
 
 /// Render this section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    tab_entries: &[TabEntry],
+) -> String {
     let content = Division::builder()
         .class("space-y-12")
         .division(|d| {
@@ -234,7 +240,7 @@ pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> St
             })
             .division(|w| {
                 w.class("overflow-x-auto border-t-[1.5px] border-lineSoft")
-                    .push(build_tab_table())
+                    .push(build_tab_table(tab_entries))
             })
             .paragraph(|p| p.class("mt-3 text-[12px] text-ink-500").text(TAB_DESC))
         })
@@ -255,6 +261,7 @@ mod tests {
             "11",
             "Table",
             r##"Two patterns cover everything: a <strong>definition</strong> table (no <code class="mono text-[12px]">&lt;thead&gt;</code>, identifier on the left, meaning on the right) and a <strong>tabular</strong> table (labeled columns, <code class="mono text-[12px]">tabular-nums</code> for figures). 13px body, 1.5px soft row separators (<code class="mono text-[12px]">border-lineSoft</code>), <code class="mono text-[12px]">py-3</code> rows. When the leading column is a category, use the <a href="#c-item-details" class="text-ink-700 underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900">.id-http-status</a> pill family."##,
+            TAB_ENTRIES,
         )));
     }
 }

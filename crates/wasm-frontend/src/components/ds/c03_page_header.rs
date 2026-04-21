@@ -8,7 +8,7 @@ const SVG_COPY: &str = concat!(
     "</svg>"
 );
 
-const ANATOMY_ITEMS: &[&str] = &[
+pub(crate) const ANATOMY_ITEMS: &[&str] = &[
     "<strong>Kicker</strong> \u{2014} 12px ink-500 mono uppercase, dot-separated tokens (version, category, format). Sets context before the title.",
     "<strong>Title</strong> \u{2014} 36/44px semibold, tight tracking, leading 1.05. The page\u{2019}s anchor.",
     "<strong>Tagline</strong> \u{2014} 15px ink-700, max-w-2xl, single paragraph. One sentence describing what the page <em>is</em>, not what it does.",
@@ -17,12 +17,18 @@ const ANATOMY_ITEMS: &[&str] = &[
 ];
 
 /// Render this section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    anatomy_items: &[&str],
+) -> String {
     let mut anatomy_ul = html::text_content::UnorderedList::builder();
     anatomy_ul.class(
         "text-[13px] text-ink-700 leading-relaxed space-y-1.5 pl-5 list-disc marker:text-ink-400",
     );
-    for item in ANATOMY_ITEMS {
+    for item in anatomy_items {
         let item = (*item).to_owned();
         anatomy_ul.list_item(|li| li.paragraph(|p| p.text(item)));
     }
@@ -105,6 +111,7 @@ mod tests {
             "C03",
             "Page Header",
             "Top-of-page identification block: a kicker, a large title, an optional tagline, and an optional metadata strip. Used to anchor reference and documentation pages.",
+            ANATOMY_ITEMS,
         )));
     }
 }

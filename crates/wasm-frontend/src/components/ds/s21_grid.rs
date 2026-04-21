@@ -56,7 +56,7 @@ const DESC_TWO: &str = r#"The pattern this style guide uses for every section. <
 const DESC_SINGLE: &str = r#"Long-form prose, blog posts, README-style pages. <code class="mono text-[12px]">72ch</code> is the body-copy reading measure (~640px at 14px); larger and the eye loses the line. Even inside the three-column grid, the reading column constrains its content to <code class="mono text-[12px]">max-w-[72ch]</code> — the column gets the available space, the prose doesn't fill it."#;
 
 /// Rules items.
-const RULES: &[(&str, &str)] = &[
+pub(crate) const RULES: &[(&str, &str)] = &[
     (
         "01",
         r#"Outer container is always <code class="mono text-[12px] text-ink-900 px-1 py-0.5 rounded-sm bg-surfaceMuted">max-w-[1440px] px-4 md:px-6</code>. Use full bleed (no <code class="mono text-[12px] text-ink-900 px-1 py-0.5 rounded-sm bg-surfaceMuted">max-w</code>) only for region surface swaps."#,
@@ -102,10 +102,16 @@ fn grid_example(
 }
 
 /// Render this section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    rules: &[(&str, &str)],
+) -> String {
     let mut rules_ul = html::text_content::UnorderedList::builder();
     rules_ul.class("space-y-2 text-[13px] text-ink-700 leading-relaxed");
-    for (num, text) in RULES {
+    for (num, text) in rules {
         let num = (*num).to_owned();
         let text = (*text).to_owned();
         let li = html::text_content::ListItem::builder()
@@ -160,6 +166,7 @@ mod tests {
             "21",
             "Grid",
             r#"Pages live in a <code class="mono text-[12px]">max-w-[1440px]</code> container with <code class="mono text-[12px]">px-4 md:px-6</code> gutters. Inside, a small set of column shapes covers every layout: <strong>three-column</strong> (sidebar · reading · on-this-page) for documentation; <strong>two-column</strong> for narrative pages and this style guide; <strong>single column</strong> bounded by a reading measure for prose. Reading text is always capped at <code class="mono text-[12px]">max-w-[72ch]</code> regardless of the column it sits in."#,
+            RULES,
         )));
     }
 }

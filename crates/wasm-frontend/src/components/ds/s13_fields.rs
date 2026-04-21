@@ -192,17 +192,17 @@ fn sizes() -> String {
 }
 
 /// A state demo entry.
-struct StateEntry {
-    label: &'static str,
-    label_class: &'static str,
-    input_class: &'static str,
-    placeholder: Option<&'static str>,
-    value: Option<&'static str>,
-    disabled: bool,
-    readonly: bool,
+pub(crate) struct StateEntry {
+    pub(crate) label: &'static str,
+    pub(crate) label_class: &'static str,
+    pub(crate) input_class: &'static str,
+    pub(crate) placeholder: Option<&'static str>,
+    pub(crate) value: Option<&'static str>,
+    pub(crate) disabled: bool,
+    pub(crate) readonly: bool,
 }
 
-const STATES: &[StateEntry] = &[
+pub(crate) const STATES: &[StateEntry] = &[
     StateEntry {
         label: "Default",
         label_class: "text-[11px] text-ink-500 mono uppercase tracking-wider",
@@ -260,10 +260,10 @@ const STATES: &[StateEntry] = &[
 ];
 
 /// Build the States subsection.
-fn states() -> String {
+fn states(entries: &[StateEntry]) -> String {
     let mut states_div = Division::builder();
     states_div.class("space-y-3");
-    for entry in STATES {
+    for entry in entries {
         let label = entry.label.to_owned();
         let label_class = entry.label_class.to_owned();
         let input_class = entry.input_class.to_owned();
@@ -617,20 +617,20 @@ fn input_split_dropdown() -> String {
 }
 
 /// Command demo entry.
-struct CommandEntry {
-    label: &'static str,
-    cmd_text: &'static str,
-    btn_class: &'static str,
-    btn_label: &'static str,
-    btn_svg: &'static str,
-    help: &'static str,
-    wrapper_class: &'static str,
-    dollar_class: &'static str,
-    code_class: &'static str,
-    disabled: bool,
+pub(crate) struct CommandEntry {
+    pub(crate) label: &'static str,
+    pub(crate) cmd_text: &'static str,
+    pub(crate) btn_class: &'static str,
+    pub(crate) btn_label: &'static str,
+    pub(crate) btn_svg: &'static str,
+    pub(crate) help: &'static str,
+    pub(crate) wrapper_class: &'static str,
+    pub(crate) dollar_class: &'static str,
+    pub(crate) code_class: &'static str,
+    pub(crate) disabled: bool,
 }
 
-const COMMANDS: &[CommandEntry] = &[
+pub(crate) const COMMANDS: &[CommandEntry] = &[
     CommandEntry {
         label: "Command \u{00b7} default",
         cmd_text: "wasm install wasi:http-handler",
@@ -906,12 +906,19 @@ fn combobox() -> String {
 }
 
 /// Render this section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    state_entries: &[StateEntry],
+    commands: &[CommandEntry],
+) -> String {
     let mut content = Division::builder();
     content.class("space-y-8 max-w-md");
 
     content.text(sizes());
-    content.text(states());
+    content.text(states(state_entries));
     content.text(input_basic());
     content.text(input_help());
     content.text(input_error());
@@ -925,7 +932,7 @@ pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> St
     content.text(input_button());
     content.text(input_btn_dropdown());
     content.text(input_split_dropdown());
-    for entry in COMMANDS {
+    for entry in commands {
         content.text(command(entry));
     }
     content.text(stepper());
@@ -951,6 +958,8 @@ mod tests {
             "13",
             "Form Fields",
             "Inputs sit on a surface with a 1px line border. Focus darkens the border to ink \u{2014} no thickening, no glow. Two sizes: <strong>md</strong> (default) for primary forms, <strong>sm</strong> for dense contexts like sidebars, metadata strips, and toolbars.",
+            STATES,
+            COMMANDS,
         )));
     }
 }

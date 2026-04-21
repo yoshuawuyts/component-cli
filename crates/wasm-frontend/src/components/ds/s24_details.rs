@@ -3,10 +3,10 @@
 use html::text_content::{DescriptionDetails, DescriptionList, DescriptionTerm, Division};
 
 /// An inline detail row: (label, value, value_class).
-struct DetailEntry {
-    label: &'static str,
-    value: &'static str,
-    value_class: &'static str,
+pub(crate) struct DetailEntry {
+    pub(crate) label: &'static str,
+    pub(crate) value: &'static str,
+    pub(crate) value_class: &'static str,
 }
 
 impl DetailEntry {
@@ -80,14 +80,14 @@ fn stacked_dl(entries: &[DetailEntry]) -> DescriptionList {
     dl.build()
 }
 
-const STACKED: &[DetailEntry] = &[
+pub(crate) const STACKED: &[DetailEntry] = &[
     DetailEntry::new("Status", "Active"),
     DetailEntry::new("Owner", "Aenean Lectus"),
     DetailEntry::mono("Created", "2026-04-02"),
     DetailEntry::new("Region", "eu-west-1"),
 ];
 
-const INLINE: &[DetailEntry] = &[
+pub(crate) const INLINE: &[DetailEntry] = &[
     DetailEntry::new("Status", "Active"),
     DetailEntry::new("Owner", "Aenean Lectus"),
     DetailEntry::mono("Created", "2026-04-02"),
@@ -95,31 +95,31 @@ const INLINE: &[DetailEntry] = &[
     DetailEntry::mono("Replicas", "3"),
 ];
 
-const SECTIONED_A: &[DetailEntry] = &[
+pub(crate) const SECTIONED_A: &[DetailEntry] = &[
     DetailEntry::new("Status", "Active"),
     DetailEntry::new("Owner", "Aenean Lectus"),
 ];
-const SECTIONED_B: &[DetailEntry] = &[
+pub(crate) const SECTIONED_B: &[DetailEntry] = &[
     DetailEntry::new("Region", "eu-west-1"),
     DetailEntry::mono("Replicas", "3"),
     DetailEntry::mono("Uptime", "99.94%"),
 ];
 
-const CARD_DETAILS: &[DetailEntry] = &[
+pub(crate) const CARD_DETAILS: &[DetailEntry] = &[
     DetailEntry::new("Region", "eu-west-1"),
     DetailEntry::mono("Replicas", "3"),
     DetailEntry::mono("Created", "2026-04-02"),
     DetailEntry::mono("Uptime", "99.94%"),
 ];
 
-const SIDEBAR_PRIMARY: &[DetailEntry] = &[
+pub(crate) const SIDEBAR_PRIMARY: &[DetailEntry] = &[
     DetailEntry::new("Status", "Active"),
     DetailEntry::new("Owner", "A. Lectus"),
     DetailEntry::new("Region", "eu-west-1"),
     DetailEntry::mono("Replicas", "3"),
 ];
 
-const SIDEBAR_SECONDARY: &[DetailEntry] = &[
+pub(crate) const SIDEBAR_SECONDARY: &[DetailEntry] = &[
     DetailEntry::mono("Created", "2026-04-02"),
     DetailEntry::mono("Uptime", "99.94%"),
     DetailEntry {
@@ -138,27 +138,40 @@ fn sub(text: &'static str) -> html::content::Heading3 {
 }
 
 /// Render this section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    stacked: &[DetailEntry],
+    inline: &[DetailEntry],
+    sectioned_a: &[DetailEntry],
+    sectioned_b: &[DetailEntry],
+    card_details: &[DetailEntry],
+    sidebar_primary: &[DetailEntry],
+    sidebar_secondary: &[DetailEntry],
+) -> String {
     let content = Division::builder()
         .class("grid grid-cols-1 md:grid-cols-3 gap-8")
         // Stacked
-        .division(|d| d.push(sub("Stacked")).push(stacked_dl(STACKED)))
+        .division(|d| d.push(sub("Stacked")).push(stacked_dl(stacked)))
         // Inline
         .division(|d| {
             d.push(sub("Inline"))
-                .push(inline_dl("text-[13px] max-w-[260px]", INLINE))
+                .push(inline_dl("text-[13px] max-w-[260px]", inline))
         })
         // Sectioned
         .division(|d| {
             d.push(sub("Sectioned")).division(|s| {
                 s.class("max-w-[260px] text-[13px]")
-                    .push(inline_dl("", SECTIONED_A))
+                    .push(inline_dl("", sectioned_a))
                     .division(|rule| rule.class("my-3 border-t-[1.5px] border-rule"))
                     .division(|lbl| {
                         lbl.class("text-[11px] mono uppercase tracking-wider text-ink-500 mb-1.5")
                             .text("Infrastructure")
                     })
-                    .push(inline_dl("", SECTIONED_B))
+                    .push(inline_dl("", sectioned_b))
             })
         })
         .build()
@@ -185,7 +198,7 @@ pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> St
                         })
                         .division(|id| id.class("text-[11px] text-ink-500 mono mt-0.5").text("id_8a4f29c1"))
                         .division(|rule| rule.class("my-4 border-t-[1.5px] border-rule"))
-                        .push(inline_dl("text-[13px]", CARD_DETAILS))
+                        .push(inline_dl("text-[13px]", card_details))
                 })
         })
         // Sidebar across regions
@@ -209,7 +222,7 @@ pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> St
                                 })
                                 .text({
                                     let mut aside = String::from(r#"<aside class="max-w-[260px]"><div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Details</div>"#);
-                                    aside.push_str(&inline_dl("text-[12px]", SIDEBAR_PRIMARY).to_string());
+                                    aside.push_str(&inline_dl("text-[12px]", sidebar_primary).to_string());
                                     aside.push_str("</aside>");
                                     aside
                                 })
@@ -218,7 +231,7 @@ pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> St
                         .division(|secondary| {
                             secondary.class("bg-surface p-5")
                                 .division(|lbl| lbl.class("text-[11px] mono uppercase tracking-wider text-ink-500 mb-2").text("Secondary \u{00b7} surface"))
-                                .push(inline_dl("text-[12px] max-w-[320px]", SIDEBAR_SECONDARY))
+                                .push(inline_dl("text-[12px] max-w-[320px]", sidebar_secondary))
                         })
                 })
         })
@@ -241,6 +254,13 @@ mod tests {
             "24",
             "Details",
             "Compact key/value lists for sidebars and inspector panels. Three variants: stacked for spacious layouts, inline for narrow rails, and sectioned when groups need separation.",
+            STACKED,
+            INLINE,
+            SECTIONED_A,
+            SECTIONED_B,
+            CARD_DETAILS,
+            SIDEBAR_PRIMARY,
+            SIDEBAR_SECONDARY,
         )));
     }
 }

@@ -2,7 +2,7 @@
 
 use html::text_content::Division;
 
-const SPACING: &[(&str, &str, &str)] = &[
+pub(crate) const SPACING: &[(&str, &str, &str)] = &[
     ("4", "xs", "4px"),
     ("8", "sm", "8px"),
     ("12", "md", "12px"),
@@ -12,7 +12,7 @@ const SPACING: &[(&str, &str, &str)] = &[
     ("48", "3xl", "48px"),
 ];
 
-const RADII: &[(&str, &str, &str)] = &[
+pub(crate) const RADII: &[(&str, &str, &str)] = &[
     ("2px", "", "sm \u{2014} 2px"),
     ("4px", "", "md \u{2014} 4px (inputs, bars)"),
     ("5px", "", "lg \u{2014} 5px (buttons, cards)"),
@@ -30,16 +30,23 @@ fn spacing_row(value: &str, label: &str, width: &str) -> Division {
 }
 
 /// Render this section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    spacing: &[(&str, &str, &str)],
+    radii: &[(&str, &str, &str)],
+) -> String {
     let mut scale = Division::builder();
     scale.class("space-y-2");
-    for (value, label, _) in SPACING {
+    for (value, label, _) in spacing {
         scale.push(spacing_row(value, label, value));
     }
 
     let mut radii_grid = Division::builder();
     radii_grid.class("grid grid-cols-2 md:grid-cols-4 gap-4");
-    for (radius, extra_class, label) in RADII {
+    for (radius, extra_class, label) in radii {
         let cls = if extra_class.is_empty() {
             "h-16 bg-surfaceMuted".to_owned()
         } else {
@@ -98,6 +105,8 @@ mod tests {
             "03",
             "Spacing & Radius",
             "4px base scale. Radii stay small for a precise, instrumental feel; pills used for selection chips only.",
+            SPACING,
+            RADII,
         )));
     }
 }

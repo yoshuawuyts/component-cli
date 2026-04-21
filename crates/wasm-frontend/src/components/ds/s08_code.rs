@@ -38,7 +38,7 @@ const PRE_RESPONSE: &str = r#"<pre class="id-code">{
 }</pre>"#;
 
 /// Token legend entries: (token_class, token_style, token_text, description).
-const TOKENS: &[(&str, &str, &str, &str)] = &[
+pub(crate) const TOKENS: &[(&str, &str, &str, &str)] = &[
     (
         "mono w-12",
         "color:var(--color-wit-struct)",
@@ -86,7 +86,7 @@ const TOKENS: &[(&str, &str, &str, &str)] = &[
 ];
 
 /// Anatomy items — prose with inline `<code>`.
-const ANATOMY_ITEMS: &[&str] = &[
+pub(crate) const ANATOMY_ITEMS: &[&str] = &[
     r#"Quiet inset panel — <code class="mono text-[12px]">--c-surface</code> background, <code class="mono text-[12px]">--c-line-soft</code> hairline border, 5px radius. Inverts with the rest of the page in dark mode."#,
     "12.5px monospace, line-height 1.55, padding 14\u{00d7}16. Horizontal overflow scrolls rather than wrapping \u{2014} code never reflows.",
     r#"Tokens are short class names on <code class="mono text-[12px]">&lt;span&gt;</code>: <code class="mono text-[12px]">.k</code>, <code class="mono text-[12px]">.s</code>, <code class="mono text-[12px]">.n</code>, <code class="mono text-[12px]">.ty</code>, <code class="mono text-[12px]">.fn</code>, <code class="mono text-[12px]">.at</code>, <code class="mono text-[12px]">.h</code>, <code class="mono text-[12px]">.v</code>, <code class="mono text-[12px]">.f</code>, <code class="mono text-[12px]">.p</code>, <code class="mono text-[12px]">.c</code>. Untagged characters fall back to the panel's default <code class="mono text-[12px]">--c-ink-900</code>."#,
@@ -101,11 +101,18 @@ const TAB_DESC: &str = r#"Tab strip uses <code class="mono text-[12px]">.id-lang
 const TOKEN_DESC: &str = r#"Each token references the same <code class="mono text-[12px]">--color-wit-*</code> variables we use for WIT diagrams — module pink, world purple, interface sky, function green, struct indigo, resource amber. Both light and dark themes carry calibrated hex pairs so the panel never feels over-saturated on paper or muddy on graphite."#;
 
 /// Render this section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    tokens: &[(&str, &str, &str, &str)],
+    anatomy_items: &[&str],
+) -> String {
     // Token legend grid
     let mut token_grid = Division::builder();
     token_grid.class("grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2.5 text-[12px]");
-    for (cls, style, token, desc) in TOKENS {
+    for (cls, style, token, desc) in tokens {
         let cls = (*cls).to_owned();
         let style = (*style).to_owned();
         let token = (*token).to_owned();
@@ -126,7 +133,7 @@ pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> St
     anatomy_ul.class(
         "text-[13px] text-ink-700 leading-relaxed space-y-1.5 pl-5 list-disc marker:text-ink-400",
     );
-    for item in ANATOMY_ITEMS {
+    for item in anatomy_items {
         let item = (*item).to_owned();
         anatomy_ul.list_item(|li| li.paragraph(|p| p.text(item)));
     }
@@ -200,6 +207,8 @@ mod tests {
             "08",
             "Code Samples",
             "One panel \u{2014} <code class=\"mono text-[12px]\">pre.id-code</code> \u{2014} sitting on <code class=\"mono text-[12px]\">--c-surface</code>, with token colours pulled from the theme-aware <code class=\"mono text-[12px]\">--color-wit-*</code> palette so chroma stays balanced on both light and dark pages. Three forms: a plain block, a tabbed multi-language block, and a paired request / response grid.",
+            TOKENS,
+            ANATOMY_ITEMS,
         )));
     }
 }

@@ -41,7 +41,7 @@ const SIGIL_CMD_INK: &str = "var(--c-cat-greenInk)";
 const SIGIL_GRP: &str = "var(--c-cat-lilac)";
 const SIGIL_GRP_INK: &str = "var(--c-cat-lilacInk)";
 
-const SIGIL_LEGEND: &[(&str, &str, &str, &str)] = &[
+pub(crate) const SIGIL_LEGEND: &[(&str, &str, &str, &str)] = &[
     (
         "var(--c-cat-green)",
         "var(--c-cat-greenInk)",
@@ -65,7 +65,7 @@ const SIGIL_LEGEND: &[(&str, &str, &str, &str)] = &[
     ),
 ];
 
-const ANATOMY_ITEMS: &[&str] = &[
+pub(crate) const ANATOMY_ITEMS: &[&str] = &[
     r#"One <code class="mono text-[12px]">&lt;details&gt;</code> per group; rotates the chevron via <code class="mono text-[12px]">details[open]</code>."#,
     r#"Children indent 14px with a 1px <code class="mono text-[12px]">--c-line-soft</code> guide on the left."#,
     r#"Active state uses <code class="mono text-[12px]">--c-surface-muted</code> + medium weight — no border, no accent."#,
@@ -75,7 +75,14 @@ const ANATOMY_ITEMS: &[&str] = &[
 ];
 
 /// Render this section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    sigil_legend: &[(&str, &str, &str, &str)],
+    anatomy_items: &[&str],
+) -> String {
     let cmd_sigil = sigil(SIGIL_CMD, SIGIL_CMD_INK, "c");
     let grp_sigil = sigil(SIGIL_GRP, SIGIL_GRP_INK, "G");
     let root_sigil = sigil("var(--c-cat-slate)", "var(--c-cat-slateInk)", "\u{00b7}");
@@ -119,7 +126,7 @@ pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> St
     // Sigil legend
     let mut legend_grid = Division::builder();
     legend_grid.class("flex flex-wrap gap-x-5 gap-y-2 text-[12px]");
-    for (bg, color, text, label) in SIGIL_LEGEND {
+    for (bg, color, text, label) in sigil_legend {
         let sigil_html = sigil(bg, color, text);
         let label = (*label).to_owned();
         let entry = Division::builder()
@@ -135,7 +142,7 @@ pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> St
     anatomy_ul.class(
         "text-[13px] text-ink-700 leading-relaxed space-y-1.5 pl-5 list-disc marker:text-ink-400",
     );
-    for item in ANATOMY_ITEMS {
+    for item in anatomy_items {
         let item = (*item).to_owned();
         anatomy_ul.list_item(|li| li.paragraph(|p| p.text(item)));
     }
@@ -197,6 +204,8 @@ mod tests {
             "C01",
             "Nested Sidebar",
             r#"Hierarchical navigation for reference docs. Top-level entries collapse with native <code class="mono text-[12px]">&lt;details&gt;</code>; sigils classify each row by kind (command, group, flag, env, etc.)."#,
+            SIGIL_LEGEND,
+            ANATOMY_ITEMS,
         )));
     }
 }

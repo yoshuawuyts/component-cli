@@ -9,7 +9,7 @@ const SVG_CLOSE: &str = concat!(
 );
 
 /// Status badge entries: (bg, ink, dot_class, label).
-const STATUSES: &[(&str, &str, &str)] = &[
+pub(crate) const STATUSES: &[(&str, &str, &str)] = &[
     (
         "bg-cat-green text-cat-greenInk",
         "bg-cat-greenInk",
@@ -25,10 +25,16 @@ const STATUSES: &[(&str, &str, &str)] = &[
 ];
 
 /// Render this section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    statuses: &[(&str, &str, &str)],
+) -> String {
     let mut status_row = Division::builder();
     status_row.class("flex flex-wrap items-center gap-2 text-[12px] font-medium");
-    for (badge_cls, dot_cls, label) in STATUSES {
+    for (badge_cls, dot_cls, label) in statuses {
         let badge_cls =
             format!("inline-flex items-center gap-1.5 px-2 h-6 rounded-pill {badge_cls}");
         let dot_cls = format!("h-1.5 w-1.5 rounded-full {dot_cls}");
@@ -95,6 +101,7 @@ mod tests {
             "15",
             "Badges",
             "Compact pill labels. Use categorical pairs for status; ink for counts and metadata.",
+            STATUSES,
         )));
     }
 }

@@ -3,7 +3,7 @@
 use html::text_content::Division;
 
 /// Inline icon entries: (svg, label).
-const INLINE_ICONS: &[(&str, &str)] = &[
+pub(crate) const INLINE_ICONS: &[(&str, &str)] = &[
     (
         r#"<svg class="h-3.5 w-3.5 text-ink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>"#,
         "search",
@@ -63,7 +63,7 @@ const INLINE_ICONS: &[(&str, &str)] = &[
 ];
 
 /// Grid icon entries: (svg, title).
-const GRID_ICONS: &[(&str, &str)] = &[
+pub(crate) const GRID_ICONS: &[(&str, &str)] = &[
     (
         r#"<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M7 12h10" /><path d="M10 18h4" /></svg>"#,
         "list-filter",
@@ -117,11 +117,18 @@ const GRID_ICONS: &[(&str, &str)] = &[
 const INLINE_DESC: &str = r#"These are the icons you'll see most across the site — in the top bar, in tree links, beside copyable code, and in callouts. They sit at <code class="mono text-[12px]">h-3.5 w-3.5</code> (14px), coloured <code class="mono text-[12px]">text-ink-500</code>, paired with body text or a mono label. Larger swatches below are reference at 20px so the stroke geometry is visible."#;
 
 /// Render this section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    inline_icons: &[(&str, &str)],
+    grid_icons: &[(&str, &str)],
+) -> String {
     // Inline icons
     let mut inline_grid = Division::builder();
     inline_grid.class("flex flex-wrap items-center gap-x-6 gap-y-3 rounded-lg border border-line bg-canvas px-4 py-3.5 text-[13px] text-ink-700");
-    for (svg, label) in INLINE_ICONS {
+    for (svg, label) in inline_icons {
         let svg = (*svg).to_owned();
         let label = (*label).to_owned();
         let icon = html::inline_text::Span::builder()
@@ -135,7 +142,7 @@ pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> St
     // Grid icons
     let mut ref_grid = Division::builder();
     ref_grid.class("grid grid-cols-3 md:grid-cols-6 gap-3");
-    for (svg, title) in GRID_ICONS {
+    for (svg, title) in grid_icons {
         let svg = (*svg).to_owned();
         let title = (*title).to_owned();
         let cell = Division::builder()
@@ -180,6 +187,8 @@ mod tests {
             "12",
             "Icons",
             r#"<a href="https://lucide.dev" class="text-ink-700 underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900">Lucide</a> outline icons, drawn at <code class="mono text-[12px]">stroke-width="1.75"</code> with <code class="mono text-[12px]">stroke-linecap="round"</code> and <code class="mono text-[12px]">stroke-linejoin="round"</code>. Sizes: <strong>14px</strong> inside dense controls (tree links, kbd hints, tabs), <strong>16px</strong> in toolbars and buttons, <strong>18px</strong> on mobile and in empty states. Always <code class="mono text-[12px]">currentColor</code> so they pick up the surrounding ink scale; never coloured directly."#,
+            INLINE_ICONS,
+            GRID_ICONS,
         )));
     }
 }

@@ -3,14 +3,14 @@
 use html::text_content::{Division, UnorderedList};
 
 /// Nav items for each group: (label, is_active).
-const GROUP_1: &[(&str, bool)] = &[
+pub(crate) const GROUP_1: &[(&str, bool)] = &[
     ("Tellus", true),
     ("Pellentesque Habitant", false),
     ("Vestibulum Ante", false),
     ("Convallis Dolor", false),
 ];
 
-const GROUP_2: &[(&str, bool)] = &[
+pub(crate) const GROUP_2: &[(&str, bool)] = &[
     ("Faucibus", false),
     ("Suspendisse", false),
     ("Aliquam Erat", false),
@@ -37,12 +37,19 @@ fn nav_list(items: &[(&str, bool)]) -> UnorderedList {
 }
 
 /// Render the navigation section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    group_1: &[(&str, bool)],
+    group_2: &[(&str, bool)],
+) -> String {
     let content = Division::builder()
         .class("max-w-[260px]")
-        .push(nav_list(GROUP_1))
+        .push(nav_list(group_1))
         .division(|rule| rule.class("my-4 border-t-[1.5px] border-rule"))
-        .push(nav_list(GROUP_2))
+        .push(nav_list(group_2))
         .build()
         .to_string();
 
@@ -60,6 +67,8 @@ mod tests {
             "07",
             "Navigation",
             "Sidebar list. Active item uses a muted surface fill with full ink weight. Groups separated by a soft rule.",
+            GROUP_1,
+            GROUP_2,
         )));
     }
 }

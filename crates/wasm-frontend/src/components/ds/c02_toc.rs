@@ -10,7 +10,7 @@ const SVG_UP: &str = concat!(
 );
 
 /// TOC link entries: (label, class_suffix).
-const TOC_LINKS: &[(&str, &str)] = &[
+pub(crate) const TOC_LINKS: &[(&str, &str)] = &[
     ("Overview", ""),
     ("Subcommands", ""),
     ("add", " indent"),
@@ -24,7 +24,7 @@ const TOC_LINKS: &[(&str, &str)] = &[
     ("Config files", ""),
 ];
 
-const ANATOMY_ITEMS: &[&str] = &[
+pub(crate) const ANATOMY_ITEMS: &[&str] = &[
     r#"Two depth levels only: top-level entries and one indent (<code class="mono text-[12px]">.indent</code>, +12px)."#,
     r#"Hover lifts ink to <code class="mono text-[12px]">--c-ink-900</code> and tints the left rail to <code class="mono text-[12px]">--c-line</code>."#,
     r#"Active state uses a full <code class="mono text-[12px]">--c-ink-900</code> rail; the rail is the only marker — never combine with a background."#,
@@ -34,11 +34,18 @@ const ANATOMY_ITEMS: &[&str] = &[
 ];
 
 /// Render this section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    toc_links: &[(&str, &str)],
+    anatomy_items: &[&str],
+) -> String {
     // TOC demo nav
     let mut nav = Navigation::builder();
     nav.class("space-y-px");
-    for (label, cls_suffix) in TOC_LINKS {
+    for (label, cls_suffix) in toc_links {
         let cls = format!("toc-link{cls_suffix}");
         let label = (*label).to_owned();
         let a = html::inline_text::Anchor::builder()
@@ -55,7 +62,7 @@ pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> St
     anatomy_ul.class(
         "text-[13px] text-ink-700 leading-relaxed space-y-1.5 pl-5 list-disc marker:text-ink-400",
     );
-    for item in ANATOMY_ITEMS {
+    for item in anatomy_items {
         let item = (*item).to_owned();
         anatomy_ul.list_item(|li| li.paragraph(|p| p.text(item)));
     }
@@ -122,6 +129,8 @@ mod tests {
             "C02",
             "On This Page",
             "Right-rail table of contents for long reference pages. A 1.5px left border lights up on hover and active state \u{2014} the only visual cue, no background fills.",
+            TOC_LINKS,
+            ANATOMY_ITEMS,
         )));
     }
 }

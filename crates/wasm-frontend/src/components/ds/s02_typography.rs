@@ -3,7 +3,7 @@
 use html::text_content::Division;
 
 /// Type sample: (label, text_class, sample_text, spec).
-const SAMPLES: &[(&str, &str, &str, &str)] = &[
+pub(crate) const SAMPLES: &[(&str, &str, &str, &str)] = &[
     (
         "Display",
         "text-[44px] leading-[1.05] font-semibold tracking-tight",
@@ -70,10 +70,16 @@ fn type_row(label: &str, text_class: &str, sample: &str, spec: &str) -> Division
 }
 
 /// Render this section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    samples: &[(&str, &str, &str, &str)],
+) -> String {
     let mut rows = Division::builder();
     rows.class("divide-y divide-lineSoft");
-    for (label, cls, sample, spec) in SAMPLES {
+    for (label, cls, sample, spec) in samples {
         rows.push(type_row(label, cls, sample, spec));
     }
 
@@ -209,6 +215,7 @@ mod tests {
             "02",
             "Typography",
             "System UI stack for native rendering across platforms. Tight tracking on display sizes; relaxed for body.",
+            SAMPLES,
         )));
     }
 }

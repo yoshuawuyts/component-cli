@@ -74,13 +74,13 @@ const SVG_SEARCH_NAV: &str = concat!(
 );
 
 /// Nav link entry for the drawer menu.
-struct DrawerLink {
-    svg: &'static str,
-    label: &'static str,
-    active: bool,
+pub(crate) struct DrawerLink {
+    pub(crate) svg: &'static str,
+    pub(crate) label: &'static str,
+    pub(crate) active: bool,
 }
 
-const DRAWER_LINKS: &[DrawerLink] = &[
+pub(crate) const DRAWER_LINKS: &[DrawerLink] = &[
     DrawerLink {
         svg: SVG_HOME_NAV,
         label: "Home",
@@ -103,7 +103,7 @@ const DRAWER_LINKS: &[DrawerLink] = &[
     },
 ];
 
-const ANATOMY_ITEMS: &[&str] = &[
+pub(crate) const ANATOMY_ITEMS: &[&str] = &[
     r#"<strong>Translucent surface</strong> — <code class="mono text-[12px]">sticky top-0 z-20 bg-canvas/90 backdrop-blur</code> with a <code class="mono text-[12px]">.hairline</code> bottom border. Content scrolls <em>under</em> the bar; the 90% canvas + blur keeps the chrome legible without erasing the page beneath. Never use a solid surface — that breaks the layered feel."#,
     r#"<strong>Height &amp; rhythm</strong> — fixed at <code class="mono text-[12px]">h-12</code> (48px). Inner gutters match the page container (<code class="mono text-[12px]">px-4 md:px-6</code>) so the brand mark aligns with the leftmost column of content below."#,
     r#"<strong>Brand cluster</strong> — 24×24 sigil + 13px mono name + optional 11px ink-500 mono context label that hides below <code class="mono text-[12px]">sm</code>. Wrapped in a single <code class="mono text-[12px]">&lt;a&gt;</code> back to the home page."#,
@@ -299,10 +299,10 @@ fn mobile_collapsed() -> String {
 }
 
 /// Mobile state 2: drawer open.
-fn mobile_drawer() -> String {
+fn mobile_drawer(links: &[DrawerLink]) -> String {
     let mut drawer_nav = html::content::Navigation::builder();
     drawer_nav.class("p-3 space-y-0.5 text-[13px]");
-    for link in DRAWER_LINKS {
+    for link in links {
         let svg = link.svg.to_owned();
         let label = link.label.to_owned();
         let class = if link.active {
@@ -454,12 +454,12 @@ fn mobile_search() -> String {
 }
 
 /// Anatomy / rules section.
-fn anatomy() -> String {
+fn anatomy(items: &[&str]) -> String {
     let mut ul = html::text_content::UnorderedList::builder();
     ul.class(
         "text-[13px] text-ink-700 leading-relaxed space-y-1.5 pl-5 list-disc marker:text-ink-400",
     );
-    for item in ANATOMY_ITEMS {
+    for item in items {
         let item = (*item).to_owned();
         ul.list_item(|li| li.paragraph(|p| p.text(item)));
     }
@@ -471,7 +471,14 @@ fn anatomy() -> String {
 }
 
 /// Render this section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    drawer_links: &[DrawerLink],
+    anatomy_items: &[&str],
+) -> String {
     let content = Division::builder()
         .class("space-y-12")
         .text(desktop())
@@ -484,11 +491,11 @@ pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> St
             .division(|wrap| {
                 wrap.class("flex flex-wrap gap-6 items-start")
                     .text(mobile_collapsed())
-                    .text(mobile_drawer())
+                    .text(mobile_drawer(drawer_links))
                     .text(mobile_search())
             })
         })
-        .text(anatomy())
+        .text(anatomy(anatomy_items))
         .build()
         .to_string();
 
@@ -506,6 +513,8 @@ mod tests {
             "C06",
             "Navbar",
             "Sticky page chrome: brand mark, command palette trigger, primary nav, theme toggle. Sits above all content with a translucent <code class=\"mono text-[12px]\">bg-canvas/90</code> + <code class=\"mono text-[12px]\">backdrop-blur</code> so scrolling content reads through without losing legibility.",
+            DRAWER_LINKS,
+            ANATOMY_ITEMS,
         )));
     }
 }

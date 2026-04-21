@@ -2,7 +2,7 @@
 
 use html::text_content::Division;
 
-const RULES: &[(&str, &str)] = &[
+pub(crate) const RULES: &[(&str, &str)] = &[
     (
         "01",
         "The primary region (top of page) sits on <code class=\"px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]\">canvas</code>. Use it for the main subject.",
@@ -26,10 +26,16 @@ const RULES: &[(&str, &str)] = &[
 ];
 
 /// Render this section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    rules: &[(&str, &str)],
+) -> String {
     let mut rules_ul = html::text_content::UnorderedList::builder();
     rules_ul.class("space-y-2 text-[13px] text-ink-700 leading-relaxed");
-    for (num, text) in RULES {
+    for (num, text) in rules {
         let num = (*num).to_owned();
         let text = (*text).to_owned();
         rules_ul.list_item(|li| {
@@ -107,6 +113,7 @@ mod tests {
             "22",
             "Regions",
             "Pages are composed of stacked <em>regions</em>. The primary region uses the canvas surface; secondary regions (supporting data, references, appendices) switch to the white surface. The surface swap signals \u{201c}this is additional content\u{201d} \u{2014} no rules or borders are drawn between regions.",
+            RULES,
         )));
     }
 }

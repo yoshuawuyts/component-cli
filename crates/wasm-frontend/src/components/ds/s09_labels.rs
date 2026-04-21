@@ -3,7 +3,7 @@
 use html::text_content::Division;
 
 /// Label bar entries: (bg class, ink class, text).
-const BARS: &[(&str, &str, &str)] = &[
+pub(crate) const BARS: &[(&str, &str, &str)] = &[
     ("bg-cat-blue", "text-cat-blueInk", "Lorem ipsum dolor"),
     ("bg-cat-pink", "text-cat-pinkInk", "Sit amet"),
     ("bg-cat-cream", "text-cat-creamInk", "Consectetur"),
@@ -17,11 +17,19 @@ const BARS: &[(&str, &str, &str)] = &[
 ];
 
 /// Render the labels section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    bars: &[(&str, &str, &str)],
+) -> String {
     let mut col = Division::builder();
     col.class("flex flex-col items-start gap-2");
-    for (bg, ink, text) in BARS {
-        col.division(|d| d.class(format!("bar {bg} {ink}")).text(*text));
+    for (bg, ink, text) in bars {
+        let class = format!("bar {bg} {ink}");
+        let text = (*text).to_owned();
+        col.division(|d| d.class(class).text(text));
     }
     let content = col.build().to_string();
 
@@ -39,6 +47,7 @@ mod tests {
             "09",
             "Labels",
             "28px tall, 6px radius, label inset 12px. Pastel fill with paired ink for text \u{2014} 4.5:1 contrast minimum.",
+            BARS,
         )));
     }
 }

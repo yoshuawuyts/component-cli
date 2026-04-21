@@ -6,7 +6,7 @@ use html::text_content::Division;
 /// Anatomy list items — each contains rich inline HTML with `<strong>`,
 /// `<code>`, and `<em>` mixed into prose. Kept as raw strings since
 /// converting every inline element would make the code unreadable.
-const ANATOMY_ITEMS: &[&str] = &[
+pub(crate) const ANATOMY_ITEMS: &[&str] = &[
     r#"<strong>Container</strong> — the whole article sits inside a <code class="mono text-[12px]">rounded-lg border border-line bg-canvas</code> card with <code class="mono text-[12px]">p-5 md:p-6</code> padding, mirroring the bordered surfaces used by the search trigger and the navbar mockups. The card frames the symbol so it reads as a discrete reference unit, not loose page chrome."#,
     r#"<strong>Title</strong> — page-level <code class="mono text-[12px]">&lt;h2&gt;</code> in <code class="mono text-[12px]">.id-title-head</code> with an aux row on the right (<code class="mono text-[12px]">.id-since-tag</code> for the version a method/endpoint was introduced, plus <code class="mono text-[12px]">.id-src-link</code> entries for source / spec / man). Always the first element on the page."#,
     r#"<strong>Header (signature)</strong> — sits directly below the title so readers see what the symbol <em>is</em> before reading what it <em>does</em>. Pill (<code class="mono text-[12px]">.id-method</code> for HTTP, <code class="mono text-[12px]">.id-kind</code> for RPC) on the left, mono path (<code class="mono text-[12px]">.id-path</code>) center, optional <code class="mono text-[12px]">.id-auth-tag</code> pushed right via <code class="mono text-[12px]">margin-left: auto</code>. Hairline-bordered band on <code class="mono text-[12px]">canvas</code> — distinct from cards, anchored to the article."#,
@@ -84,12 +84,12 @@ fn build_demo() -> Division {
 }
 
 /// Build the anatomy rules list.
-fn build_anatomy() -> Division {
+fn build_anatomy(items: &[&str]) -> Division {
     let mut ul = html::text_content::UnorderedList::builder();
     ul.class(
         "text-[13px] text-ink-700 leading-relaxed space-y-1.5 pl-5 list-disc marker:text-ink-400",
     );
-    for item_html in ANATOMY_ITEMS {
+    for item_html in items {
         let item_html = (*item_html).to_owned();
         ul.list_item(|li| li.paragraph(|p| p.text(item_html)));
     }
@@ -167,11 +167,17 @@ fn build_pills() -> Division {
 }
 
 /// Render this section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    anatomy_items: &[&str],
+) -> String {
     let content = Division::builder()
         .class("space-y-8")
         .push(build_demo())
-        .push(build_anatomy())
+        .push(build_anatomy(anatomy_items))
         .push(build_pills())
         .build()
         .to_string();
@@ -190,6 +196,7 @@ mod tests {
             "C05",
             "Item Details",
             r##"Reference page for a single endpoint, RPC, schema, or command. A method/kind pill anchors the symbol below the title; a one-sentence tagline explains it; an optional structured request-body table, a responses list, and paired example panels stack below in fixed order. Used as the destination from <a href="#c-item-list" class="text-ink-700 underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900">Item List</a> rows."##,
+            ANATOMY_ITEMS,
         )));
     }
 }

@@ -3,14 +3,14 @@
 use html::inline_text::Anchor;
 use html::text_content::Division;
 
-struct ItemRow {
-    sigil_bg: &'static str,
-    sigil_color: &'static str,
-    sigil_text: &'static str,
-    name: &'static str,
-    desc: &'static str,
-    meta: &'static str,
-    deprecated: bool,
+pub(crate) struct ItemRow {
+    pub(crate) sigil_bg: &'static str,
+    pub(crate) sigil_color: &'static str,
+    pub(crate) sigil_text: &'static str,
+    pub(crate) name: &'static str,
+    pub(crate) desc: &'static str,
+    pub(crate) meta: &'static str,
+    pub(crate) deprecated: bool,
 }
 
 fn render_item_row(item: &ItemRow) -> Anchor {
@@ -41,7 +41,7 @@ fn render_item_list(items: &[ItemRow]) -> Division {
     list.build()
 }
 
-const CMD_ROWS: &[ItemRow] = &[
+pub(crate) const CMD_ROWS: &[ItemRow] = &[
     ItemRow {
         sigil_bg: "var(--c-cat-green)",
         sigil_color: "var(--c-cat-greenInk)",
@@ -98,7 +98,7 @@ const CMD_ROWS: &[ItemRow] = &[
     },
 ];
 
-const ENDPOINT_ROWS: &[ItemRow] = &[
+pub(crate) const ENDPOINT_ROWS: &[ItemRow] = &[
     ItemRow {
         sigil_bg: "var(--c-cat-blue)",
         sigil_color: "var(--c-cat-blueInk)",
@@ -137,7 +137,7 @@ const ENDPOINT_ROWS: &[ItemRow] = &[
     },
 ];
 
-const ANATOMY_ITEMS: &[&str] = &[
+pub(crate) const ANATOMY_ITEMS: &[&str] = &[
     r#"The whole row is the link — <code class="mono text-[12px]">&lt;a class="item-row"&gt;</code> — so the entire chip is the click target. The inner <code class="mono text-[12px]">.name</code> stays a <code class="mono text-[12px]">&lt;span&gt;</code>."#,
     r#"Three-column grid: <code class="mono text-[12px]">sigil · name+desc · meta</code>; the middle column is the only flexible one."#,
     r#"The whole list sits in a <code class="mono text-[12px]">rounded-lg border border-line bg-canvas</code> card — same surface treatment as the search trigger and Item Details. Rows separate with a 1px <code class="mono text-[12px]">--c-line-soft</code> hairline inside the card; the first row drops it."#,
@@ -149,12 +149,20 @@ const ANATOMY_ITEMS: &[&str] = &[
 ];
 
 /// Render this section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    cmd_rows: &[ItemRow],
+    endpoint_rows: &[ItemRow],
+    anatomy_items: &[&str],
+) -> String {
     let mut anatomy_ul = html::text_content::UnorderedList::builder();
     anatomy_ul.class(
         "text-[13px] text-ink-700 leading-relaxed space-y-1.5 pl-5 list-disc marker:text-ink-400",
     );
-    for item in ANATOMY_ITEMS {
+    for item in anatomy_items {
         let item = (*item).to_owned();
         anatomy_ul.list_item(|li| li.paragraph(|p| p.text(item)));
     }
@@ -168,7 +176,7 @@ pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> St
                     .text("Subcommands of ")
                     .span(|s| s.class("mono").text("wasm registry"))
             })
-            .push(render_item_list(CMD_ROWS))
+            .push(render_item_list(cmd_rows))
         })
         // Endpoints demo
         .division(|d| {
@@ -177,7 +185,7 @@ pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> St
                     .text("Endpoints under ")
                     .span(|s| s.class("mono").text("/v1/packages"))
             })
-            .push(render_item_list(ENDPOINT_ROWS))
+            .push(render_item_list(endpoint_rows))
         })
         // Anatomy
         .division(|d| {
@@ -201,6 +209,9 @@ mod tests {
             "C04",
             "Item List",
             "Compact index of a group\u{2019}s children \u{2014} subcommands, endpoints, schemas. Each row is a sigil, a name + one-line description, and trailing meta. Rows separate with hairline rules, no card chrome.",
+            CMD_ROWS,
+            ENDPOINT_ROWS,
+            ANATOMY_ITEMS,
         )));
     }
 }

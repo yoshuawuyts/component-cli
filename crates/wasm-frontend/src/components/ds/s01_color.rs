@@ -3,13 +3,13 @@
 use html::text_content::Division;
 
 /// A single color swatch entry.
-struct Swatch {
-    bg: &'static str,
-    label: &'static str,
-    hex: &'static str,
-    oklch: &'static str,
+pub(crate) struct Swatch {
+    pub(crate) bg: &'static str,
+    pub(crate) label: &'static str,
+    pub(crate) hex: &'static str,
+    pub(crate) oklch: &'static str,
     /// Optional paired ink text for categorical swatches.
-    ink_class: &'static str,
+    pub(crate) ink_class: &'static str,
 }
 
 impl Swatch {
@@ -80,7 +80,7 @@ fn render_group(title: &'static str, grid_class: &'static str, swatches: &[Swatc
         .build()
 }
 
-const SURFACES: &[Swatch] = &[
+pub(crate) const SURFACES: &[Swatch] = &[
     Swatch::new("bg-canvas", "Canvas", "#F4F4F5", "oklch(.967 .001 286)"),
     Swatch::new("bg-surface", "Surface", "#FFFFFF", "oklch(1 0 0)"),
     Swatch::new(
@@ -91,7 +91,7 @@ const SURFACES: &[Swatch] = &[
     ),
 ];
 
-const INK: &[Swatch] = &[
+pub(crate) const INK: &[Swatch] = &[
     Swatch::new("bg-ink-900", "Ink 900", "#18181B", "oklch(.210 .006 286)"),
     Swatch::new("bg-ink-700", "Ink 700", "#3F3F46", "oklch(.370 .013 286)"),
     Swatch::new("bg-ink-500", "Ink 500", "#71717A", "oklch(.552 .016 286)"),
@@ -99,7 +99,7 @@ const INK: &[Swatch] = &[
     Swatch::new("bg-ink-300", "Ink 300", "#D4D4D8", "oklch(.871 .006 286)"),
 ];
 
-const LINES: &[Swatch] = &[
+pub(crate) const LINES: &[Swatch] = &[
     Swatch::new("bg-line", "Line", "#D4D4D8", "oklch(.871 .006 286)"),
     Swatch::new(
         "bg-lineSoft",
@@ -109,7 +109,7 @@ const LINES: &[Swatch] = &[
     ),
 ];
 
-const SEMANTIC: &[Swatch] = &[
+pub(crate) const SEMANTIC: &[Swatch] = &[
     Swatch::new("bg-positive", "Positive", "#1F8A4C", "oklch(.561 .149 149)"),
     Swatch::new(
         "bg-cat-pinkInk",
@@ -119,7 +119,7 @@ const SEMANTIC: &[Swatch] = &[
     ),
 ];
 
-const CATEGORICAL: &[Swatch] = &[
+pub(crate) const CATEGORICAL: &[Swatch] = &[
     Swatch::cat(
         "bg-cat-blue",
         "Blue",
@@ -192,37 +192,27 @@ const CATEGORICAL: &[Swatch] = &[
     ),
 ];
 
+/// A group of swatches with a title and grid layout.
+pub(crate) struct SwatchGroup {
+    pub(crate) title: &'static str,
+    pub(crate) grid_class: &'static str,
+    pub(crate) swatches: &'static [Swatch],
+}
+
 /// Render this section.
-pub(crate) fn render(section_id: &str, num: &str, title: &str, desc: &str) -> String {
-    let content = Division::builder()
-        .class("space-y-10")
-        .push(render_group(
-            "Surfaces",
-            "grid grid-cols-2 md:grid-cols-3 gap-4",
-            SURFACES,
-        ))
-        .push(render_group(
-            "Ink",
-            "grid grid-cols-2 md:grid-cols-5 gap-4",
-            INK,
-        ))
-        .push(render_group(
-            "Lines",
-            "grid grid-cols-2 md:grid-cols-3 gap-4",
-            LINES,
-        ))
-        .push(render_group(
-            "Semantic",
-            "grid grid-cols-2 md:grid-cols-3 gap-4",
-            SEMANTIC,
-        ))
-        .push(render_group(
-            "Categorical",
-            "grid grid-cols-2 md:grid-cols-5 gap-4",
-            CATEGORICAL,
-        ))
-        .build()
-        .to_string();
+pub(crate) fn render(
+    section_id: &str,
+    num: &str,
+    title: &str,
+    desc: &str,
+    groups: &[SwatchGroup],
+) -> String {
+    let mut content = Division::builder();
+    content.class("space-y-10");
+    for group in groups {
+        content.push(render_group(group.title, group.grid_class, group.swatches));
+    }
+    let content = content.build().to_string();
 
     super::section(section_id, num, title, desc, &content)
 }
@@ -238,6 +228,33 @@ mod tests {
             "01",
             "Color",
             "Neutral surfaces and ink form the structural base. Pastel categoricals encode chart series with paired ink tones for legibility.",
+            &[
+                SwatchGroup {
+                    title: "Surfaces",
+                    grid_class: "grid grid-cols-2 md:grid-cols-3 gap-4",
+                    swatches: SURFACES
+                },
+                SwatchGroup {
+                    title: "Ink",
+                    grid_class: "grid grid-cols-2 md:grid-cols-5 gap-4",
+                    swatches: INK
+                },
+                SwatchGroup {
+                    title: "Lines",
+                    grid_class: "grid grid-cols-2 md:grid-cols-3 gap-4",
+                    swatches: LINES
+                },
+                SwatchGroup {
+                    title: "Semantic",
+                    grid_class: "grid grid-cols-2 md:grid-cols-3 gap-4",
+                    swatches: SEMANTIC
+                },
+                SwatchGroup {
+                    title: "Categorical",
+                    grid_class: "grid grid-cols-2 md:grid-cols-5 gap-4",
+                    swatches: CATEGORICAL
+                },
+            ],
         )));
     }
 }
