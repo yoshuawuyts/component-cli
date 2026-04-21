@@ -8,10 +8,11 @@
 use html::text_content::Division;
 use wasm_meta_registry_client::{KnownPackage, PackageVersion};
 
-use crate::components::ds::{search_bar, section_group};
+use crate::components::ds::section_group;
 use crate::layout;
 
 /// Context for rendering the package page sidebar.
+#[allow(dead_code)]
 pub(crate) struct SidebarContext<'a> {
     /// Package being displayed.
     pub pkg: &'a KnownPackage,
@@ -55,119 +56,58 @@ fn render_page_inner(
     title: &str,
     body_content: &str,
     extra_crumbs: &[crate::components::ds::breadcrumb::Crumb],
-    is_root: bool,
+    _is_root: bool,
 ) -> String {
+    use crate::components::ds::breadcrumb::Crumb;
+    use crate::components::ds::navbar::{self, NavLink};
+
     let pkg = ctx.pkg;
     let version = ctx.version;
-    let display_name = display_name_for(pkg);
 
-    // Build breadcrumbs (extra crumbs only — package name is in the navbar)
-    let breadcrumb_html = render_breadcrumb_path(extra_crumbs);
-
-    // Build sidebar metadata
-    let sidebar_meta = render_sidebar(ctx, &display_name).to_string();
-
-    // Build main content
-    let content = body_content;
-
-    // Breadcrumb bar and golden layout below: sidebar left, content right
+    // Build breadcrumbs: namespace > name > extra
+    let mut crumbs = Vec::new();
     let pkg_url = url_base_for(pkg, version);
-    let chevron = r#"<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block text-ink-300 mx-1 align-[-1px]"><path d="m9 18 6-6-6-6"/></svg>"#;
-    let pkg_name_html = match (&pkg.wit_namespace, &pkg.wit_name) {
-        (Some(ns), Some(name)) if !is_root => {
-            format!(
-                r#"<a href="/{ns}" class="hover:text-ink-900 transition-colors">{ns}</a>{chevron}<a href="{pkg_url}" class="hover:text-ink-900 transition-colors">{name}</a>"#
-            )
-        }
-        (Some(ns), Some(_)) => {
-            format!(r#"<a href="/{ns}" class="hover:text-ink-900 transition-colors">{ns}</a>"#)
-        }
-        _ => {
-            format!(
-                r#"<a href="{pkg_url}" class="hover:text-ink-900 transition-colors">{display_name}</a>"#
-            )
-        }
-    };
-    let topbar_search = search_bar::compact("search-input");
+    if let Some(ns) = &pkg.wit_namespace {
+        crumbs.push(Crumb {
+            label: ns.clone(),
+            href: Some(format!("/{ns}")),
+        });
+    }
+    if let Some(name) = &pkg.wit_name {
+        crumbs.push(Crumb {
+            label: name.clone(),
+            href: Some(pkg_url),
+        });
+    }
+    for c in extra_crumbs {
+        crumbs.push(Crumb {
+            label: c.label.clone(),
+            href: c.href.clone(),
+        });
+    }
+
+    #[allow(clippy::items_after_statements)]
+    const LINKS: &[NavLink] = &[
+        NavLink {
+            label: "Docs",
+            href: "/docs",
+        },
+        NavLink {
+            label: "Downloads",
+            href: "/downloads",
+        },
+    ];
+    let nav = navbar::render_bar(&crumbs, LINKS);
+
     let body = format!(
-        r#"<style>
-  .page-layout {{
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-  }}
-  .page-layout .sidebar {{
-    display: none;
-  }}
-  @media (min-width: 768px) {{
-    .page-layout {{
-      display: grid;
-      grid-template-columns: 260px 1fr;
-      grid-template-rows: auto 1fr;
-      grid-template-areas:
-        "sidebar topbar"
-        "sidebar main";
-      gap: 0 2.5rem;
-    }}
-    .page-layout .sidebar {{
-      display: block;
-      grid-area: sidebar;
-      height: 100vh;
-      overflow-y: auto;
-      scrollbar-width: thin;
-    }}
-    .page-layout .topbar {{
-      grid-area: topbar;
-    }}
-    .page-layout .main {{
-      grid-area: main;
-      overflow-y: auto;
-      height: calc(100vh - 52px);
-    }}
-    .page-layout .mobile-header {{
-      display: none;
-    }}
-  }}
-</style>
-<div class="page-layout">
-  <!-- Mobile header -->
-  <div class="mobile-header flex md:hidden items-center justify-between px-4 pt-4 pb-3 gap-4">
-    <a href="/" class="font-semibold text-[14px] text-ink-900 hover:text-accent transition-colors shrink-0">wasm</a>
-    <div class="flex items-center gap-3">
-      <a href="/docs" class="text-[13px] text-ink-500 hover:text-ink-900 transition-colors">Docs</a>
-      <form action="/search" method="get" class="relative flex search-form">
-        <input type="search" name="q" placeholder="Search…" aria-label="Search" class="w-24 sm:w-32 h-8 px-3 rounded-md border border-line bg-surface text-[13px] text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-accent">
-      </form>
-    </div>
-  </div>
-  <!-- Sidebar -->
-  <aside class="sidebar px-4 pt-6">
-    <div class="mb-6"><a href="/" class="font-semibold text-ink-900 hover:text-accent transition-colors">wasm</a></div>
-    {sidebar_meta}
-    <p class="text-[13px] text-ink-400 mt-8 pb-6">Made by <a href="https://yosh.is" class="hover:text-ink-900 transition-colors">Yosh Wuyts</a><br>Intended to be donated to the <a href="https://bytecodealliance.org" class="hover:text-ink-900 transition-colors">Bytecode Alliance</a></p>
-  </aside>
-  <!-- Top navbar -->
-  <nav class="topbar hidden md:flex items-center gap-4 px-4 pt-4 pb-3">
-    <div class="flex items-center gap-1 text-[14px] text-ink-500 shrink-0">
-      {pkg_name_html}{breadcrumb_html}
-    </div>
-    <div class="flex-1 max-w-md">{topbar_search}</div>
-    <div class="flex items-center gap-3 shrink-0 ml-auto">
-      <a href="/docs" class="text-[13px] text-ink-500 hover:text-ink-900 transition-colors">Docs</a>
-      <a href="/downloads" class="text-[13px] text-ink-500 hover:text-ink-900 transition-colors">Downloads</a>
-    </div>
-  </nav>
-  <!-- Main content -->
-  <div class="main px-4 pb-12" style="min-width:0">
-    {content}
-  </div>
-</div>"#
+        r#"{nav}<main class="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-8">{body_content}</main>"#,
     );
 
     layout::document_full_width(title, &body)
 }
 
 /// Render breadcrumb segments as inline HTML.
+#[allow(dead_code)]
 fn render_breadcrumb_path(crumbs: &[crate::components::ds::breadcrumb::Crumb]) -> String {
     use std::fmt::Write;
     let mut html = String::new();
@@ -193,9 +133,11 @@ fn render_breadcrumb_path(crumbs: &[crate::components::ds::breadcrumb::Crumb]) -
 }
 
 /// Sidebar section label class matching the design system Details (section 23).
+#[allow(dead_code)]
 const SIDEBAR_LABEL: &str = crate::components::ds::typography::SECTION_LABEL_CLASS;
 
 /// Render the right sidebar with all package metadata.
+#[allow(dead_code)]
 fn render_sidebar(ctx: &SidebarContext<'_>, display_name: &str) -> Division {
     let pkg = ctx.pkg;
     let version = ctx.version;
@@ -443,6 +385,7 @@ pub(crate) fn render_import_export_section(heading: &str, items: &[ImportExportE
 }
 
 /// Render the version selector dropdown.
+#[allow(dead_code)]
 fn render_version_select(pkg: &KnownPackage, current_version: &str, url_name: &str) -> Division {
     let script_body = format!(
         "document.getElementById('version-select').addEventListener('change',function(){{\
@@ -518,6 +461,7 @@ pub(crate) fn render_install_command(display_name: &str, version: &str) -> Divis
 }
 
 /// Render a label: value metadata row.
+#[allow(dead_code)]
 fn meta_row(label: &str, value: &str) -> Division {
     crate::components::ds::detail_row::row(
         label,
@@ -526,6 +470,7 @@ fn meta_row(label: &str, value: &str) -> Division {
 }
 
 /// Render a label: linked-value metadata row.
+#[allow(dead_code)]
 fn meta_link_row(label: &str, text: &str, href: &str) -> Division {
     crate::components::ds::detail_row::row(
         label,
@@ -538,6 +483,7 @@ fn meta_link_row(label: &str, text: &str, href: &str) -> Division {
 
 /// Format a byte count as a human-readable size string.
 #[allow(clippy::cast_precision_loss)]
+#[allow(dead_code)]
 fn format_size(bytes: i64) -> String {
     const KIB: f64 = 1024.0;
     const MIB: f64 = KIB * 1024.0;
@@ -556,6 +502,7 @@ fn format_size(bytes: i64) -> String {
 }
 
 /// Abbreviate a URL for display (strip scheme and trailing slash).
+#[allow(dead_code)]
 fn abbreviate_url(url: &str) -> String {
     url.strip_prefix("https://")
         .or_else(|| url.strip_prefix("http://"))
@@ -565,6 +512,7 @@ fn abbreviate_url(url: &str) -> String {
 }
 
 /// Return a friendly display name for a known OCI registry, or the full host/path.
+#[allow(dead_code)]
 fn friendly_registry_name(registry: &str) -> String {
     match registry {
         "ghcr.io" => "GitHub Packages".to_owned(),
@@ -575,6 +523,7 @@ fn friendly_registry_name(registry: &str) -> String {
 }
 
 /// Return a friendly display name for a known repository host, or the abbreviated URL.
+#[allow(dead_code)]
 fn friendly_repo_name(url: &str) -> String {
     let stripped = url
         .strip_prefix("https://")
@@ -593,6 +542,7 @@ fn friendly_repo_name(url: &str) -> String {
 }
 
 /// Format an ISO 8601 timestamp as a short date (YYYY-MM-DD).
+#[allow(dead_code)]
 fn format_date(iso: &str) -> String {
     iso.split('T').next().unwrap_or(iso).to_owned()
 }

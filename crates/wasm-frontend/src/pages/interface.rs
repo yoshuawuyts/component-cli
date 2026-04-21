@@ -1,6 +1,6 @@
 //! Interface detail page.
 
-use crate::components::ds::{copy_button, section_group};
+use crate::components::ds::{page_header, section_group};
 use crate::wit_doc::{FunctionDoc, InterfaceDoc, TypeDoc, TypeKind, WitDocument};
 use html::text_content::Division;
 use wasm_meta_registry_client::{KnownPackage, PackageVersion};
@@ -20,22 +20,14 @@ pub(crate) fn render(
     let title = format!("{display_name} — {}", iface.name);
 
     // Interface content — heading + docs in a two-column row
-    let docs_md = iface
-        .docs
-        .as_deref()
-        .map(|docs| crate::markdown::render_block(docs, crate::markdown::DOC_CLASS))
-        .unwrap_or_default();
 
-    let fqn = format!("{display_name}/{}", iface.name);
-
-    let header_row = copy_button::heading_with_copy_and_version(
+    let header_row = page_header::page_header_block(
+        &format!("v{version} \u{00b7} Interface"),
         &iface.name,
-        "Interface",
-        &fqn,
-        "text-wit-iface",
-        &docs_md,
-        Some(version),
-    );
+        iface.docs.as_deref().unwrap_or("No description available."),
+        None,
+    )
+    .to_string();
 
     // Grouped type and function sections
     let mut content = Division::builder();

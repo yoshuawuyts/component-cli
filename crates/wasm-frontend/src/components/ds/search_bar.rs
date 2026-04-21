@@ -28,6 +28,7 @@ impl Default for SearchBar {
 /// Render a compact search bar for nav / inline use.
 ///
 /// 36px tall, border + surface background, `/` kbd badge.
+#[allow(dead_code)]
 pub(crate) fn compact(input_id: &str) -> Division {
     Division::builder()
         .form(|form| {

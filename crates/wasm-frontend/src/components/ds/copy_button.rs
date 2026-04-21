@@ -3,11 +3,13 @@
 //! Renders an h2 heading with a copy button that appears on hover.
 //! Includes the embedded JavaScript for clipboard interaction.
 
+#[allow(dead_code)]
 const COPY_ICON: &str = concat!(
     r#"<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">"#,
     include_str!("../../../../../vendor/lucide/copy.svg"),
     "</svg>"
 );
+#[allow(dead_code)]
 const CHECK_ICON: &str = concat!(
     r#"<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">"#,
     include_str!("../../../../../vendor/lucide/check.svg"),
@@ -25,6 +27,7 @@ const CHECK_ICON: &str = concat!(
 /// - `color_class`: Tailwind text color for the heading (e.g. `"text-wit-iface"`)
 /// - `docs_html`: rendered markdown docs to show below the heading
 /// - `version`: optional version badge shown inline with the heading
+#[allow(dead_code)]
 pub(crate) fn heading_with_copy(
     name: &str,
     subtitle: &str,
@@ -36,6 +39,7 @@ pub(crate) fn heading_with_copy(
 }
 
 /// Render a page heading with copy button and optional version badge.
+#[allow(dead_code)]
 pub(crate) fn heading_with_copy_and_version(
     name: &str,
     subtitle: &str,

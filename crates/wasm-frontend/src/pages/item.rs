@@ -1,6 +1,6 @@
 //! Item detail page (type or function within an interface).
 
-use crate::components::ds::copy_button;
+use crate::components::ds::page_header;
 use crate::wit_doc::{FunctionDoc, TypeDoc, TypeKind, TypeRef, WitDocument};
 use html::tables::{Table, TableRow};
 use html::text_content::Division;
@@ -57,7 +57,6 @@ pub(crate) fn render_type(
 ) -> String {
     let display_name = package_shell::display_name_for(pkg);
     let title = format!("{display_name} \u{2014} {iface_name}::{}", ty.name);
-    let fqn = format!("{display_name}/{iface_name}/{}", ty.name);
 
     let kind_label = type_kind_label(&ty.kind);
 
@@ -65,22 +64,14 @@ pub(crate) fn render_type(
     let code_block = render_type_definition(ty).to_string();
 
     // Description
-    let docs_html = ty
-        .docs
-        .as_deref()
-        .map(|docs| crate::markdown::render_block(docs, crate::markdown::DOC_CLASS))
-        .unwrap_or_default();
 
-    let combined_docs = format!("{code_block}{docs_html}");
-
-    // Header row: name on left, docs on right
-    let header = copy_button::heading_with_copy(
-        &ty.name,
+    let header = page_header::page_header_block(
         kind_label,
-        &fqn,
-        type_kind_color(&ty.kind),
-        &combined_docs,
-    );
+        &ty.name,
+        ty.docs.as_deref().unwrap_or("No description available."),
+        Some(&code_block),
+    )
+    .to_string();
 
     // Type body content (fields, variants, etc.)
     let body = render_type_body(&ty.kind).to_string();
@@ -125,28 +116,19 @@ pub(crate) fn render_function(
 ) -> String {
     let display_name = package_shell::display_name_for(pkg);
     let title = format!("{display_name} \u{2014} {iface_name}::{}", func.name);
-    let fqn = format!("{display_name}/{iface_name}/{}", func.name);
 
     // Code block
     let code_block = render_function_definition(func).to_string();
 
     // Description
-    let docs_html = func
-        .docs
-        .as_deref()
-        .map(|docs| crate::markdown::render_block(docs, crate::markdown::DOC_CLASS))
-        .unwrap_or_default();
 
-    let combined_docs = format!("{code_block}{docs_html}");
-
-    // Header row: name on left, docs on right
-    let header = copy_button::heading_with_copy(
-        &func.name,
+    let header = page_header::page_header_block(
         "Function",
-        &fqn,
-        "text-wit-func",
-        &combined_docs,
-    );
+        &func.name,
+        func.docs.as_deref().unwrap_or("No description available."),
+        Some(&code_block),
+    )
+    .to_string();
 
     let content = header;
 
@@ -189,6 +171,7 @@ fn type_kind_label(kind: &TypeKind) -> &'static str {
 }
 
 /// Get the CSS color class for a type kind heading.
+#[allow(dead_code)]
 fn type_kind_color(kind: &TypeKind) -> &'static str {
     match kind {
         TypeKind::Record { .. } | TypeKind::Variant { .. } => "text-wit-struct",

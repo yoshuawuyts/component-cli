@@ -1,6 +1,6 @@
 //! World detail page.
 
-use crate::components::ds::copy_button;
+use crate::components::ds::page_header;
 use crate::wit_doc::{WitDocument, WorldDoc, WorldItemDoc};
 use html::text_content::{Division, ListItem, UnorderedList};
 use wasm_meta_registry_client::{KnownPackage, PackageVersion};
@@ -19,22 +19,13 @@ pub(crate) fn render(
     let display_name = package_shell::display_name_for(pkg);
     let title = format!("{display_name} \u{2014} {}", world.name);
 
-    let docs_md = world
-        .docs
-        .as_deref()
-        .map(|d| crate::markdown::render_block(d, crate::markdown::DOC_CLASS))
-        .unwrap_or_default();
-
-    let fqn = format!("{display_name}/{}", world.name);
-
-    let header = copy_button::heading_with_copy_and_version(
+    let header = page_header::page_header_block(
+        &format!("v{version} \u{00b7} World"),
         &world.name,
-        "World",
-        &fqn,
-        "text-wit-world",
-        &docs_md,
-        Some(version),
-    );
+        world.docs.as_deref().unwrap_or("No description available."),
+        None,
+    )
+    .to_string();
 
     let mut content = Division::builder();
     content.class("space-y-10 max-w-3xl");

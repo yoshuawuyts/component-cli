@@ -112,18 +112,7 @@ const MOON_THEME_ICON: &str = concat!(
 /// - Nav links + theme toggle (right)
 pub(crate) fn render_bar(crumbs: &[Crumb], links: &[NavLink]) -> String {
     // Left: home icon + breadcrumb (delegates to s18_breadcrumb)
-    let home_crumb = Crumb {
-        label: "wasm".to_owned(),
-        href: Some("/".to_owned()),
-    };
-    let mut all_crumbs = vec![home_crumb];
-    for c in crumbs {
-        all_crumbs.push(Crumb {
-            label: c.label.clone(),
-            href: c.href.clone(),
-        });
-    }
-    let breadcrumb_html = super::breadcrumb::render_breadcrumb(&all_crumbs);
+    let breadcrumb_html = super::breadcrumb::render_breadcrumb(crumbs);
 
     let left = Division::builder()
         .class("flex items-center gap-2 min-w-0")
