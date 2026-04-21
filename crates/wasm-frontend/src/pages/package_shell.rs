@@ -421,6 +421,7 @@ fn render_version_select(pkg: &KnownPackage, current_version: &str, url_name: &s
 }
 
 /// Render the install command section with a copy button.
+#[allow(dead_code)]
 pub(crate) fn render_install_command(display_name: &str, version: &str) -> Division {
     let command = format!("wasm install {display_name}@{version}");
 

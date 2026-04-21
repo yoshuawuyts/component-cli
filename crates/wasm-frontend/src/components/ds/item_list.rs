@@ -13,6 +13,18 @@ pub(crate) struct ItemRow {
     pub(crate) deprecated: bool,
 }
 
+/// Dynamic item row with owned strings, for use with runtime data.
+pub(crate) struct DynItemRow {
+    pub(crate) sigil_bg: String,
+    pub(crate) sigil_color: String,
+    pub(crate) sigil_text: String,
+    pub(crate) name: String,
+    pub(crate) href: String,
+    pub(crate) desc: String,
+    pub(crate) meta: String,
+    pub(crate) deprecated: bool,
+}
+
 #[allow(dead_code)]
 pub(crate) fn render_item_row(item: &ItemRow) -> Anchor {
     let row_class = if item.deprecated {
@@ -41,6 +53,62 @@ pub(crate) fn render_item_list(items: &[ItemRow]) -> Division {
         list.push(render_item_row(item));
     }
     list.build()
+}
+
+/// Render a dynamic item row (owned strings, real href).
+pub(crate) fn render_dyn_item_row(item: &DynItemRow) -> Anchor {
+    let row_class = if item.deprecated {
+        "item-row deprecated"
+    } else {
+        "item-row"
+    };
+    let _sigil_style = format!("background:{};color:{};", item.sigil_bg, item.sigil_color);
+    let sigil_text = item.sigil_text.clone();
+    let name = item.name.clone();
+    let desc = item.desc.clone();
+    let meta = item.meta.clone();
+    let href = item.href.clone();
+    // Raw HTML: Span::style() creates a <style> child, not an inline style attribute.
+    let sigil_html = format!(
+        r#"<span class="sigil" style="background:{};color:{};">{}</span>"#,
+        item.sigil_bg, item.sigil_color, sigil_text
+    );
+    Anchor::builder()
+        .href(href)
+        .class(row_class)
+        .text(sigil_html)
+        .division(|d| {
+            d.span(|s| s.class("name").text(name))
+                .division(|dd| dd.class("desc").text(desc))
+        })
+        .span(|s| s.class("meta").text(meta))
+        .build()
+}
+
+/// Render a list of dynamic item rows.
+pub(crate) fn render_dyn_item_list(title: &str, items: &[DynItemRow]) -> Division {
+    let title = title.to_owned();
+    let count = items.len();
+    let mut wrapper = Division::builder();
+    wrapper.class("space-y-3");
+    wrapper.division(|d| {
+        d.class("flex items-baseline justify-between")
+            .heading_2(|h| {
+                h.class("text-[16px] font-semibold tracking-tight")
+                    .text(title)
+            })
+            .span(|s| {
+                s.class("text-[12px] text-ink-500 mono")
+                    .text(format!("{count}"))
+            })
+    });
+    let mut list = Division::builder();
+    list.class("item-list");
+    for item in items {
+        list.push(render_dyn_item_row(item));
+    }
+    wrapper.push(list.build());
+    wrapper.build()
 }
 
 pub(crate) const CMD_ROWS: &[ItemRow] = &[

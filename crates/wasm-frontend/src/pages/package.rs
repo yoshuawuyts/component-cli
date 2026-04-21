@@ -2,7 +2,7 @@
 
 // r[impl frontend.pages.package-detail]
 
-use crate::components::ds::{page_header, section_group};
+use crate::components::ds::{item_list, page_header, section_group};
 use crate::wit_doc::WitDocument;
 use html::content::Section;
 use html::text_content::Division;
@@ -31,17 +31,67 @@ pub(crate) fn render(
     };
     let _pkg_name = pkg.wit_name.as_deref().unwrap_or(&display_name);
 
-    // Build kicker: "v1.0.0 · Interface Types"
-    let kicker = format!("version {version} \u{00b7} {kind_label}");
+    // Build kicker: "version 0.2.11 · Interface Types · Apache-2.0"
+    let license = version_detail
+        .and_then(|d| d.annotations.as_ref())
+        .and_then(|a| a.licenses.as_deref());
+    let kicker = match license {
+        Some(lic) => format!("{kind_label} \u{00b7} version {version} \u{00b7} {lic}"),
+        None => format!("{kind_label} \u{00b7} version {version}"),
+    };
 
     let tagline = pkg
         .description
         .as_deref()
         .unwrap_or("No description available.");
 
-    let install_html = package_shell::render_install_command(&display_name, version).to_string();
+    let command = format!("wasm install {display_name}@{version}");
+
+    let copy_svg = concat!(
+        r#"<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">"#,
+        include_str!("../../../../vendor/lucide/copy.svg"),
+        "</svg>"
+    );
+    let check_svg = concat!(
+        r#"<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">"#,
+        include_str!("../../../../vendor/lucide/check.svg"),
+        "</svg>"
+    );
+
+    let copy_script = format!(
+        r"<script>(function(){{var btn=document.getElementById('copy-install-btn');var ci='{copy_svg}';var ch='{check_svg}';btn.addEventListener('click',function(){{navigator.clipboard.writeText('{command}').then(function(){{btn.innerHTML=ch;setTimeout(function(){{btn.innerHTML=ci}},2000)}})}})}})()</script>",
+    );
+
+    let install_meta = Division::builder()
+        .class("inline-flex items-center gap-2")
+        .span(|s| {
+            s.class("text-[11px] mono uppercase tracking-wider text-ink-500")
+                .text("Install")
+        })
+        .division(|cmd| {
+            cmd.class("flex")
+                .span(|s| {
+                    s.class("inline-flex items-center px-2.5 h-7 rounded-l-md border border-r-0 border-line bg-surfaceMuted text-[12.5px] text-ink-500 mono select-none")
+                        .aria_hidden(true)
+                        .text("$")
+                })
+                .code(|c| {
+                    c.class("inline-flex items-center px-2.5 h-7 border border-line bg-surface mono text-[12.5px] text-ink-900 whitespace-nowrap")
+                        .text(command.clone())
+                })
+                .button(|b| {
+                    b.type_("button")
+                        .id("copy-install-btn".to_owned())
+                        .class("inline-flex items-center justify-center w-7 h-7 rounded-r-md border border-l-0 border-line bg-surface text-ink-500 hover:text-ink-900 hover:bg-surfaceMuted")
+                        .aria_label("Copy install command".to_owned())
+                        .text(copy_svg)
+                })
+        })
+        .text(copy_script)
+        .build()
+        .to_string();
     let header =
-        page_header::page_header_block(&kicker, &display_name, tagline, Some(&install_html))
+        page_header::page_header_block(&kicker, &display_name, tagline, Some(&install_meta))
             .to_string();
 
     let wit_content = if let Some(detail) = version_detail {
@@ -230,48 +280,48 @@ fn build_dep_urls(
 
 /// Render the interfaces overview section.
 fn render_interface_overview(doc: &WitDocument) -> Division {
-    let mut container = Division::builder();
-    container.class("space-y-1");
-    container.push(section_group::header("Interfaces", doc.interfaces.len()));
-
-    for iface in &doc.interfaces {
-        let desc = iface
-            .docs
-            .as_deref()
-            .map(|d| crate::markdown::render_inline(&first_sentence(d)))
-            .unwrap_or_default();
-        container.push(section_group::item_row(
-            &iface.name,
-            &iface.url,
-            &section_group::ItemColor::Iface,
-            &section_group::Stability::Unknown,
-            &desc,
-        ));
-    }
-    container.build()
+    let items: Vec<item_list::DynItemRow> = doc
+        .interfaces
+        .iter()
+        .map(|iface| item_list::DynItemRow {
+            sigil_bg: "var(--c-cat-lilac)".to_owned(),
+            sigil_color: "var(--c-cat-lilacInk)".to_owned(),
+            sigil_text: "I".to_owned(),
+            name: iface.name.clone(),
+            href: iface.url.clone(),
+            desc: iface
+                .docs
+                .as_deref()
+                .map(first_sentence)
+                .unwrap_or_default(),
+            meta: String::new(),
+            deprecated: false,
+        })
+        .collect();
+    item_list::render_dyn_item_list("Interfaces", &items)
 }
 
 /// Render the worlds overview section.
 fn render_world_overview(doc: &WitDocument) -> Division {
-    let mut container = Division::builder();
-    container.class("space-y-1");
-    container.push(section_group::header("Worlds", doc.worlds.len()));
-
-    for world in &doc.worlds {
-        let desc = world
-            .docs
-            .as_deref()
-            .map(|d| crate::markdown::render_inline(&first_sentence(d)))
-            .unwrap_or_default();
-        container.push(section_group::item_row(
-            &world.name,
-            &world.url,
-            &section_group::ItemColor::World,
-            &section_group::Stability::Unknown,
-            &desc,
-        ));
-    }
-    container.build()
+    let items: Vec<item_list::DynItemRow> = doc
+        .worlds
+        .iter()
+        .map(|world| item_list::DynItemRow {
+            sigil_bg: "var(--c-cat-green)".to_owned(),
+            sigil_color: "var(--c-cat-greenInk)".to_owned(),
+            sigil_text: "W".to_owned(),
+            name: world.name.clone(),
+            href: world.url.clone(),
+            desc: world
+                .docs
+                .as_deref()
+                .map(first_sentence)
+                .unwrap_or_default(),
+            meta: String::new(),
+            deprecated: false,
+        })
+        .collect();
+    item_list::render_dyn_item_list("Worlds", &items)
 }
 
 /// Render raw WIT text in a pre-formatted code block (fallback).
