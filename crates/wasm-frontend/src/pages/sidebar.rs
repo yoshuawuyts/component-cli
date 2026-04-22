@@ -216,16 +216,41 @@ pub(crate) fn render_sidebar(ctx: &SidebarContext<'_>) -> Aside {
     aside.build()
 }
 
+/// Lucide `package` icon (14px, for Component packages).
+const SVG_PACKAGE: &str = concat!(
+    r#"<svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">"#,
+    include_str!("../../../../vendor/lucide/package.svg"),
+    "</svg>"
+);
+
+/// Lucide `layers` icon (14px, for Interface Types packages).
+const SVG_LAYERS: &str = concat!(
+    r#"<svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">"#,
+    include_str!("../../../../vendor/lucide/layers.svg"),
+    "</svg>"
+);
+
+/// Lucide `box` icon (14px, fallback for unknown package kinds).
+const SVG_BOX: &str = concat!(
+    r#"<svg class="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">"#,
+    include_str!("../../../../vendor/lucide/box.svg"),
+    "</svg>"
+);
+
 /// Build the sidebar header with icon, title, version subtitle, and description.
 fn build_sidebar_header(ctx: &SidebarContext<'_>) -> String {
     let ns = ctx.display_name.replace(':', "/");
     let desc = ctx.description.unwrap_or("No description available.");
+    let icon = match ctx.kind_label {
+        "Component" => SVG_PACKAGE,
+        "Interface Types" => SVG_LAYERS,
+        _ => SVG_BOX,
+    };
 
     format!(
-        r#"<div class="pb-4 border-b-[1.5px] border-rule"><div class="flex items-center gap-2.5"><span class="sigil" style="background:{};color:{};width:28px;height:28px;font-size:14px;">{}</span><div><a href="/{ns}/{}" class="text-[15px] font-semibold text-ink-900 hover:underline no-underline">{}</a><div class="text-[11px] text-ink-500 mono">v{} · {}</div></div></div><p class="mt-2 text-[12px] text-ink-700 leading-relaxed">{desc}</p></div>"#,
+        r#"<div class="pb-4 border-b-[1.5px] border-rule"><div class="flex items-center gap-2.5"><span class="sigil" style="background:{};color:{};width:28px;height:28px;">{icon}</span><div><a href="/{ns}/{}" class="text-[15px] font-semibold text-ink-900 hover:underline no-underline">{}</a><div class="text-[11px] text-ink-500 mono">v{} · {}</div></div></div><p class="mt-2 text-[12px] text-ink-700 leading-relaxed">{desc}</p></div>"#,
         s::ROOT.bg,
         s::ROOT.color,
-        s::ROOT.text,
         ctx.version,
         ctx.display_name,
         ctx.version,

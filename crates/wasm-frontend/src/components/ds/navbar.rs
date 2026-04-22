@@ -96,9 +96,35 @@ pub(crate) struct NavLink {
     pub href: &'static str,
 }
 
-/// Render the theme mode `<select>` dropdown (Auto / Light / Dark).
-pub(crate) fn theme_select() -> String {
-    r#"<select id="theme-select" aria-label="Color theme" class="h-7 pl-2 pr-6 rounded-md border border-line bg-surface text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 text-[12px] cursor-pointer transition-colors appearance-none" style="background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 6px center;"><option value="auto">Auto</option><option value="light">Light</option><option value="dark">Dark</option></select>"#.to_owned()
+/// SVG icons for the theme dropdown (14px, currentColor).
+const THEME_SUN: &str = r#"<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>"#;
+const THEME_MOON: &str = concat!(
+    r#"<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">"#,
+    include_str!("../../../../../vendor/lucide/moon.svg"),
+    "</svg>"
+);
+const THEME_SUN_MOON: &str = concat!(
+    r#"<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">"#,
+    include_str!("../../../../../vendor/lucide/sun-moon.svg"),
+    "</svg>"
+);
+
+/// Render the theme dropdown (Auto / Light / Dark) with icons + labels.
+pub(crate) fn theme_dropdown() -> String {
+    format!(
+        r##"<div class="relative" id="theme-dropdown">
+<button type="button" id="theme-trigger" aria-label="Color theme" aria-haspopup="true" aria-expanded="false" class="inline-flex items-center justify-center h-7 w-7 rounded-md border border-line bg-surface text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 transition-colors">
+<span class="theme-icon theme-icon-auto">{THEME_SUN_MOON}</span>
+<span class="theme-icon theme-icon-light" style="display:none">{THEME_SUN}</span>
+<span class="theme-icon theme-icon-dark" style="display:none">{THEME_MOON}</span>
+</button>
+<div id="theme-menu" class="absolute right-0 mt-1.5 w-36 rounded-md bg-surface border border-line shadow-tooltip py-1 text-[13px] hidden z-50">
+<button type="button" data-theme-value="auto" class="theme-option w-full text-left px-3 h-8 flex items-center gap-2.5 text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 rounded-sm">{THEME_SUN_MOON} Auto</button>
+<button type="button" data-theme-value="light" class="theme-option w-full text-left px-3 h-8 flex items-center gap-2.5 text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 rounded-sm">{THEME_SUN} Light</button>
+<button type="button" data-theme-value="dark" class="theme-option w-full text-left px-3 h-8 flex items-center gap-2.5 text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 rounded-sm">{THEME_MOON} Dark</button>
+</div>
+</div>"##
+    )
 }
 
 #[allow(dead_code)]
@@ -138,7 +164,7 @@ pub(crate) fn render_bar(crumbs: &[Crumb], links: &[NavLink]) -> String {
                 .text(label)
         });
     }
-    right.text(theme_select());
+    right.text(theme_dropdown());
     let right = right.build().to_string();
 
     let bar = html::content::Header::builder()

@@ -13,12 +13,14 @@ pub(crate) fn render(version: &str, subtitle: &str, title: &str, description: &s
     Header::builder()
         .class("pt-8 md:pt-12 pb-8 md:pb-12")
         .division(|div| {
-            div.class("flex items-center gap-2 text-[12px] text-ink-500 mono uppercase tracking-wider")
-                .span(|s| s.text(version.clone()))
-                .span(|s| s.class("h-1 w-1 rounded-full bg-ink-300"))
-                .span(|s| s.text(subtitle.clone()))
-                .span(|s| s.class("ml-auto"))
-                .text(navbar::theme_select())
+            div.class(
+                "flex items-center gap-2 text-[12px] text-ink-500 mono uppercase tracking-wider",
+            )
+            .span(|s| s.text(version.clone()))
+            .span(|s| s.class("h-1 w-1 rounded-full bg-ink-300"))
+            .span(|s| s.text(subtitle.clone()))
+            .span(|s| s.class("ml-auto"))
+            .text(navbar::theme_dropdown())
         })
         .heading_1(|h1| {
             h1.class("mt-3 text-[36px] md:text-[44px] leading-[1.05] font-semibold tracking-tight")

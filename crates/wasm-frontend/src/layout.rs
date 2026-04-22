@@ -825,16 +825,23 @@ fn document_inner(
     }})();
   </script>
   <script>
-    /* Theme select */
+    /* Theme dropdown */
     (function() {{
-      var sel = document.getElementById('theme-select');
-      if (!sel) return;
+      var trigger = document.getElementById('theme-trigger');
+      var menu = document.getElementById('theme-menu');
+      if (!trigger || !menu) return;
       var root = document.documentElement;
       var mq = window.matchMedia('(prefers-color-scheme: dark)');
       var stored = localStorage.getItem('ds-theme');
-      if (stored === 'dark' || stored === 'light') sel.value = stored;
-      else sel.value = 'auto';
+      var current = (stored === 'dark' || stored === 'light') ? stored : 'auto';
+
+      function updateIcon(mode) {{
+        document.querySelectorAll('.theme-icon').forEach(function(el) {{ el.style.display = 'none'; }});
+        document.querySelectorAll('.theme-icon-' + mode).forEach(function(el) {{ el.style.display = ''; }});
+      }}
       function apply(mode) {{
+        current = mode;
+        updateIcon(mode);
         if (mode === 'auto') {{
           root.removeAttribute('data-theme');
           root.style.background = mq.matches ? '#1C1C20' : '#F4F4F5';
@@ -845,9 +852,26 @@ fn document_inner(
           localStorage.setItem('ds-theme', mode);
         }}
       }}
-      sel.addEventListener('change', function() {{ apply(this.value); }});
+      updateIcon(current);
+      trigger.addEventListener('click', function(e) {{
+        e.stopPropagation();
+        var open = !menu.classList.contains('hidden');
+        menu.classList.toggle('hidden');
+        trigger.setAttribute('aria-expanded', !open);
+      }});
+      menu.querySelectorAll('.theme-option').forEach(function(btn) {{
+        btn.addEventListener('click', function() {{
+          apply(this.getAttribute('data-theme-value'));
+          menu.classList.add('hidden');
+          trigger.setAttribute('aria-expanded', 'false');
+        }});
+      }});
+      document.addEventListener('click', function() {{
+        menu.classList.add('hidden');
+        trigger.setAttribute('aria-expanded', 'false');
+      }});
       mq.addEventListener('change', function() {{
-        if (sel.value === 'auto') {{
+        if (current === 'auto') {{
           root.style.background = mq.matches ? '#1C1C20' : '#F4F4F5';
         }}
       }});

@@ -132,12 +132,11 @@ fn render_item_section(
                     .clone()
                     .or_else(|| api_docs.get(name_no_ver).cloned())
                     .unwrap_or_default();
-                let short = short_interface_name(name);
                 item_list::DynItemRow {
                     sigil_bg: s::IFACE.bg.to_owned(),
                     sigil_color: s::IFACE.color.to_owned(),
                     sigil_text: s::IFACE.text.to_owned(),
-                    name: short,
+                    name: name_no_ver.to_owned(),
                     href: url.clone().unwrap_or_default(),
                     desc,
                     meta: String::new(),
@@ -183,6 +182,7 @@ fn strip_version(name: &str) -> &str {
 /// Extract the short interface name from a fully-qualified WIT name.
 ///
 /// `"wasi:http/types@0.2.11"` → `"types"`
+#[allow(dead_code)]
 fn short_interface_name(name: &str) -> String {
     let without_version = name.split('@').next().unwrap_or(name);
     without_version
