@@ -291,10 +291,13 @@ fn wit_kind_sigil_text(kind: &TypeKind) -> &'static str {
 
 /// Extract the first sentence from a doc comment.
 fn first_sentence(text: &str) -> String {
-    text.split_once("\n\n").map_or_else(
-        || text.trim().to_owned(),
-        |(first, _)| first.trim().to_owned(),
-    )
+    // Split on paragraph break first, then on single newline for tighter excerpts
+    let first_para = text.split_once("\n\n").map_or(text, |(first, _)| first);
+    // Within that paragraph, take only the first line
+    let first_line = first_para
+        .split_once('\n')
+        .map_or(first_para, |(first, _)| first);
+    first_line.trim().to_owned()
 }
 /// Render the full interface definition as a WIT code block.
 #[allow(dead_code)]

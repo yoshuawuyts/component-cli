@@ -507,10 +507,11 @@ fn render_producers(producers: &[wasm_meta_registry_client::ProducerEntry]) -> D
 
 /// Extract the first sentence from a doc comment for summary display.
 fn first_sentence(text: &str) -> String {
-    text.split_once("\n\n").map_or_else(
-        || text.trim().to_owned(),
-        |(first, _)| first.trim().to_owned(),
-    )
+    let first_para = text.split_once("\n\n").map_or(text, |(first, _)| first);
+    let first_line = first_para
+        .split_once('\n')
+        .map_or(first_para, |(first, _)| first);
+    first_line.trim().to_owned()
 }
 
 /// Detect whether WIT text is the lossy hand-rolled format rather than

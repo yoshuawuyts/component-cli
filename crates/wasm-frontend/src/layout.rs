@@ -506,17 +506,7 @@ fn document_inner(
     @media (prefers-reduced-motion: reduce) {{
       .tab-btn {{ transition: none; }}
     }}
-    /* Theme toggle icon visibility */
-    .theme-icon-sun  {{ display: none; }}
-    .theme-icon-moon {{ display: inline-block; }}
-    @media (prefers-color-scheme: dark) {{
-      :root:not([data-theme="light"]) .theme-icon-sun  {{ display: inline-block; }}
-      :root:not([data-theme="light"]) .theme-icon-moon {{ display: none; }}
-    }}
-    :root[data-theme="dark"] .theme-icon-sun  {{ display: inline-block; }}
-    :root[data-theme="dark"] .theme-icon-moon {{ display: none; }}
-    :root[data-theme="light"] .theme-icon-sun  {{ display: none; }}
-    :root[data-theme="light"] .theme-icon-moon {{ display: inline-block; }}
+
     /* ── Design system component styles ─────────────────── */
     input:focus-visible, select:focus-visible, textarea:focus-visible {{ outline: none; }}
     .hairline {{ border-color: var(--c-line-soft); }}
@@ -835,22 +825,31 @@ fn document_inner(
     }})();
   </script>
   <script>
-    /* Theme toggle */
+    /* Theme select */
     (function() {{
-      var btn = document.getElementById('theme-toggle');
-      if (!btn) return;
+      var sel = document.getElementById('theme-select');
+      if (!sel) return;
       var root = document.documentElement;
       var mq = window.matchMedia('(prefers-color-scheme: dark)');
-      function currentMode() {{
-        var t = root.getAttribute('data-theme');
-        if (t === 'dark' || t === 'light') return t;
-        return mq.matches ? 'dark' : 'light';
+      var stored = localStorage.getItem('ds-theme');
+      if (stored === 'dark' || stored === 'light') sel.value = stored;
+      else sel.value = 'auto';
+      function apply(mode) {{
+        if (mode === 'auto') {{
+          root.removeAttribute('data-theme');
+          root.style.background = mq.matches ? '#1C1C20' : '#F4F4F5';
+          localStorage.removeItem('ds-theme');
+        }} else {{
+          root.setAttribute('data-theme', mode);
+          root.style.background = mode === 'dark' ? '#1C1C20' : '#F4F4F5';
+          localStorage.setItem('ds-theme', mode);
+        }}
       }}
-      btn.addEventListener('click', function() {{
-        var next = currentMode() === 'dark' ? 'light' : 'dark';
-        root.setAttribute('data-theme', next);
-        root.style.background = next === 'dark' ? '#1C1C20' : '#F4F4F5';
-        localStorage.setItem('ds-theme', next);
+      sel.addEventListener('change', function() {{ apply(this.value); }});
+      mq.addEventListener('change', function() {{
+        if (sel.value === 'auto') {{
+          root.style.background = mq.matches ? '#1C1C20' : '#F4F4F5';
+        }}
       }});
     }})();
   </script>

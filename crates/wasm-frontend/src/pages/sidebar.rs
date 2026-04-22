@@ -222,8 +222,14 @@ fn build_sidebar_header(ctx: &SidebarContext<'_>) -> String {
     let desc = ctx.description.unwrap_or("No description available.");
 
     format!(
-        r#"<div class="pb-4 border-b-[1.5px] border-rule"><div class="flex items-center gap-2.5"><span class="sigil" style="background:var(--c-cat-slate);color:var(--c-cat-slate-ink);width:28px;height:28px;font-size:14px;">{}</span><div><a href="/{ns}/{}" class="text-[15px] font-semibold text-ink-900 hover:underline no-underline">{}</a><div class="text-[11px] text-ink-500 mono">v{} · {}</div></div></div><p class="mt-2 text-[12px] text-ink-700 leading-relaxed">{desc}</p></div>"#,
-        "\u{00b7}", ctx.version, ctx.display_name, ctx.version, ctx.kind_label,
+        r#"<div class="pb-4 border-b-[1.5px] border-rule"><div class="flex items-center gap-2.5"><span class="sigil" style="background:{};color:{};width:28px;height:28px;font-size:14px;">{}</span><div><a href="/{ns}/{}" class="text-[15px] font-semibold text-ink-900 hover:underline no-underline">{}</a><div class="text-[11px] text-ink-500 mono">v{} · {}</div></div></div><p class="mt-2 text-[12px] text-ink-700 leading-relaxed">{desc}</p></div>"#,
+        s::ROOT.bg,
+        s::ROOT.color,
+        s::ROOT.text,
+        ctx.version,
+        ctx.display_name,
+        ctx.version,
+        ctx.kind_label,
     )
 }
 

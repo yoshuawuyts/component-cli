@@ -302,8 +302,8 @@ pub(crate) const SIGIL_LEGEND: &[(&str, &str, &str, &str)] = &[
         "Exit code",
     ),
     (
-        "var(--c-cat-slate)",
-        "var(--c-cat-slate-ink)",
+        "var(--c-cat-plum)",
+        "var(--c-cat-plum-ink)",
         "\u{00b7}",
         "Root / misc",
     ),
@@ -345,8 +345,8 @@ pub(crate) fn render(
 
     let demo_items = vec![
         SidebarItem::Entry(SidebarEntry {
-            sigil_bg: "var(--c-cat-slate)",
-            sigil_color: "var(--c-cat-slate-ink)",
+            sigil_bg: "var(--c-cat-plum)",
+            sigil_color: "var(--c-cat-plum-ink)",
             sigil_text: "\u{00b7}",
             name: "wasm".to_owned(),
             href: "#".to_owned(),

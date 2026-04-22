@@ -52,7 +52,7 @@ expression: "crate::components::ds::pretty_html(&render(\"c-sidebar\", \"C01\",\
           </div>
           <nav class="space-y-0.5 text-[13px]">
             <a href="#" class="tree-link">
-              <span class="sigil" style="background:var(--c-cat-slate);color:var(--c-cat-slate-ink);">
+              <span class="sigil" style="background:var(--c-cat-plum);color:var(--c-cat-plum-ink);">
                 ·
               </span>
               <span class="mono">
@@ -245,7 +245,7 @@ expression: "crate::components::ds::pretty_html(&render(\"c-sidebar\", \"C01\",\
             </span>
           </div>
           <div class="flex items-center gap-2">
-            <span class="sigil" style="background:var(--c-cat-slate);color:var(--c-cat-slate-ink);">
+            <span class="sigil" style="background:var(--c-cat-plum);color:var(--c-cat-plum-ink);">
               ·
             </span>
             <span class="text-ink-700">
