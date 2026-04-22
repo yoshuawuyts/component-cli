@@ -103,9 +103,9 @@ const THEME_MOON: &str = concat!(
     include_str!("../../../../../vendor/lucide/moon.svg"),
     "</svg>"
 );
-const THEME_SUN_MOON: &str = concat!(
+const THEME_AUTO: &str = concat!(
     r#"<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">"#,
-    include_str!("../../../../../vendor/lucide/sun-moon.svg"),
+    include_str!("../../../../../vendor/lucide/eclipse.svg"),
     "</svg>"
 );
 
@@ -114,12 +114,12 @@ pub(crate) fn theme_dropdown() -> String {
     format!(
         r#"<div class="relative" id="theme-dropdown">
 <button type="button" id="theme-trigger" aria-label="Color theme" aria-haspopup="true" aria-expanded="false" class="inline-flex items-center justify-center h-7 w-7 rounded-md border border-line bg-surface text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 transition-colors">
-<span class="theme-icon theme-icon-auto">{THEME_SUN_MOON}</span>
+<span class="theme-icon theme-icon-auto">{THEME_AUTO}</span>
 <span class="theme-icon theme-icon-light" style="display:none">{THEME_SUN}</span>
 <span class="theme-icon theme-icon-dark" style="display:none">{THEME_MOON}</span>
 </button>
 <div id="theme-menu" class="absolute right-0 mt-1.5 w-36 rounded-md bg-surface border border-line shadow-tooltip py-1 text-[13px] hidden z-50">
-<button type="button" data-theme-value="auto" class="theme-option w-full text-left px-3 h-8 flex items-center gap-2.5 text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 rounded-sm">{THEME_SUN_MOON} Auto</button>
+<button type="button" data-theme-value="auto" class="theme-option w-full text-left px-3 h-8 flex items-center gap-2.5 text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 rounded-sm">{THEME_AUTO} Auto</button>
 <button type="button" data-theme-value="light" class="theme-option w-full text-left px-3 h-8 flex items-center gap-2.5 text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 rounded-sm">{THEME_SUN} Light</button>
 <button type="button" data-theme-value="dark" class="theme-option w-full text-left px-3 h-8 flex items-center gap-2.5 text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 rounded-sm">{THEME_MOON} Dark</button>
 </div>
@@ -139,7 +139,7 @@ pub(crate) fn render_bar(crumbs: &[Crumb], links: &[NavLink]) -> String {
     let breadcrumb_html = super::breadcrumb::render_breadcrumb(crumbs);
 
     let left = Division::builder()
-        .class("flex items-center gap-2 min-w-0")
+        .class("flex items-center gap-3 min-w-0")
         .anchor(|a| {
             a.href("/")
                 .class("text-[13px] font-semibold text-ink-900 no-underline hover:text-ink-700 transition-colors whitespace-nowrap")
@@ -152,17 +152,18 @@ pub(crate) fn render_bar(crumbs: &[Crumb], links: &[NavLink]) -> String {
     // Right: search + nav links + theme toggle
     let search = search_button(SVG_SEARCH_SM, "Type / to search", true);
     let mut right = Division::builder();
-    right.class("flex items-center gap-1 text-[12px] text-ink-500");
+    right.class("flex items-center gap-2 text-[12px] text-ink-500");
     right.division(|d| d.class("hidden sm:block").text(search));
     for link in links {
         let href = link.href.to_owned();
         let label = link.label.to_owned();
         right.anchor(|a| {
             a.href(href)
-                .class("inline-flex items-center h-7 px-2 rounded-md hover:bg-surfaceMuted hover:text-ink-900 hidden sm:inline-flex")
+                .class("inline-flex items-center h-7 px-2.5 rounded-md hover:bg-surfaceMuted hover:text-ink-900 hidden sm:inline-flex")
                 .text(label)
         });
     }
+    right.division(|d| d.class("hidden sm:block w-px h-4 bg-line mx-0.5"));
     right.text(theme_dropdown());
     let right = right.build().to_string();
 

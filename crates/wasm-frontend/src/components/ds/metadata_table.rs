@@ -246,7 +246,7 @@ fn render_row(row: &MetadataRow) -> TableRow {
                 .table_cell(|td| {
                     let cell = td
                         .class("py-2.5 px-4 align-baseline")
-                        .span(|s| s.class("text-accent").text(name.clone()));
+                        .span(|s| s.class("text-ink-900").text(name.clone()));
                     if !display_version.is_empty() {
                         cell.span(|s| {
                             s.class("ml-2 text-[11px] text-ink-500")

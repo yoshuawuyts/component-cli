@@ -29,10 +29,18 @@ pub(crate) struct SidebarContext<'a> {
 
 /// Render the shared page shell: two-column layout with sidebar,
 /// wrapped in the HTML document layout.
-///
-/// Uses a "golden layout": left sidebar with navigation and metadata,
-/// right column for main content. The top nav bar is replaced by the
-/// sidebar's own logo, breadcrumbs, and search.
+#[must_use]
+pub(crate) fn render_page(
+    ctx: &SidebarContext<'_>,
+    title: &str,
+    header: &str,
+    body_content: &str,
+    toc_html: Option<&str>,
+) -> String {
+    render_page_inner(ctx, title, header, body_content, &[], true, toc_html)
+}
+
+/// Render the page shell with extra breadcrumb segments after the package name.
 #[must_use]
 pub(crate) fn render_page_with_crumbs(
     ctx: &SidebarContext<'_>,
@@ -40,6 +48,31 @@ pub(crate) fn render_page_with_crumbs(
     header: &str,
     body_content: &str,
     extra_crumbs: &[crate::components::ds::breadcrumb::Crumb],
+    toc_html: Option<&str>,
+) -> String {
+    render_page_inner(
+        ctx,
+        title,
+        header,
+        body_content,
+        extra_crumbs,
+        false,
+        toc_html,
+    )
+}
+
+/// Inner page shell renderer.
+///
+/// Uses a "golden layout": left sidebar with navigation and metadata,
+/// right column for main content. The top nav bar is replaced by the
+/// sidebar's own logo, breadcrumbs, and search.
+fn render_page_inner(
+    ctx: &SidebarContext<'_>,
+    title: &str,
+    header: &str,
+    body_content: &str,
+    extra_crumbs: &[crate::components::ds::breadcrumb::Crumb],
+    _is_root: bool,
     toc_html: Option<&str>,
 ) -> String {
     use crate::components::ds::breadcrumb::Crumb;
@@ -83,28 +116,27 @@ pub(crate) fn render_page_with_crumbs(
     ];
     let nav = navbar::render_bar(&crumbs, LINKS);
 
-    // Sidebar navigation (interfaces/worlds tree) — already an <aside> with
-    // its own sticky positioning + aria-label from `render_sidebar`.
+    // Sidebar navigation (interfaces/worlds tree)
     let sidebar_html = ctx.nav_html.as_deref().unwrap_or("");
 
     let toc_column = match toc_html {
         Some(toc) => format!(
-            r#"<aside aria-label="Page contents" class="hidden lg:block lg:sticky lg:self-start lg:overflow-y-auto" style="top: var(--navbar-offset); max-height: calc(100vh - var(--navbar-offset)); transform: translateZ(0); will-change: transform; overscroll-behavior: contain;">{toc}</aside>"#
+            r#"<aside class="hidden lg:block lg:sticky lg:top-16 lg:self-start lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto">{toc}</aside>"#
         ),
         None => String::new(),
     };
 
     let grid_class = if toc_html.is_some() {
-        "max-w-[1440px] px-4 md:px-6 grid grid-cols-1 lg:grid-cols-[240px_1fr_200px] gap-12 lg:gap-16"
+        "max-w-[1440px] px-4 md:px-6 grid grid-cols-1 lg:grid-cols-[240px_1fr_200px] gap-8 lg:gap-10 pt-8 pb-24"
     } else {
-        "max-w-[1440px] px-4 md:px-6 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-12 lg:gap-16"
+        "max-w-[1440px] px-4 md:px-6 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-8 lg:gap-10 pt-8 pb-24"
     };
 
     let body = format!(
         r#"{nav}
 <div class="{grid_class}">
-  {sidebar_html}
-  <article class="min-w-0 pt-8 pb-24">{header}{body_content}</article>
+  <aside class="hidden md:block md:sticky md:top-16 md:self-start md:max-h-[calc(100vh-5rem)] md:overflow-y-auto -mx-2 px-2">{sidebar_html}</aside>
+  <article class="min-w-0">{header}{body_content}</article>
   {toc_column}
 </div>"#,
     );

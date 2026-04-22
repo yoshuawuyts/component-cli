@@ -18,11 +18,8 @@ expression: "crate::components::ds::pretty_html(&render(\"v1.0\",\n\"Foundations
       <button type="button" id="theme-trigger" aria-label="Color theme" aria-haspopup="true" aria-expanded="false" class="inline-flex items-center justify-center h-7 w-7 rounded-md border border-line bg-surface text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 transition-colors">
         <span class="theme-icon theme-icon-auto">
           <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2v2" />
-            <path d="M14.837 16.385a6 6 0 1 1-7.223-7.222c.624-.147.97.66.715 1.248a4 4 0 0 0 5.26 5.259c.589-.255 1.396.09 1.248.715" />
-            <path d="M16 12a4 4 0 0 0-4-4" />
-            <path d="m19 5-1.256 1.256" />
-            <path d="M20 12h2" />
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 2a7 7 0 1 0 10 10" />
           </svg>
         </span>
         <span class="theme-icon theme-icon-light" style="display:none">
@@ -40,11 +37,8 @@ expression: "crate::components::ds::pretty_html(&render(\"v1.0\",\n\"Foundations
       <div id="theme-menu" class="absolute right-0 mt-1.5 w-36 rounded-md bg-surface border border-line shadow-tooltip py-1 text-[13px] hidden z-50">
         <button type="button" data-theme-value="auto" class="theme-option w-full text-left px-3 h-8 flex items-center gap-2.5 text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 rounded-sm">
           <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2v2" />
-            <path d="M14.837 16.385a6 6 0 1 1-7.223-7.222c.624-.147.97.66.715 1.248a4 4 0 0 0 5.26 5.259c.589-.255 1.396.09 1.248.715" />
-            <path d="M16 12a4 4 0 0 0-4-4" />
-            <path d="m19 5-1.256 1.256" />
-            <path d="M20 12h2" />
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 2a7 7 0 1 0 10 10" />
           </svg>
           Auto
         </button>

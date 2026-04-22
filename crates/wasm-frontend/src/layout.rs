@@ -105,7 +105,7 @@ fn document_inner(
 <head>
   <meta charset="utf-8">
   <meta name="color-scheme" content="light dark">
-  <style>html{{background:#F4F4F5}}@media(prefers-color-scheme:dark){{html:not([data-theme=light]){{background:#1C1C20}}}}html[data-theme=dark]{{background:#1C1C20}}html[data-theme=light]{{background:#F4F4F5}}</style>
+  <style>html{{background:#F4F4F5;scrollbar-gutter:stable}}@media(prefers-color-scheme:dark){{html:not([data-theme=light]){{background:#1C1C20}}}}html[data-theme=dark]{{background:#1C1C20}}html[data-theme=light]{{background:#F4F4F5}}</style>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Browse and discover WebAssembly components and WIT interfaces published to OCI registries.">
   <title>{escaped_title} — wasm registry</title>
@@ -213,6 +213,10 @@ fn document_inner(
     /* ── Design system tokens ─────────────────────────────── */
     :root {{
       color-scheme: light dark;
+
+      /* Layout chrome */
+      --navbar-h: 3rem;  /* must match navbar h-12 */
+      --navbar-offset: calc(var(--navbar-h) + 1px); /* clears the navbar's 1px hairline */
 
       /* Light mode — calm paper, near-black ink, pastel categoricals */
       --c-canvas:        #F4F4F5;
@@ -686,7 +690,7 @@ fn document_inner(
 </head>
 <body class="bg-canvas text-ink-900 min-h-screen flex flex-col leading-relaxed font-sans antialiased">
   {nav}
-  <main class="{main_class}">
+  <main id="content" class="{main_class}">
     {body_content}
   </main>
   {footer}

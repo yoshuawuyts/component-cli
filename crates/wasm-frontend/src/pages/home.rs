@@ -17,7 +17,7 @@ use crate::layout;
 
 /// Fetch recent packages and render the home page.
 pub(crate) async fn render(client: &RegistryClient) -> String {
-    match client.fetch_recent_packages(50).await {
+    match client.fetch_recent_packages(1000).await {
         Ok(packages) => render_packages(&packages),
         Err(err) => render_error(&err),
     }
@@ -25,19 +25,130 @@ pub(crate) async fn render(client: &RegistryClient) -> String {
 
 /// Render the home page with a list of packages.
 fn render_packages(packages: &[KnownPackage]) -> String {
-    let body = compose_body(packages.len());
+    let body = compose_body(&Stats::from_packages(packages));
     layout::document_landing("Home", &body)
 }
 
 /// Render the home page with an API error message — keep the chrome but
-/// fall back to a placeholder package count.
+/// fall back to empty stats.
 fn render_error(_err: &ApiError) -> String {
-    let body = compose_body(0);
+    let body = compose_body(&Stats::default());
     layout::document_landing("Home", &body)
 }
 
+/// Aggregated landing-page statistics derived from the registry index.
+#[derive(Default)]
+struct Stats {
+    /// Total number of indexed packages.
+    package_count: usize,
+    /// Number of distinct WIT namespaces (or repository owners as fallback).
+    author_count: usize,
+    /// Sum of release tag counts across all packages.
+    version_count: usize,
+    /// Top featured packages by version count, with a short description.
+    featured: Vec<NamedRow>,
+    /// Top namespaces by package count.
+    namespaces: Vec<NamedRow>,
+}
+
+/// An owned row used to feed [`link_list::render`] from dynamic data.
+struct NamedRow {
+    left: String,
+    right: String,
+    href: String,
+}
+
+impl Stats {
+    fn from_packages(packages: &[KnownPackage]) -> Self {
+        use std::collections::BTreeMap;
+
+        let package_count = packages.len();
+        let version_count: usize = packages.iter().map(|p| p.tags.len()).sum();
+
+        // Group by WIT namespace (preferred) or fall back to the first
+        // segment of the repository path.
+        let mut by_ns: BTreeMap<String, Vec<&KnownPackage>> = BTreeMap::new();
+        for pkg in packages {
+            let ns = pkg
+                .wit_namespace
+                .clone()
+                .or_else(|| pkg.repository.split('/').next().map(str::to_owned))
+                .unwrap_or_default();
+            if ns.is_empty() {
+                continue;
+            }
+            by_ns.entry(ns).or_default().push(pkg);
+        }
+        let author_count = by_ns.len();
+
+        // Top namespaces by package count.
+        let mut ns_rows: Vec<(String, usize)> = by_ns
+            .iter()
+            .map(|(ns, pkgs)| (ns.clone(), pkgs.len()))
+            .collect();
+        ns_rows.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        let namespaces: Vec<NamedRow> = ns_rows
+            .into_iter()
+            .take(5)
+            .map(|(ns, count)| NamedRow {
+                left: ns.clone(),
+                right: format_count(count),
+                href: format!("/{ns}"),
+            })
+            .collect();
+
+        // Top featured packages: most release tags first, alphabetical tiebreak.
+        let mut featured_pool: Vec<&KnownPackage> = packages.iter().collect();
+        featured_pool.sort_by(|a, b| {
+            b.tags
+                .len()
+                .cmp(&a.tags.len())
+                .then_with(|| a.repository.cmp(&b.repository))
+        });
+        let featured: Vec<NamedRow> = featured_pool
+            .into_iter()
+            .take(5)
+            .map(|p| {
+                let label = match (&p.wit_namespace, &p.wit_name) {
+                    (Some(ns), Some(name)) => format!("{ns}:{name}"),
+                    _ => p.repository.clone(),
+                };
+                let href = match (&p.wit_namespace, &p.wit_name) {
+                    (Some(ns), Some(name)) => format!("/{ns}/{name}"),
+                    _ => format!("/{}", p.repository),
+                };
+                let right = p
+                    .description
+                    .clone()
+                    .filter(|d| !d.trim().is_empty())
+                    .unwrap_or_else(|| {
+                        let n = p.tags.len();
+                        if n == 1 {
+                            "1 release".to_owned()
+                        } else {
+                            format!("{n} releases")
+                        }
+                    });
+                NamedRow {
+                    left: label,
+                    right,
+                    href,
+                }
+            })
+            .collect();
+
+        Self {
+            package_count,
+            author_count,
+            version_count,
+            featured,
+            namespaces,
+        }
+    }
+}
+
 /// Compose the full landing page body.
-fn compose_body(total_packages: usize) -> String {
+fn compose_body(stats: &Stats) -> String {
     let install = install_card::render(&InstallCard {
         platforms: &["macOS", "Linux", "Windows"],
         filename: "install.sh",
@@ -71,26 +182,26 @@ fn compose_body(total_packages: usize) -> String {
         right: &install,
     });
 
-    // TODO: replace placeholder counts with real registry stats.
-    let display_count = total_packages.max(73);
-    let pkg_count = format_count(display_count);
+    let pkg_count = format_count(stats.package_count);
+    let author_count = format_count(stats.author_count);
+    let version_count = format_count(stats.version_count);
     let metrics_html = metrics_strip::render(&[
         Metric {
             label: "Packages",
             value: &pkg_count,
-            delta: Some("+2 this week"),
+            delta: None,
             verified: false,
         },
         Metric {
             label: "Authors",
-            value: "13",
-            delta: Some("+1"),
+            value: &author_count,
+            delta: None,
             verified: false,
         },
         Metric {
             label: "Versions published",
-            value: "124",
-            delta: Some("+4 this week"),
+            value: &version_count,
+            delta: None,
             verified: false,
         },
         Metric {
@@ -101,7 +212,7 @@ fn compose_body(total_packages: usize) -> String {
         },
     ]);
 
-    let explore_html = render_explore(display_count);
+    let explore_html = render_explore(stats);
 
     let principles_html = principles_grid::render(
         "Why wasm",
@@ -135,20 +246,41 @@ fn compose_body(total_packages: usize) -> String {
 }
 
 /// Render the "Explore the ecosystem" section: kicker, search input, and
-/// two link lists (Featured / Categories).
-fn render_explore(package_count: usize) -> String {
-    let count_str = format_count(package_count);
-    let search_html = search_bar::landing(&count_str).to_string();
+/// two link lists (Featured / Namespaces).
+fn render_explore(stats: &Stats) -> String {
+    let pkg_count = format_count(stats.package_count);
+    let author_count = format_count(stats.author_count);
+    let ns_count = format_count(stats.namespaces.len());
+    let search_html = search_bar::landing(&pkg_count).to_string();
+
+    let featured_rows: Vec<LinkRow<'_>> = stats
+        .featured
+        .iter()
+        .map(|r| LinkRow {
+            left: &r.left,
+            right: &r.right,
+            href: &r.href,
+        })
+        .collect();
+    let namespace_rows: Vec<LinkRow<'_>> = stats
+        .namespaces
+        .iter()
+        .map(|r| LinkRow {
+            left: &r.left,
+            right: &r.right,
+            href: &r.href,
+        })
+        .collect();
     let featured = link_list::render(
         "Featured",
-        FEATURED,
+        &featured_rows,
         &LeftStyle::Mono,
         &RightStyle::Description,
     );
-    let categories = link_list::render(
-        "Categories",
-        CATEGORIES,
-        &LeftStyle::Plain,
+    let namespaces = link_list::render(
+        "Namespaces",
+        &namespace_rows,
+        &LeftStyle::Mono,
         &RightStyle::Count,
     );
 
@@ -158,9 +290,9 @@ fn render_explore(package_count: usize) -> String {
     <div class="text-[12px] mono uppercase tracking-wider text-ink-500">Explore</div>
     <h2 class="mt-2 text-[28px] md:text-[32px] font-semibold tracking-tight">The ecosystem.</h2>
     <p class="mt-3 text-[14px] text-ink-700 leading-relaxed">
-      <span class="mono tabular-nums text-ink-900">{count_str}</span> packages from
-      <span class="mono tabular-nums text-ink-900">13</span> authors across
-      <span class="mono tabular-nums text-ink-900">8</span> categories.
+      <span class="mono tabular-nums text-ink-900">{pkg_count}</span> packages from
+      <span class="mono tabular-nums text-ink-900">{author_count}</span> authors across
+      <span class="mono tabular-nums text-ink-900">{ns_count}</span> namespaces.
     </p>
   </div>
 
@@ -168,7 +300,7 @@ fn render_explore(package_count: usize) -> String {
 
   <div class="mt-10 grid md:grid-cols-2 gap-x-12 gap-y-10">
     {featured}
-    {categories}
+    {namespaces}
   </div>
 
   <div class="mt-6 text-right text-[13px]">
@@ -231,65 +363,6 @@ fn install_snippet() -> String {
     s
 }
 
-/// Curated featured packages with hand-picked descriptions.
-const FEATURED: &[LinkRow<'static>] = &[
-    LinkRow {
-        left: "wasi:http",
-        right: "WASI standard for HTTP",
-        href: "/wasi/http",
-    },
-    LinkRow {
-        left: "wasi:cli",
-        right: "Command-line entry points",
-        href: "/wasi/cli",
-    },
-    LinkRow {
-        left: "wasi:io",
-        right: "Streams and pollables",
-        href: "/wasi/io",
-    },
-    LinkRow {
-        left: "wasi:clocks",
-        right: "Wall-clock and monotonic time",
-        href: "/wasi/clocks",
-    },
-    LinkRow {
-        left: "wasi:logging",
-        right: "Structured logging interface",
-        href: "/wasi/logging",
-    },
-];
-
-/// Hard-coded category list — taxonomy work is a follow-up.
-// TODO: replace with a real taxonomy backed by registry metadata.
-const CATEGORIES: &[LinkRow<'static>] = &[
-    LinkRow {
-        left: "HTTP & networking",
-        right: "1 248",
-        href: "/all",
-    },
-    LinkRow {
-        left: "CLI & shell",
-        right: "906",
-        href: "/all",
-    },
-    LinkRow {
-        left: "Storage",
-        right: "512",
-        href: "/all",
-    },
-    LinkRow {
-        left: "Parsers",
-        right: "464",
-        href: "/all",
-    },
-    LinkRow {
-        left: "Cryptography",
-        right: "388",
-        href: "/all",
-    },
-];
-
 const SHIELD_SVG: &str = r#"<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>"#;
 const STACK_SVG: &str = concat!(
     r#"<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">"#,
@@ -351,5 +424,67 @@ mod tests {
         let snippet = install_snippet();
         assert!(snippet.contains("install.sh"));
         assert!(snippet.contains("wasi:http"));
+    }
+
+    fn pkg(ns: &str, name: &str, tags: &[&str], description: Option<&str>) -> KnownPackage {
+        KnownPackage {
+            registry: "ghcr.io".into(),
+            repository: format!("{ns}/{name}"),
+            kind: None,
+            description: description.map(str::to_owned),
+            tags: tags.iter().map(|s| (*s).to_owned()).collect(),
+            signature_tags: vec![],
+            attestation_tags: vec![],
+            last_seen_at: String::new(),
+            created_at: String::new(),
+            wit_namespace: Some(ns.into()),
+            wit_name: Some(name.into()),
+            dependencies: vec![],
+        }
+    }
+
+    #[test]
+    fn stats_aggregate_counts_and_authors() {
+        let packages = vec![
+            pkg("wasi", "http", &["0.1.0", "0.2.0", "0.2.1"], Some("HTTP")),
+            pkg("wasi", "io", &["0.2.0"], None),
+            pkg("ba", "sqlite", &["0.1.0", "0.2.0"], Some("SQLite")),
+        ];
+        let stats = Stats::from_packages(&packages);
+        assert_eq!(stats.package_count, 3);
+        assert_eq!(stats.author_count, 2);
+        assert_eq!(stats.version_count, 6);
+    }
+
+    #[test]
+    fn stats_featured_sorted_by_version_count() {
+        let packages = vec![
+            pkg("wasi", "io", &["0.2.0"], None),
+            pkg("wasi", "http", &["0.1.0", "0.2.0", "0.2.1"], Some("HTTP")),
+            pkg("ba", "sqlite", &["0.1.0", "0.2.0"], Some("SQLite")),
+        ];
+        let stats = Stats::from_packages(&packages);
+        assert_eq!(stats.featured[0].left, "wasi:http");
+        assert_eq!(stats.featured[0].right, "HTTP");
+        assert_eq!(stats.featured[0].href, "/wasi/http");
+        assert_eq!(stats.featured[1].left, "ba:sqlite");
+        // Falls back to release count when description is missing.
+        assert_eq!(stats.featured[2].right, "1 release");
+    }
+
+    #[test]
+    fn stats_top_namespaces_sorted_by_package_count() {
+        let packages = vec![
+            pkg("wasi", "http", &["0.1.0"], None),
+            pkg("wasi", "io", &["0.1.0"], None),
+            pkg("wasi", "cli", &["0.1.0"], None),
+            pkg("ba", "sqlite", &["0.1.0"], None),
+        ];
+        let stats = Stats::from_packages(&packages);
+        assert_eq!(stats.namespaces[0].left, "wasi");
+        assert_eq!(stats.namespaces[0].right, "3");
+        assert_eq!(stats.namespaces[0].href, "/wasi");
+        assert_eq!(stats.namespaces[1].left, "ba");
+        assert_eq!(stats.namespaces[1].right, "1");
     }
 }
