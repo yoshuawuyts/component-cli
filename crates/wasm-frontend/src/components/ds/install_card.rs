@@ -43,9 +43,7 @@ pub(crate) fn render(card: &InstallCard<'_>) -> String {
     let copy_script = if copy_command.is_empty() {
         String::new()
     } else {
-        let escaped = copy_command
-            .replace('\\', "\\\\")
-            .replace('\'', "\\'");
+        let escaped = copy_command.replace('\\', "\\\\").replace('\'', "\\'");
         format!(
             r"<script>(function(){{var b=document.getElementById('install-card-copy');if(!b)return;var l=b.querySelector('[data-copy-label]');b.addEventListener('click',function(){{navigator.clipboard.writeText('{escaped}').then(function(){{if(!l)return;var o=l.textContent;l.textContent='Copied';setTimeout(function(){{l.textContent=o}},1500)}})}})}})()</script>"
         )

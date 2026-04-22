@@ -112,6 +112,10 @@ pub(crate) const GRID_ICONS: &[(&str, &str)] = &[
         r#"<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg>"#,
         "chevron-down",
     ),
+    (
+        r#"<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>"#,
+        "info",
+    ),
 ];
 
 const INLINE_DESC: &str = r#"These are the icons you'll see most across the site — in the top bar, in tree links, beside copyable code, and in callouts. They sit at <code class="mono text-[12px]">h-3.5 w-3.5</code> (14px), coloured <code class="mono text-[12px]">text-ink-500</code>, paired with body text or a mono label. Larger swatches below are reference at 20px so the stroke geometry is visible."#;

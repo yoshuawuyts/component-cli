@@ -13,6 +13,19 @@ pub(crate) struct Sigil {
     pub text: &'static str,
 }
 
+/// Return the sigil for a WIT type kind.
+pub(crate) fn for_type_kind(kind: &crate::wit_doc::TypeKind) -> &'static Sigil {
+    use crate::wit_doc::TypeKind;
+    match kind {
+        TypeKind::Record { .. } => &RECORD,
+        TypeKind::Variant { .. } => &VARIANT,
+        TypeKind::Enum { .. } => &ENUM,
+        TypeKind::Flags { .. } => &FLAGS,
+        TypeKind::Resource { .. } => &RESOURCE,
+        TypeKind::Alias(_) => &TYPE,
+    }
+}
+
 /// World — cream "W".
 pub(crate) const WORLD: Sigil = Sigil {
     bg: "var(--c-cat-cream)",
@@ -91,10 +104,10 @@ pub(crate) const MODULE: Sigil = Sigil {
     text: "M",
 };
 
-/// Dependency — slate, layers icon.
+/// Dependency — plum, layers icon.
 pub(crate) const DEPENDENCY: Sigil = Sigil {
-    bg: "var(--c-cat-slate)",
-    color: "var(--c-cat-slate-ink)",
+    bg: "var(--c-cat-plum)",
+    color: "var(--c-cat-plum-ink)",
     text: concat!(
         r#"<svg style="width:12px;height:12px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">"#,
         include_str!("../../../../../vendor/lucide/layers.svg"),

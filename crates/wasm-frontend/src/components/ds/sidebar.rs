@@ -4,14 +4,29 @@ use html::content::Navigation;
 use html::interactive::Details;
 use html::text_content::Division;
 
-/// Info bubble: a small (i) icon with a tooltip.
-pub(crate) const INFO_BUBBLE: &str = r#"<span class="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-ink-400 text-[8px] text-ink-400 font-semibold cursor-help" title="The OCI tag for this release">i</span>"#;
+/// Info bubble: a small info icon with a tooltip.
+pub(crate) const INFO_BUBBLE: &str = concat!(
+    r#"<span class="inline-flex items-center justify-center w-3 h-3 text-ink-400 cursor-help" title="The OCI tag for this release">"#,
+    r#"<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">"#,
+    include_str!("../../../../../vendor/lucide/info.svg"),
+    "</svg></span>",
+);
 
 /// Info bubble for the digest field.
-pub(crate) const INFO_BUBBLE_DIGEST: &str = r#"<span class="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-ink-400 text-[8px] text-ink-400 font-semibold cursor-help" title="Content-addressable SHA-256 digest of the OCI manifest. We use this to pin an exact image for reproducible builds.">i</span>"#;
+pub(crate) const INFO_BUBBLE_DIGEST: &str = concat!(
+    r#"<span class="inline-flex items-center justify-center w-3 h-3 text-ink-400 cursor-help" title="Content-addressable SHA-256 digest of the OCI manifest. We use this to pin an exact image for reproducible builds.">"#,
+    r#"<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">"#,
+    include_str!("../../../../../vendor/lucide/info.svg"),
+    "</svg></span>",
+);
 
 /// Info bubble for the revision field.
-pub(crate) const INFO_BUBBLE_REVISION: &str = r#"<span class="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-ink-400 text-[8px] text-ink-400 font-semibold cursor-help" title="Source control revision (e.g. the git commit) this image was built from.">i</span>"#;
+pub(crate) const INFO_BUBBLE_REVISION: &str = concat!(
+    r#"<span class="inline-flex items-center justify-center w-3 h-3 text-ink-400 cursor-help" title="Source control revision (e.g. the git commit) this image was built from.">"#,
+    r#"<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">"#,
+    include_str!("../../../../../vendor/lucide/info.svg"),
+    "</svg></span>",
+);
 
 #[allow(dead_code)]
 const SVG_CHEV_DOWN: &str = concat!(

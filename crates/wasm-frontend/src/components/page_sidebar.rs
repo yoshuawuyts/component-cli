@@ -120,7 +120,7 @@ pub(crate) fn render_sidebar(ctx: &SidebarContext<'_>) -> Aside {
     let mut aside = Aside::builder();
     aside
         .aria_label("Package navigation")
-        .class("hidden md:block md:sticky md:self-start md:overflow-y-auto pt-8 space-y-4")
+        .class("hidden md:block md:sticky md:self-start md:overflow-y-auto pt-8 pb-8 pr-3 space-y-4")
         .style("top: var(--navbar-offset); max-height: calc(100vh - var(--navbar-offset)); transform: translateZ(0); will-change: transform; overscroll-behavior: contain;");
     aside.text(header_html);
 
@@ -131,7 +131,7 @@ pub(crate) fn render_sidebar(ctx: &SidebarContext<'_>) -> Aside {
     let has_revision = revision.is_some();
     if has_version || has_digest || has_revision {
         let mut block =
-            String::from(r#"<div class="pb-4 border-b-[1.5px] border-rule space-y-3">"#);
+            String::from(r#"<div class="pb-5 border-b-[1.5px] border-rule space-y-3">"#);
         if let Some(version) = &version_html {
             block.push_str(version);
         }
@@ -152,6 +152,7 @@ pub(crate) fn render_sidebar(ctx: &SidebarContext<'_>) -> Aside {
 
     // Dependencies section
     if !ctx.dependencies.is_empty() {
+        aside.text(r#"<div class="border-t-[1.5px] border-rule my-4"></div>"#.to_owned());
         let dep_items = build_dependency_entries(ctx.dependencies);
         let deps_html = sidebar::render_items_nav(Some("Dependencies"), &dep_items);
         aside.text(deps_html);
@@ -188,10 +189,11 @@ fn build_dependency_entries(
     deps.iter()
         .map(|dep| {
             let href = format!("/{}", dep.package.replace(':', "/"));
-            let meta = dep
-                .version
-                .as_deref()
-                .map_or(String::new(), |v| format!("@{v}"));
+            let meta = dep.version.as_deref().map_or(String::new(), |v| {
+                format!(
+                    r#"<span class="inline-flex items-center px-1.5 h-5 rounded border border-line text-[10px] mono text-ink-500">{v}</span>"#
+                )
+            });
             SidebarItem::Entry(SidebarEntry {
                 sigil_bg: s::DEPENDENCY.bg,
                 sigil_color: s::DEPENDENCY.color,
@@ -216,7 +218,7 @@ fn build_sidebar_header(ctx: &SidebarContext<'_>) -> String {
     };
 
     format!(
-        r#"<div class="pb-4 border-b-[1.5px] border-rule"><div class="flex items-center gap-2.5"><span class="sigil" style="background:{};color:{};width:28px;height:28px;">{icon}</span><div><a href="/{ns}/{}" class="text-[15px] font-semibold text-ink-900 hover:underline no-underline">{}</a><div class="text-[11px] text-ink-500 mono">v{} · {}</div></div></div><p class="mt-2 text-[12px] text-ink-700 leading-relaxed">{desc}</p></div>"#,
+        r#"<div class="pb-4 border-b-[1.5px] border-rule"><div class="flex items-start gap-2.5"><span class="sigil" style="background:{};color:{};width:28px;height:28px;margin-top:2px;">{icon}</span><div><a href="/{ns}/{}" class="text-[15px] font-semibold text-ink-900 hover:underline no-underline">{}</a><div class="text-[11px] text-ink-500 mono">v{} · {}</div></div></div><p class="mt-2 text-[12px] text-ink-700 leading-relaxed">{desc}</p></div>"#,
         s::ROOT.bg,
         s::ROOT.color,
         ctx.version,
@@ -292,13 +294,15 @@ fn build_project_section(ctx: &SidebarContext<'_>) -> Option<String> {
 /// Render a project link as a tree-link with an icon and label.
 fn project_link(href: &str, icon: &str, label: &str) -> String {
     format!(
-        r#"<a href="{href}" class="tree-link" target="_blank" rel="noopener">{icon} {label}</a>"#
+        r#"<a href="{href}" class="tree-link" target="_blank" rel="noopener"><span class="project-icon">{icon}</span> <span>{label}</span></a>"#
     )
 }
 
 /// Render a non-link row with an icon and text (tree-link styling, no href).
 fn project_icon_row(icon: &str, text: &str) -> String {
-    format!(r#"<div class="tree-link">{icon} {text}</div>"#)
+    format!(
+        r#"<div class="tree-link"><span class="project-icon">{icon}</span> <span>{text}</span></div>"#
+    )
 }
 
 /// Render a key-value detail row for the project section.
@@ -488,16 +492,11 @@ fn push_wit_nav(items: &mut Vec<SidebarItem>, ctx: &SidebarContext<'_>, doc: &Wi
         );
         let mut children = Vec::new();
         for ty in &iface.types {
-            let (bg, color, text) = if matches!(ty.kind, crate::wit_doc::TypeKind::Resource { .. })
-            {
-                (s::RESOURCE.bg, s::RESOURCE.color, s::RESOURCE.text)
-            } else {
-                (s::TYPE.bg, s::TYPE.color, s::TYPE.text)
-            };
+            let sigil = s::for_type_kind(&ty.kind);
             children.push(SidebarEntry {
-                sigil_bg: bg,
-                sigil_color: color,
-                sigil_text: text,
+                sigil_bg: sigil.bg,
+                sigil_color: sigil.color,
+                sigil_text: sigil.text,
                 name: ty.name.clone(),
                 href: ty.url.clone(),
                 meta: String::new(),

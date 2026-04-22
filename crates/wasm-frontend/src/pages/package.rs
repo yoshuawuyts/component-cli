@@ -263,6 +263,14 @@ fn render_wit_content_with_doc(
         }
     }
 
+    // For packages without components (e.g. WIT-only), show version-level metadata.
+    if detail.components.is_empty()
+        && let Some(table) = metadata_table::render_version(detail)
+    {
+        toc.push(("#metadata".to_owned(), "Metadata".to_owned(), false));
+        section.division(|d| d.id("metadata".to_owned()).push(table));
+    }
+
     (section.build().to_string(), toc)
 }
 

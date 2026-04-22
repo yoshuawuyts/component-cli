@@ -95,9 +95,9 @@ pub(crate) fn render_page_with_crumbs(
     };
 
     let grid_class = if toc_html.is_some() {
-        "max-w-[1440px] px-4 md:px-6 grid grid-cols-1 lg:grid-cols-[240px_1fr_200px] gap-12 lg:gap-16"
+        "max-w-[1440px] px-4 md:px-6 grid grid-cols-1 lg:grid-cols-[240px_1fr_200px] gap-8 lg:gap-10"
     } else {
-        "max-w-[1440px] px-4 md:px-6 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-12 lg:gap-16"
+        "max-w-[1440px] px-4 md:px-6 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-8 lg:gap-10"
     };
 
     let body = format!(

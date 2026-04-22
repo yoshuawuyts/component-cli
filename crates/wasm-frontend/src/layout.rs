@@ -570,6 +570,7 @@ fn document_inner(
     .tree-link.active {{ background: var(--c-surface-muted); color: var(--c-ink-900); font-weight: 500; }}
     .tree-link .chev {{ width: 10px; height: 10px; flex-shrink: 0; color: var(--c-ink-400); transition: transform 120ms cubic-bezier(.2, 0, 0, 1); margin-top: 4px; }}
     .tree-link::before {{ content: ""; width: 10px; flex-shrink: 0; }}
+    .tree-link .project-icon {{ display: inline-flex; align-items: center; height: 18px; flex-shrink: 0; }}
     summary.tree-link::before {{ display: none; }}
     details[open]>summary .chev {{ transform: rotate(90deg); }}
     details>summary {{ list-style: none; cursor: pointer; }}

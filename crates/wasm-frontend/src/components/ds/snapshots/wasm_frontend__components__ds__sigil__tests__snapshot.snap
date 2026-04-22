@@ -109,7 +109,7 @@ expression: "crate::components::ds::pretty_html(&render(\"sigils\", \"25\", \"Si
           </span>
         </div>
         <div class="flex flex-col items-center gap-2">
-          <span class="sigil" style="background:var(--c-cat-slate);color:var(--c-cat-slate-ink);">
+          <span class="sigil" style="background:var(--c-cat-plum);color:var(--c-cat-plum-ink);">
             <svg style="width:12px;height:12px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" />
               <path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" />

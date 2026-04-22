@@ -123,7 +123,7 @@ pub(crate) fn render_sidebar(ctx: &SidebarContext<'_>) -> Aside {
     let has_revision = revision.is_some();
     if has_version || has_digest || has_revision {
         let mut block =
-            String::from(r#"<div class="pb-4 border-b-[1.5px] border-rule space-y-3">"#);
+            String::from(r#"<div class="pb-5 border-b-[1.5px] border-rule space-y-3">"#);
         if let Some(version) = &version_html {
             block.push_str(version);
         }
@@ -448,16 +448,11 @@ fn push_wit_nav(items: &mut Vec<SidebarItem>, ctx: &SidebarContext<'_>, doc: &Wi
         );
         let mut children = Vec::new();
         for ty in &iface.types {
-            let (bg, color, text) = if matches!(ty.kind, crate::wit_doc::TypeKind::Resource { .. })
-            {
-                (s::RESOURCE.bg, s::RESOURCE.color, s::RESOURCE.text)
-            } else {
-                (s::TYPE.bg, s::TYPE.color, s::TYPE.text)
-            };
+            let sigil = s::for_type_kind(&ty.kind);
             children.push(SidebarEntry {
-                sigil_bg: bg,
-                sigil_color: color,
-                sigil_text: text,
+                sigil_bg: sigil.bg,
+                sigil_color: sigil.color,
+                sigil_text: sigil.text,
                 name: ty.name.clone(),
                 href: ty.url.clone(),
                 meta: String::new(),

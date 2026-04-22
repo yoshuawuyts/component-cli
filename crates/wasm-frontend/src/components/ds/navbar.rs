@@ -145,6 +145,7 @@ pub(crate) fn render_bar(crumbs: &[Crumb], links: &[NavLink]) -> String {
                 .class("text-[13px] font-semibold text-ink-900 no-underline hover:text-ink-700 transition-colors whitespace-nowrap")
                 .text("Component Registry")
         })
+        .division(|d| d.class("w-px h-4 bg-line flex-shrink-0"))
         .text(breadcrumb_html)
         .build()
         .to_string();
