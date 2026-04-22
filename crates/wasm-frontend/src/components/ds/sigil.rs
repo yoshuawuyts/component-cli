@@ -91,6 +91,17 @@ pub(crate) const MODULE: Sigil = Sigil {
     text: "M",
 };
 
+/// Dependency — slate, layers icon.
+pub(crate) const DEPENDENCY: Sigil = Sigil {
+    bg: "var(--c-cat-slate)",
+    color: "var(--c-cat-slate-ink)",
+    text: concat!(
+        r#"<svg style="width:12px;height:12px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">"#,
+        include_str!("../../../../../vendor/lucide/layers.svg"),
+        "</svg>"
+    ),
+};
+
 /// Nested component — plum "C".
 pub(crate) const COMPONENT: Sigil = Sigil {
     bg: "var(--c-cat-plum)",
@@ -115,6 +126,7 @@ pub(crate) const ALL: &[(&str, &Sigil)] = &[
     ("Enum", &ENUM),
     ("Module", &MODULE),
     ("Component", &COMPONENT),
+    ("Dependency", &DEPENDENCY),
     ("Root", &ROOT),
 ];
 

@@ -15,7 +15,7 @@ expression: "crate::components::ds::pretty_html(&render(\"v1.0\",\n\"Foundations
     <span class="ml-auto">
     </span>
     <div class="relative" id="theme-dropdown">
-      <button type="button" id="theme-trigger" aria-label="Color theme" aria-haspopup="true" aria-expanded="false" class="inline-flex items-center justify-center h-7 w-7 rounded-md border border-line bg-surface text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 transition-colors">
+      <button type="button" id="theme-trigger" aria-label="Color theme" aria-haspopup="true" aria-expanded="false" class="inline-flex items-center justify-center h-7 w-7 rounded-md text-ink-500 hover:bg-surfaceMuted hover:text-ink-900 transition-colors">
         <span class="theme-icon theme-icon-auto">
           <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10" />

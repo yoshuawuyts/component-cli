@@ -73,6 +73,7 @@ pub(crate) fn render(spec: &DetailSpec<'_>) -> String {
         registry: &spec.pkg.registry,
         repository: &spec.pkg.repository,
         digest: spec.version_detail.map(|d| d.digest.as_str()),
+        dependencies: &spec.pkg.dependencies,
     });
 
     let shell_ctx = page_shell::SidebarContext {

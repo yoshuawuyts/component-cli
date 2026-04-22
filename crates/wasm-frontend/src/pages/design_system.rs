@@ -420,6 +420,7 @@ fn render_landing_components() -> String {
             install_card::positive("  ✓ Installed wasm v0.4.0"),
         ),
         sha: "9e4a…c0f1",
+        copy_command: "curl -sSf https://wasm.dev/install.sh | sh",
     });
     html.push_str(RULE_MT);
     html.push_str(&ds::section(

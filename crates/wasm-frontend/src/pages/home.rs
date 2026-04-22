@@ -25,15 +25,26 @@ pub(crate) async fn render(client: &RegistryClient) -> String {
 
 /// Render the home page with a list of packages.
 fn render_packages(packages: &[KnownPackage]) -> String {
-    let body = compose_body(&Stats::from_packages(packages));
+    let body = compose_body(&Stats::from_packages(packages), None);
     layout::document_landing("Home", &body)
 }
 
 /// Render the home page with an API error message — keep the chrome but
-/// fall back to empty stats.
-fn render_error(_err: &ApiError) -> String {
-    let body = compose_body(&Stats::default());
+/// surface a small notice so visitors know the live data is unavailable.
+fn render_error(err: &ApiError) -> String {
+    let notice = format!(
+        r#"<div class="mx-auto max-w-[1280px] px-4 md:px-8 pt-4"><div role="status" class="flex items-start gap-2 rounded-md border border-line bg-surfaceMuted px-3 py-2 text-[12px] text-ink-700"><span class="mono uppercase tracking-wider text-ink-500">Registry offline</span><span>Live package data is temporarily unavailable. Install the CLI below to get started — the registry is not required to use <code class="px-1 py-0.5 rounded-sm bg-surface text-ink-900 mono text-[0.875em]">wasm</code> locally. ({err})</span></div></div>"#,
+        err = html_escape(&err.to_string()),
+    );
+    let body = compose_body(&Stats::default(), Some(&notice));
     layout::document_landing("Home", &body)
+}
+
+/// Minimal HTML escape for inline error text.
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 /// Aggregated landing-page statistics derived from the registry index.
@@ -147,13 +158,15 @@ impl Stats {
     }
 }
 
-/// Compose the full landing page body.
-fn compose_body(stats: &Stats) -> String {
+/// Compose the full landing page body. `notice_html` is rendered above
+/// the hero when present (for example, a registry-offline banner).
+fn compose_body(stats: &Stats, notice_html: Option<&str>) -> String {
     let install = install_card::render(&InstallCard {
         platforms: &["macOS", "Linux", "Windows"],
         filename: "install.sh",
         snippet_html: &install_snippet(),
         sha: "9e4a…c0f1",
+        copy_command: "curl -sSf https://wasm.dev/install.sh | sh",
     });
 
     let hero_html = hero::render(&Hero {
@@ -234,8 +247,10 @@ fn compose_body(stats: &Stats) -> String {
         secondary_href: "/docs",
     });
 
+    let notice_html = notice_html.unwrap_or("");
     format!(
-        r#"{hero_html}
+        r#"{notice_html}
+{hero_html}
 {metrics_html}
 <div class="bg-surface pt-12 md:pt-16 pb-14 md:pb-20">
 {explore_html}

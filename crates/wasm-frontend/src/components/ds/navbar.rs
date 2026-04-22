@@ -113,7 +113,7 @@ const THEME_AUTO: &str = concat!(
 pub(crate) fn theme_dropdown() -> String {
     format!(
         r#"<div class="relative" id="theme-dropdown">
-<button type="button" id="theme-trigger" aria-label="Color theme" aria-haspopup="true" aria-expanded="false" class="inline-flex items-center justify-center h-7 w-7 rounded-md border border-line bg-surface text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 transition-colors">
+<button type="button" id="theme-trigger" aria-label="Color theme" aria-haspopup="true" aria-expanded="false" class="inline-flex items-center justify-center h-7 w-7 rounded-md text-ink-500 hover:bg-surfaceMuted hover:text-ink-900 transition-colors">
 <span class="theme-icon theme-icon-auto">{THEME_AUTO}</span>
 <span class="theme-icon theme-icon-light" style="display:none">{THEME_SUN}</span>
 <span class="theme-icon theme-icon-dark" style="display:none">{THEME_MOON}</span>

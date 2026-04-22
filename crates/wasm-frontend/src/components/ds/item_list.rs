@@ -98,7 +98,7 @@ pub(crate) fn render_dyn_item_list(title: &str, items: &[DynItemRow]) -> Divisio
     wrapper.division(|d| {
         d.class("flex items-baseline justify-between")
             .heading_2(|h| {
-                h.class("text-[16px] font-semibold tracking-tight")
+                h.class("text-[24px] font-semibold tracking-tight")
                     .text(title)
             })
             .span(|s| {

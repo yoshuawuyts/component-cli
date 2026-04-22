@@ -568,7 +568,7 @@ fn document_inner(
     .tree-link .mono {{ font-size: 12.5px; min-width: 0; overflow-wrap: break-word; word-break: break-all; }}
     .tree-link:hover {{ background: var(--c-surface-muted); color: var(--c-ink-900); }}
     .tree-link.active {{ background: var(--c-surface-muted); color: var(--c-ink-900); font-weight: 500; }}
-    .tree-link .chev {{ width: 10px; height: 10px; flex-shrink: 0; color: var(--c-ink-400); transition: transform 120ms cubic-bezier(.2, 0, 0, 1); }}
+    .tree-link .chev {{ width: 10px; height: 10px; flex-shrink: 0; color: var(--c-ink-400); transition: transform 120ms cubic-bezier(.2, 0, 0, 1); margin-top: 4px; }}
     .tree-link::before {{ content: ""; width: 10px; flex-shrink: 0; }}
     summary.tree-link::before {{ display: none; }}
     details[open]>summary .chev {{ transform: rotate(90deg); }}

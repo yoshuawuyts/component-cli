@@ -78,6 +78,8 @@ pub(crate) struct SidebarContext<'a> {
     pub repository: &'a str,
     /// OCI image digest (e.g. "sha256:abc123...").
     pub digest: Option<&'a str>,
+    /// Package dependencies.
+    pub dependencies: &'a [wasm_meta_registry_client::PackageDependencyRef],
 }
 
 /// Which item in the sidebar is currently active.
@@ -118,7 +120,7 @@ pub(crate) fn render_sidebar(ctx: &SidebarContext<'_>) -> Aside {
     let mut aside = Aside::builder();
     aside
         .aria_label("Package navigation")
-        .class("hidden md:block md:sticky md:self-start md:overflow-y-auto space-y-4")
+        .class("hidden md:block md:sticky md:self-start md:overflow-y-auto pt-8 space-y-4")
         .style("top: var(--navbar-offset); max-height: calc(100vh - var(--navbar-offset)); transform: translateZ(0); will-change: transform; overscroll-behavior: contain;");
     aside.text(header_html);
 
@@ -147,6 +149,14 @@ pub(crate) fn render_sidebar(ctx: &SidebarContext<'_>) -> Aside {
         aside.text(project.clone());
     }
     aside.text(items_html);
+
+    // Dependencies section
+    if !ctx.dependencies.is_empty() {
+        let dep_items = build_dependency_entries(ctx.dependencies);
+        let deps_html = sidebar::render_items_nav(Some("Dependencies"), &dep_items);
+        aside.text(deps_html);
+    }
+
     aside.build()
 }
 
@@ -170,6 +180,30 @@ const SVG_BOX: &str = concat!(
     include_str!("../../../../vendor/lucide/box.svg"),
     "</svg>"
 );
+
+/// Build flat sidebar entries for package dependencies.
+fn build_dependency_entries(
+    deps: &[wasm_meta_registry_client::PackageDependencyRef],
+) -> Vec<SidebarItem> {
+    deps.iter()
+        .map(|dep| {
+            let href = format!("/{}", dep.package.replace(':', "/"));
+            let meta = dep
+                .version
+                .as_deref()
+                .map_or(String::new(), |v| format!("@{v}"));
+            SidebarItem::Entry(SidebarEntry {
+                sigil_bg: s::DEPENDENCY.bg,
+                sigil_color: s::DEPENDENCY.color,
+                sigil_text: s::DEPENDENCY.text,
+                name: dep.package.clone(),
+                href,
+                meta,
+                active: false,
+            })
+        })
+        .collect()
+}
 
 /// Build the sidebar header with icon, title, version subtitle, and description.
 fn build_sidebar_header(ctx: &SidebarContext<'_>) -> String {
