@@ -90,7 +90,7 @@ pub(crate) fn render_page_with_crumbs(
 
     let toc_column = match toc_html {
         Some(toc) => format!(
-            r#"<aside aria-label="Page contents" class="hidden lg:block bg-surface"><div class="sticky overflow-y-auto px-4 md:px-6 pt-8" style="top: var(--navbar-offset); max-height: calc(100vh - var(--navbar-offset)); overscroll-behavior: contain;">{toc}</div></aside>"#
+            r#"<aside aria-label="Page contents" class="hidden lg:block bg-canvas"><div class="sticky overflow-y-auto px-4 md:px-6 pt-8" style="top: var(--navbar-offset); max-height: calc(100vh - var(--navbar-offset)); overscroll-behavior: contain;">{toc}</div></aside>"#
         ),
         None => String::new(),
     };
@@ -104,9 +104,9 @@ pub(crate) fn render_page_with_crumbs(
     let body_children = format!(
         r#"{nav}
   {sidebar_html}
-  <main id="content" class="min-w-0 px-4 md:px-6 lg:px-8 pt-8 pb-24 bg-surface"><article>{header}{body_content}</article></main>
+  <main id="content" class="min-w-0 px-4 md:px-6 lg:px-8 pt-8 pb-24 bg-canvas"><article>{header}{body_content}</article></main>
   {toc_column}
-  <div class="hidden md:block bg-surface" aria-hidden="true"></div>
+  <div class="hidden md:block bg-canvas" aria-hidden="true"></div>
   {footer_html}"#,
     );
 

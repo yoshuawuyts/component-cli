@@ -8,6 +8,9 @@ use html::tables::{Table, TableBody, TableRow};
 use html::text_content::Division;
 use wasm_meta_registry_client::{BomEntry, ComponentSummary, PackageVersion};
 
+/// Chevron SVG for collapsible sections — points left when collapsed, down when open.
+const CHEVRON_SVG: &str = r#"<svg class="h-4 w-4 text-ink-400 transition-transform duration-200 rotate-90 group-open:rotate-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>"#;
+
 /// Render a metadata table for a component or module.
 ///
 /// Returns `None` if there is no metadata to display.
@@ -19,10 +22,6 @@ pub(crate) fn render(child: &ComponentSummary) -> Option<Division> {
     }
 
     let mut div = Division::builder();
-    div.heading_2(|h| {
-        h.class("text-[24px] font-semibold tracking-tight pb-4")
-            .text("Metadata")
-    });
 
     let mut tbody = TableBody::builder();
     tbody.class("text-ink-900");
@@ -34,11 +33,13 @@ pub(crate) fn render(child: &ComponentSummary) -> Option<Division> {
         .class("w-full text-[13px]")
         .push(tbody.build())
         .build();
-    div.division(|wrapper| {
-        wrapper
-            .class("rounded-lg bg-canvas overflow-hidden")
-            .push(table)
-    });
+    let table_html = format!(
+        r#"<div class="rounded-lg bg-surface overflow-hidden">{table}</div>"#
+    );
+
+    div.text(format!(
+        r#"<details open class="group space-y-3"><summary class="flex items-center justify-between cursor-pointer list-none [&::-webkit-details-marker]:hidden"><h2 class="text-[22px] font-semibold tracking-tight text-ink-700">Metadata</h2>{CHEVRON_SVG}</summary>{table_html}</details>"#
+    ));
     Some(div.build())
 }
 
@@ -53,10 +54,6 @@ pub(crate) fn render_version(version: &PackageVersion) -> Option<Division> {
     }
 
     let mut div = Division::builder();
-    div.heading_2(|h| {
-        h.class("text-[24px] font-semibold tracking-tight pb-4")
-            .text("Metadata")
-    });
 
     let mut tbody = TableBody::builder();
     tbody.class("text-ink-900");
@@ -68,11 +65,13 @@ pub(crate) fn render_version(version: &PackageVersion) -> Option<Division> {
         .class("w-full text-[13px]")
         .push(tbody.build())
         .build();
-    div.division(|wrapper| {
-        wrapper
-            .class("rounded-lg bg-canvas overflow-hidden")
-            .push(table)
-    });
+    let table_html = format!(
+        r#"<div class="rounded-lg bg-surface overflow-hidden">{table}</div>"#
+    );
+
+    div.text(format!(
+        r#"<details open class="group space-y-3"><summary class="flex items-center justify-between cursor-pointer list-none [&::-webkit-details-marker]:hidden"><h2 class="text-[22px] font-semibold tracking-tight text-ink-700">Metadata</h2>{CHEVRON_SVG}</summary>{table_html}</details>"#
+    ));
     Some(div.build())
 }
 

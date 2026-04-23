@@ -92,26 +92,19 @@ pub(crate) fn render_dyn_item_row(item: &DynItemRow) -> Anchor {
 /// Render a list of dynamic item rows.
 pub(crate) fn render_dyn_item_list(title: &str, items: &[DynItemRow]) -> Division {
     let title = title.to_owned();
-    let count = items.len();
-    let mut wrapper = Division::builder();
-    wrapper.class("space-y-3");
-    wrapper.division(|d| {
-        d.class("flex items-baseline justify-between")
-            .heading_2(|h| {
-                h.class("text-[24px] font-semibold tracking-tight")
-                    .text(title)
-            })
-            .span(|s| {
-                s.class("text-[12px] text-ink-500 mono")
-                    .text(format!("{count}"))
-            })
-    });
-    let mut list = Division::builder();
-    list.class("item-list");
+    let mut list_html = String::new();
+    list_html.push_str(r#"<div class="item-list">"#);
     for item in items {
-        list.push(render_dyn_item_row(item));
+        list_html.push_str(&render_dyn_item_row(item).to_string());
     }
-    wrapper.push(list.build());
+    list_html.push_str("</div>");
+
+    let chevron = r#"<svg class="h-4 w-4 text-ink-400 transition-transform duration-200 rotate-90 group-open:rotate-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>"#;
+
+    let mut wrapper = Division::builder();
+    wrapper.text(format!(
+        r#"<details open class="group space-y-3"><summary class="flex items-center justify-between cursor-pointer list-none [&::-webkit-details-marker]:hidden"><h2 class="text-[22px] font-semibold tracking-tight text-ink-700">{title}</h2>{chevron}</summary>{list_html}</details>"#
+    ));
     wrapper.build()
 }
 
