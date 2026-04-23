@@ -67,17 +67,13 @@ const COLUMNS: &[FooterColumn] = &[
     },
 ];
 
-const LEGAL: &[FooterLink] = &[];
-
 /// Render the site footer.
 #[must_use]
 pub(crate) fn render() -> String {
     crate::components::ds::footer::render(&Footer {
         brand: "wasm",
-        lede: "A package manager and registry for WebAssembly components. Made by Yosh Wuyts.",
+        lede: "A package manager and registry for WebAssembly components. Made by Yosh Wuyts and contributors. To be donated to the Bytecode Alliance.",
         status: "All systems operational",
         columns: COLUMNS,
-        copyright: "© 2026 wasm contributors",
-        legal: LEGAL,
     })
 }

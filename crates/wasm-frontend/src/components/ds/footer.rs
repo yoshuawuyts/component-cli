@@ -24,10 +24,6 @@ pub(crate) struct Footer<'a> {
     pub status: &'a str,
     /// Right-hand link columns.
     pub columns: &'a [FooterColumn],
-    /// Bottom-left mono copyright string.
-    pub copyright: &'a str,
-    /// Bottom-right legal links.
-    pub legal: &'a [FooterLink],
 }
 
 /// Render the footer.
@@ -36,25 +32,24 @@ pub(crate) fn render(footer: &Footer<'_>) -> String {
     let brand = footer.brand.to_owned();
     let lede = footer.lede.to_owned();
     let status = footer.status.to_owned();
-    let copyright = footer.copyright.to_owned();
 
     FooterEl::builder()
         .class("col-span-full border-t border-lineSoft")
         .division(|grid| {
             let grid = grid
-                .class("mx-auto mx-auto max-w-[1280px] w-full px-4 md:px-8 py-10 grid grid-cols-2 md:grid-cols-5 gap-8 text-[13px]")
+                .class("max-w-[1280px] w-full px-4 md:px-8 py-10 grid grid-cols-2 md:grid-cols-[2fr_1fr_1fr_1fr] gap-x-8 gap-y-6 text-[13px]")
                 .division(|brand_col| {
                     brand_col
-                        .class("col-span-2")
+                        .class("col-span-2 md:col-span-1 flex flex-col")
                         .division(|d| {
-                            d.class("flex items-center text-[15px] font-semibold tracking-tight")
+                            d.class("text-[15px] font-semibold tracking-tight")
                                 .text(brand)
                         })
                         .paragraph(|p| {
-                            p.class("mt-3 max-w-sm text-ink-500 leading-relaxed").text(lede)
+                            p.class("mt-3 max-w-xs text-ink-500 leading-relaxed").text(lede)
                         })
                         .division(|d| {
-                            d.class("mt-4 inline-flex items-center gap-2 text-[12px] text-ink-500 mono")
+                            d.class("mt-auto pt-6 text-[12px] text-ink-500 mono inline-flex items-center gap-2")
                                 .span(|s| s.class("h-1.5 w-1.5 rounded-full bg-positive"))
                                 .text(status)
                         })
@@ -63,23 +58,6 @@ pub(crate) fn render(footer: &Footer<'_>) -> String {
                 push_column(grid, col);
             }
             grid
-        })
-        .division(|bottom| {
-            let mut bottom = bottom
-                .class("mx-auto mx-auto max-w-[1280px] w-full px-4 md:px-8 py-5 border-t border-lineSoft flex items-center justify-between text-[12px] text-ink-500")
-                .span(|s| s.class("mono").text(copyright));
-            bottom = bottom.division(|legal| {
-                let mut legal = legal.class("flex items-center gap-5");
-                for link in footer.legal {
-                    let label = link.label.to_owned();
-                    let href = link.href.to_owned();
-                    legal = legal.anchor(|a| {
-                        a.href(href).class("hover:text-ink-900 no-underline").text(label)
-                    });
-                }
-                legal
-            });
-            bottom
         })
         .build()
         .to_string()
@@ -160,8 +138,6 @@ mod tests {
                     links: COMMUNITY,
                 },
             ],
-            copyright: "© 2026 wasm contributors",
-            legal: LEGAL,
         });
         insta::assert_snapshot!(crate::components::ds::pretty_html(&html));
     }

@@ -90,7 +90,7 @@ pub(crate) fn render_page_with_crumbs(
 
     let toc_column = match toc_html {
         Some(toc) => format!(
-            r#"<aside aria-label="Page contents" class="hidden lg:block sticky self-start overflow-y-auto px-4 md:px-6 pt-8" style="top: var(--navbar-offset); max-height: min(100%, calc(100vh - var(--navbar-offset))); overscroll-behavior: contain;">{toc}</aside>"#
+            r#"<aside aria-label="Page contents" class="hidden lg:block"><div class="sticky overflow-y-auto px-4 md:px-6 pt-8" style="top: var(--navbar-offset); max-height: calc(100vh - var(--navbar-offset)); overscroll-behavior: contain;">{toc}</div></aside>"#
         ),
         None => String::new(),
     };

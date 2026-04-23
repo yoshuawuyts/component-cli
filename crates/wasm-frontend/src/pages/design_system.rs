@@ -604,17 +604,6 @@ fn render_landing_components() -> String {
                 }],
             },
         ],
-        copyright: "© 2026 wasm contributors",
-        legal: &[
-            FooterLink {
-                label: "Privacy",
-                href: "#",
-            },
-            FooterLink {
-                label: "Terms",
-                href: "#",
-            },
-        ],
     });
     html.push_str(RULE_MT);
     html.push_str(&ds::section(
