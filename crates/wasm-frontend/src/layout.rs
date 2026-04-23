@@ -38,28 +38,25 @@ pub(crate) fn document_with_nav(title: &str, body_content: &str) -> String {
             href: "/downloads",
         },
     ];
-    let nav = navbar::render_bar(&[], LINKS);
+    let nav = navbar::render_bar_grid(&[], LINKS);
     document_inner(title, body_content, &nav, MAIN_CLASS_CENTERED, true)
 }
 
-/// Render a full-width document (no centered max-width, no top nav, no footer).
+/// Render a document whose `<body>` is the top-level grid.
 ///
-/// Used by the golden-layout pages where the sidebar is flush left.
+/// Unlike the classic `flex flex-col` body, this does not wrap the content
+/// in a `<main>` and does not apply the default flex body class — the
+/// caller provides the body class (expected to be the grid definition) and
+/// the body children (e.g. `<header>`, `<aside>`, `<main>`, `<aside>`).
 #[must_use]
-pub(crate) fn document_full_width(title: &str, body_content: &str) -> String {
-    document_inner(title, body_content, "", MAIN_CLASS_FULL, false)
+pub(crate) fn document_grid(title: &str, body_class: &str, body_content: &str) -> String {
+    document_inner_grid(title, body_class, body_content)
 }
 
 /// Render a standalone design system page (wider container, no nav/footer).
 #[must_use]
 pub(crate) fn document_design_system(title: &str, body_content: &str) -> String {
-    document_inner(
-        title,
-        body_content,
-        "",
-        "mx-auto max-w-[1280px] px-4 md:px-8 pb-24",
-        false,
-    )
+    document_inner(title, body_content, "", MAIN_CLASS_CENTERED, false)
 }
 
 /// Render the landing-page document — full-width main, sticky navbar, and
@@ -82,14 +79,21 @@ pub(crate) fn document_landing(title: &str, body_content: &str) -> String {
             href: "/docs",
         },
     ];
-    let nav = navbar::render_bar(&[], LINKS);
+    let nav = navbar::render_bar_grid(&[], LINKS);
     document_inner(title, body_content, &nav, MAIN_CLASS_FULL, true)
 }
 
-const MAIN_CLASS_CENTERED: &str = "flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 md:px-8 pb-12";
-const MAIN_CLASS_FULL: &str = "flex-1 w-full";
+/// Centered main column for non-detail pages.
+const MAIN_CLASS_CENTERED: &str = "page-grid-content pb-12";
+/// Full-bleed main for landing pages whose sections center themselves.
+const MAIN_CLASS_FULL: &str = "page-grid-bleed";
 
-/// Inner document renderer.
+/// Default `<body>` class for the simple grid layout (non-detail pages).
+const BODY_CLASS_SIMPLE_GRID: &str =
+    "bg-canvas text-ink-900 min-h-screen page-grid-simple leading-relaxed font-sans antialiased";
+
+/// Inner document renderer for the simple-grid body — header, main, footer
+/// emitted as direct grid children of `.page-grid-simple`.
 fn document_inner(
     title: &str,
     body_content: &str,
@@ -97,6 +101,32 @@ fn document_inner(
     main_class: &str,
     show_footer: bool,
 ) -> String {
+    let footer_html = if show_footer {
+        footer::render()
+    } else {
+        String::new()
+    };
+    let body_children = format!(
+        r#"{nav}
+  <main id="content" class="{main_class}">
+    {body_content}
+  </main>
+  {footer_html}"#,
+    );
+    render_document(title, BODY_CLASS_SIMPLE_GRID, &body_children)
+}
+
+/// Inner document renderer for the grid-body layout used by detail pages.
+///
+/// The caller supplies the full set of body children (`<header>`, `<aside>`,
+/// `<main>`, `<aside>`) as a pre-rendered string.
+fn document_inner_grid(title: &str, body_class: &str, body_content: &str) -> String {
+    render_document(title, body_class, body_content)
+}
+
+/// Shared HTML document template — emits the full `<!DOCTYPE html>` …
+/// `</html>` shell with the given body class and body children.
+fn render_document(title: &str, body_class: &str, body_children: &str) -> String {
     let escaped_title = escape_html_text(title);
 
     format!(
@@ -539,6 +569,112 @@ fn document_inner(
     /* ── Design system component styles ─────────────────── */
     input:focus-visible, select:focus-visible, textarea:focus-visible {{ outline: none; }}
     .hairline {{ border-color: var(--c-line-soft); }}
+
+    /* ── Holy-grail body grid ──────────────────────────────
+       Mobile-first responsive layout following the canonical
+       holy-grail pattern (see references/holy-grail.html):
+       header / [sidebar] main [toc] / footer.
+
+       - Full-bleed body — sidebar/toc sit flush at the
+         viewport edges. The grid itself has no inline padding;
+         instead each cell that needs breathing room (header
+         inner, main column, footer inner) supplies its own.
+       - Real `column-gap` works (no margin tracks to absorb).
+       - `min-width: 0` on children prevents mono code blocks
+         from blowing out the grid. */
+    .page-grid {{
+      display: grid;
+      min-height: 100dvh;
+      column-gap: 2rem;
+      grid-template-rows: auto 1fr auto;
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "header"
+        "main"
+        "footer";
+    }}
+    .page-grid > * {{ min-width: 0; }}
+    .page-grid-header  {{ grid-area: header; }}
+    .page-grid-article {{ grid-area: main; padding-inline: 1rem; }}
+    .page-grid-footer  {{ grid-area: footer; }}
+    .page-grid-sidebar {{ grid-area: sidebar; display: none; padding-inline: 1rem; }}
+    .page-grid-toc     {{ grid-area: toc;     display: none; padding-inline: 1rem; }}
+    /* Header/footer span all columns. */
+    .page-grid-bleed {{ grid-column: 1 / -1; }}
+
+    @media (min-width: 768px) {{
+      .page-grid {{
+        grid-template-columns: 280px 1fr;
+        grid-template-areas:
+          "header  header"
+          "sidebar main"
+          "footer  footer";
+      }}
+      .page-grid-sidebar {{ display: block; }}
+      /* Sidebar is flush left; main no longer needs its own
+         left padding (the column-gap supplies the gutter). */
+      .page-grid-article {{ padding-left: 0; padding-right: 1.5rem; }}
+    }}
+
+    @media (min-width: 1024px) {{
+      .page-grid {{
+        grid-template-columns: 280px 1fr 220px;
+        grid-template-areas:
+          "header  header  header"
+          "sidebar main    toc"
+          "footer  footer  footer";
+      }}
+      .page-grid-toc {{ display: block; }}
+      /* Toc is flush right; main no longer needs right padding. */
+      .page-grid-article {{ padding-right: 0; }}
+    }}
+
+    /* ── Simple body grid (non-detail pages) ───────────────
+       Same vertical structure (header / main / footer) but
+       always single-column. Main content centers itself via
+       `.page-grid-content` (see below). */
+    .page-grid-simple {{
+      display: grid;
+      min-height: 100dvh;
+      grid-template-rows: auto 1fr auto;
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "header"
+        "main"
+        "footer";
+    }}
+    .page-grid-simple > * {{ min-width: 0; }}
+    /* Centered content for simple-grid pages — full bleed,
+       matches `.page-grid` inline padding so the navbar stays
+       aligned with the content. */
+    .page-grid-content {{
+      grid-area: main;
+      width: 100%;
+      padding-inline: 1rem;
+    }}
+    @media (min-width: 768px) {{
+      .page-grid-content {{ padding-inline: 1.5rem; }}
+    }}
+    @media (min-width: 1024px) {{
+      .page-grid-content {{ padding-inline: 2rem; }}
+    }}
+
+    /* Navbar inner — flex row spanning the header cell. The
+       header itself spans all body-grid columns, so this just
+       lays out the left/right clusters. */
+    .page-grid-nav-inner {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: var(--navbar-h);
+      gap: 1rem;
+    }}
+    .page-grid-nav-left,
+    .page-grid-nav-right {{
+      display: flex; align-items: center; min-width: 0;
+    }}
+    .page-grid-nav-left  {{ gap: 0.75rem; }}
+    .page-grid-nav-right {{ gap: 0.5rem; }}
     .rule {{ border-color: var(--c-rule) !important; border-top-width: 1.5px !important; }}
     .swatch {{ height: 88px; border-radius: 5px; border: 1px solid var(--c-swatch-border); }}
     .mono {{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }}
@@ -562,7 +698,7 @@ fn document_inner(
     .search-input-row {{ display: flex; align-items: center; gap: 10px; padding: 0 16px; height: 48px; border-bottom: 1px solid var(--c-line-soft); }}
     .search-hint {{ padding: 10px 16px; font-size: 12px; color: var(--c-ink-500); }}
     /* Sigil */
-    .sigil {{ display: inline-grid; place-items: center; height: 18px; width: 18px; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 10px; font-weight: 600; line-height: 1; flex-shrink: 0; text-transform: uppercase; }}
+    .sigil {{ display: inline-flex; align-items: center; justify-content: center; height: 18px; width: 18px; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 10px; font-weight: 600; line-height: 1; flex-shrink: 0; text-transform: uppercase; }}
     /* Tree-link */
     .tree-link {{ display: flex; align-items: flex-start; gap: 8px; padding: 3px 8px 3px 0; border-radius: 4px; font-size: 13px; color: var(--c-ink-700); text-decoration: none; line-height: 1.4; min-width: 0; }}
     .tree-link .mono {{ font-size: 12.5px; min-width: 0; overflow-wrap: break-word; word-break: break-all; }}
@@ -583,16 +719,17 @@ fn document_inner(
     .toc-link.indent {{ padding-left: 22px; }}
     /* Item list */
     .item-list {{ margin: 0; background: var(--c-canvas); border: 1px solid var(--c-line); border-radius: 8px; overflow: hidden; }}
-    .item-row {{ display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: baseline; padding: 12px 14px; border-top: 1px solid var(--c-line-soft); color: inherit; text-decoration: none; }}
+    .item-row {{ display: flex; gap: 12px; align-items: baseline; padding: 12px 14px; border-top: 1px solid var(--c-line-soft); color: inherit; text-decoration: none; }}
     .item-row:first-child {{ border-top: none; }}
     .item-row:hover {{ background: var(--c-surface-muted); }}
     .item-row.deprecated .name, .item-row.deprecated .desc {{ color: var(--c-ink-400); }}
     .item-row.deprecated .name {{ text-decoration: line-through; text-decoration-thickness: 1px; }}
     .item-row.deprecated .sigil {{ opacity: .5; }}
+    .item-row > div {{ flex: 1; min-width: 0; }}
     .item-row .name {{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13.5px; color: var(--c-ink-900); font-weight: 500; text-decoration: none; }}
     .item-row:hover .name {{ color: var(--c-ink-900); }}
     .item-row .desc {{ color: var(--c-ink-700); font-size: 13px; line-height: 1.55; margin-top: 2px; }}
-    .item-row .meta {{ font-size: 11px; color: var(--c-ink-500); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }}
+    .item-row .meta {{ font-size: 11px; color: var(--c-ink-500); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; flex-shrink: 0; }}
     /* Item details */
     .id-header {{ display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 10px 12px; border-radius: 5px; background: var(--c-canvas); border: 1px solid var(--c-line-soft); }}
     .id-kind {{ display: inline-flex; align-items: center; justify-content: center; height: 22px; min-width: 64px; padding: 0 8px; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; }}
@@ -689,12 +826,8 @@ fn document_inner(
     .ds-skel {{ animation: ds-pulse 1.4s ease-in-out infinite; }}
   </style>
 </head>
-<body class="bg-canvas text-ink-900 min-h-screen flex flex-col leading-relaxed font-sans antialiased">
-  {nav}
-  <main id="content" class="{main_class}">
-    {body_content}
-  </main>
-  {footer}
+<body class="{body_class}">
+  {body_children}
   {search_modal}
   <script>
     /* Search command palette */
@@ -940,12 +1073,8 @@ fn document_inner(
 </body>
 </html>"#,
         escaped_title = escaped_title,
-        footer = if show_footer {
-            footer::render()
-        } else {
-            String::new()
-        },
-        body_content = body_content,
+        body_class = body_class,
+        body_children = body_children,
         search_modal = crate::components::ds::navbar::render_search_modal(),
     )
 }

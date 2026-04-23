@@ -39,7 +39,7 @@ pub(crate) fn render(footer: &Footer<'_>) -> String {
     let copyright = footer.copyright.to_owned();
 
     FooterEl::builder()
-        .class("border-t border-lineSoft")
+        .class("page-grid-bleed border-t border-lineSoft")
         .division(|grid| {
             let grid = grid
                 .class("mx-auto max-w-[1280px] px-4 md:px-8 py-10 grid grid-cols-2 md:grid-cols-5 gap-8 text-[13px]")

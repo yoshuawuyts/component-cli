@@ -182,6 +182,60 @@ pub(crate) fn render_bar(crumbs: &[Crumb], links: &[NavLink]) -> String {
     bar.to_string()
 }
 
+/// Render the production navbar for grid-body pages.
+///
+/// Same content as [`render_bar`], but:
+/// - The outer `<header>` is a direct grid child of the body grid and spans
+///   all columns (`page-grid-header`) so its translucent background bleeds
+///   edge-to-edge.
+/// - The inner wrapper uses CSS subgrid (`page-grid-nav-inner`) so left and
+///   right clusters align to the body's sidebar / main / toc column tracks.
+#[must_use]
+pub(crate) fn render_bar_grid(crumbs: &[Crumb], links: &[NavLink]) -> String {
+    let breadcrumb_html = super::breadcrumb::render_breadcrumb(crumbs);
+
+    let left = Division::builder()
+        .class("page-grid-nav-left")
+        .anchor(|a| {
+            a.href("/")
+                .class("text-[13px] font-semibold text-ink-900 no-underline hover:text-ink-700 transition-colors whitespace-nowrap")
+                .text("Component Registry")
+        })
+        .division(|d| d.class("w-px h-4 bg-line flex-shrink-0"))
+        .text(breadcrumb_html)
+        .build()
+        .to_string();
+
+    let search = search_button(SVG_SEARCH_SM, "Type / to search", true);
+    let mut right = Division::builder();
+    right.class("page-grid-nav-right text-[12px] text-ink-500");
+    right.division(|d| d.class("hidden sm:block").text(search));
+    for link in links {
+        let href = link.href.to_owned();
+        let label = link.label.to_owned();
+        right.anchor(|a| {
+            a.href(href)
+                .class("inline-flex items-center h-7 px-2.5 rounded-md hover:bg-surfaceMuted hover:text-ink-900 hidden sm:inline-flex")
+                .text(label)
+        });
+    }
+    right.division(|d| d.class("hidden sm:block w-px h-4 bg-line mx-0.5"));
+    right.text(theme_dropdown());
+    let right = right.build().to_string();
+
+    let bar = html::content::Header::builder()
+        .class("page-grid-header page-grid-bleed sticky top-0 z-20 bg-canvas/90 backdrop-blur border-b hairline")
+        .division(|inner| {
+            inner
+                .class("page-grid-nav-inner px-4 md:px-6 lg:px-8")
+                .text(left)
+                .text(right)
+        })
+        .build();
+
+    bar.to_string()
+}
+
 // ---------------------------------------------------------------------------
 // Design-system showcase (below)
 // ---------------------------------------------------------------------------

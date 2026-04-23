@@ -82,7 +82,11 @@ enum MetadataRow {
     /// Simple key-value text.
     Text { label: String, value: String },
     /// Key-value with monospace value.
-    Range { label: String, start: String, end: String },
+    Range {
+        label: String,
+        start: String,
+        end: String,
+    },
     /// Key-value with a link.
     Link {
         label: String,

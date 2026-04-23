@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Holy Grail Layout — Tailwind (mobile-first)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        dialog::backdrop {
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        dialog {
+            max-width: none;
+            max-height: none;
+            border: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+
+<body class="
+    min-h-dvh
+    grid grid-rows-[auto_1fr_auto]
+    grid-cols-[minmax(0,1280px)_1fr]
+    md:grid-cols-[200px_minmax(0,1080px)_1fr]
+    lg:grid-cols-[200px_minmax(0,880px)_200px_1fr]
+    [&>*]:min-w-0
+  ">
+    <header class="col-span-full border-b border-black">
+        <div class="w-full max-w-screen-xl flex justify-between items-center p-4 border-x border-black">
+            <button type="button" onclick="openMenu()" aria-label="Open menu" aria-controls="nav-dialog"
+                aria-expanded="false" id="menu-toggle"
+                class="block md:hidden text-2xl bg-transparent border-0 cursor-pointer">
+                <span aria-hidden="true">&#9776;</span>
+            </button>
+            <h1 class="text-xl font-semibold">Header</h1>
+        </div>
+    </header>
+
+    <nav aria-label="Primary"
+        class="hidden md:block border-l border-black [border-right:1px_dotted_black] p-4">
+        Left Sidebar
+    </nav>
+
+    <dialog id="nav-dialog" aria-label="Primary" class="
+      md:hidden
+      m-0 mr-auto h-dvh w-[260px]
+      bg-white overflow-y-auto overscroll-contain
+      border-r border-black p-4
+    ">
+        Left Sidebar
+    </dialog>
+
+    <main id="main"
+        class="border-x border-black md:border-l-0 lg:border-r-0 p-4">
+        Main Content
+    </main>
+
+    <aside aria-label="Secondary"
+        class="hidden lg:block [border-left:1px_dotted_black] border-r border-black p-4">
+        Right Sidebar
+    </aside>
+
+    <footer class="col-span-full border-t border-black">
+        <div class="w-full max-w-screen-xl p-4 border-x border-black">Footer</div>
+    </footer>
+
+    <script>
+        const dialog = document.getElementById('nav-dialog');
+        const toggle = document.getElementById('menu-toggle');
+
+        function openMenu() {
+            dialog.showModal();
+            toggle.setAttribute('aria-expanded', 'true');
+        }
+
+        dialog.addEventListener('close', () => {
+            toggle.setAttribute('aria-expanded', 'false');
+        });
+
+        dialog.addEventListener('click', (e) => {
+            const rect = dialog.getBoundingClientRect();
+            const inDialog =
+                e.clientX >= rect.left && e.clientX <= rect.right &&
+                e.clientY >= rect.top && e.clientY <= rect.bottom;
+            if (!inDialog) dialog.close();
+        });
+    </script>
+</body>
+
+</html>

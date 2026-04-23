@@ -81,35 +81,33 @@ pub(crate) fn render_page_with_crumbs(
             href: "/downloads",
         },
     ];
-    let nav = navbar::render_bar(&crumbs, LINKS);
+    let nav = navbar::render_bar_grid(&crumbs, LINKS);
 
     // Sidebar navigation (interfaces/worlds tree) — already an <aside> with
-    // its own sticky positioning + aria-label from `render_sidebar`.
+    // its own sticky positioning, column placement, and aria-label from
+    // `render_sidebar`.
     let sidebar_html = ctx.nav_html.as_deref().unwrap_or("");
 
     let toc_column = match toc_html {
         Some(toc) => format!(
-            r#"<aside aria-label="Page contents" class="hidden lg:block lg:sticky lg:self-start lg:overflow-y-auto pt-8" style="top: var(--navbar-offset); max-height: calc(100vh - var(--navbar-offset)); transform: translateZ(0); will-change: transform; overscroll-behavior: contain;">{toc}</aside>"#
+            r#"<aside aria-label="Page contents" class="page-grid-toc sticky self-start overflow-y-auto pt-8" style="top: var(--navbar-offset); max-height: calc(100vh - var(--navbar-offset)); transform: translateZ(0); will-change: transform; overscroll-behavior: contain;">{toc}</aside>"#
         ),
         None => String::new(),
     };
 
-    let grid_class = if toc_html.is_some() {
-        "max-w-[1440px] px-4 md:px-6 grid grid-cols-1 lg:grid-cols-[240px_1fr_200px] gap-8 lg:gap-10"
-    } else {
-        "max-w-[1440px] px-4 md:px-6 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-8 lg:gap-10"
-    };
-
-    let body = format!(
+    // Body is the grid. Children: <header> (navbar, full-bleed), <aside>
+    // (sidebar), <main> (article), <aside> (TOC). Each child opts into a
+    // grid track via its `.page-grid-*` utility class.
+    let body_class =
+        "bg-canvas text-ink-900 min-h-screen page-grid leading-relaxed font-sans antialiased";
+    let body_children = format!(
         r#"{nav}
-<div class="{grid_class}">
   {sidebar_html}
-  <article class="min-w-0 pt-8 pb-24">{header}{body_content}</article>
-  {toc_column}
-</div>"#,
+  <main id="content" class="page-grid-article min-w-0 pt-8 pb-24"><article>{header}{body_content}</article></main>
+  {toc_column}"#,
     );
 
-    layout::document_full_width(title, &body)
+    layout::document_grid(title, body_class, &body_children)
 }
 
 /// Render breadcrumb segments as inline HTML.
