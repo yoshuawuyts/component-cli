@@ -617,6 +617,65 @@ CREATE UNIQUE INDEX uq_component_target ON component_target(
 );
 
 -- ============================================================
+-- FETCH QUEUE
+--
+-- A persistent work queue for pulling package versions from OCI
+-- registries and reindexing cached data.  Each row represents a
+-- single unit of work (one tag of one repository).
+--
+-- Lifecycle:
+--   pending → in_progress → completed
+--                         → failed (retries until max_attempts)
+-- ============================================================
+
+CREATE TABLE fetch_queue (
+    -- Surrogate primary key.
+    id INTEGER PRIMARY KEY,
+    -- OCI registry hostname, e.g. "ghcr.io/webassembly".
+    registry TEXT NOT NULL,
+    -- OCI repository path, e.g. "wasi/clocks".
+    repository TEXT NOT NULL,
+    -- The version tag to fetch, e.g. "0.2.11".
+    tag TEXT NOT NULL,
+    -- The kind of work to perform:
+    --   'pull'    — download from the registry and extract metadata
+    --   'reindex' — re-derive WIT from already-cached layers
+    task TEXT NOT NULL DEFAULT 'pull'
+        CHECK (task IN ('pull', 'reindex')),
+    -- Current status of this work item.
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'in_progress', 'completed', 'failed')),
+    -- Lower values are processed first.  0 = normal, -1 = high.
+    priority INTEGER NOT NULL DEFAULT 0,
+    -- How many times this task has been attempted.
+    attempts INTEGER NOT NULL DEFAULT 0,
+    -- Maximum number of attempts before marking as 'failed'.
+    max_attempts INTEGER NOT NULL DEFAULT 3,
+    -- Error message from the most recent failed attempt.
+    last_error TEXT,
+    -- ISO 8601 timestamp of when this work item was created.
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- ISO 8601 timestamp of the most recent modification.
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Only one work item per (registry, repository, tag, task) combo.
+CREATE UNIQUE INDEX uq_fetch_queue_item ON fetch_queue(
+    registry, repository, tag, task
+);
+
+-- Automatically advance updated_at on any UPDATE.
+CREATE TRIGGER trg_fetch_queue_updated_at
+    AFTER UPDATE ON fetch_queue
+    FOR EACH ROW
+    WHEN OLD.updated_at = NEW.updated_at
+    BEGIN
+        UPDATE fetch_queue
+           SET updated_at = CURRENT_TIMESTAMP
+         WHERE id = OLD.id;
+    END;
+
+-- ============================================================
 -- INDEXES
 --
 -- Only created where no UNIQUE constraint or UNIQUE INDEX already
@@ -639,6 +698,7 @@ CREATE UNIQUE INDEX uq_component_target ON component_target(
 --   wit_package_dep   — uq_wit_package_dependency(dependent_id, ...)
 --   wasm_component    — uq_wasm_component(oci_manifest_id, ...)
 --   component_target  — uq_component_target(wasm_component_id, ...)
+--   fetch_queue       — uq_fetch_queue_item(registry, repository, tag, task)
 -- ============================================================
 
 -- Cross-repo digest lookup: find a manifest by digest regardless
@@ -700,3 +760,7 @@ CREATE INDEX idx_target_declared ON component_target(declared_package, declared_
 -- Reverse lookup on resolved component targets: find all components
 -- that resolved their target to a specific wit_world row.
 CREATE INDEX idx_target_resolved ON component_target(wit_world_id);
+-- Fetch queue: find the next pending item to process, ordered by
+-- priority (ascending) then creation time.
+CREATE INDEX idx_fetch_queue_pending ON fetch_queue(status, priority, created_at)
+    WHERE status = 'pending';

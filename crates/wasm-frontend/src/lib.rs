@@ -39,6 +39,7 @@ fn app() -> Router {
         .route("/docs", get(docs))
         .route("/design-system", get(design_system))
         .route("/downloads", get(downloads))
+        .route("/status", get(queue_status))
         .route("/health", get(health))
         .route("/{namespace}/{name}", get(package_redirect))
         .route("/{namespace}/{name}/", get(package_redirect))
@@ -160,6 +161,13 @@ async fn design_system() -> Response {
 async fn downloads() -> Response {
     let html = pages::downloads::render();
     with_cache_control(html, "public, max-age=3600")
+}
+
+/// Fetch queue status page.
+async fn queue_status() -> Response {
+    let client = RegistryClient::from_env();
+    let html = pages::queue::render(&client).await;
+    with_cache_control(html, "no-cache")
 }
 
 /// Namespace page — list all packages under a publisher.

@@ -135,6 +135,7 @@ pub fn router(state: AppState) -> Router {
             get(get_package_version_reordered),
         )
         .route("/v1/packages/{registry}/{*repository}", get(get_package))
+        .route("/v1/queue", get(get_queue_status))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state)
@@ -143,6 +144,15 @@ pub fn router(state: AppState) -> Router {
 /// Health check endpoint.
 async fn health() -> impl IntoResponse {
     Json(serde_json::json!({ "status": "ok" }))
+}
+
+/// Fetch queue status.
+async fn get_queue_status(State(manager): State<AppState>) -> Result<impl IntoResponse, AppError> {
+    let manager = manager
+        .lock()
+        .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
+    let status = manager.get_queue_status()?;
+    Ok(Json(status))
 }
 
 /// Search packages by query string.

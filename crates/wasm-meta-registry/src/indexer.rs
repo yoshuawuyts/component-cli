@@ -85,13 +85,19 @@ impl Indexer {
         self
     }
 
-    /// Run a single sync cycle, indexing all configured packages.
-    ///
-    /// This fetches metadata for each configured package source without
-    /// downloading any wasm layers.
+    /// Run a single sync cycle: discover tags and enqueue work, then
+    /// process the queue until it is drained.
     pub async fn sync(&mut self) {
+        self.discover().await;
+        self.process_queue().await;
+    }
+
+    /// Discovery phase: iterate configured packages, fetch tags from
+    /// the registries, and enqueue pull tasks for any new or stale
+    /// versions.
+    async fn discover(&mut self) {
         info!(
-            "Starting sync cycle for {} packages",
+            "Starting discovery for {} packages",
             self.config.packages.len()
         );
 
@@ -131,11 +137,11 @@ impl Indexer {
             };
             match result {
                 Ok(pkg) => {
-                    info!(
+                    tracing::debug!(
                         registry = %pkg.registry,
                         repository = %pkg.repository,
                         tags = pkg.tags.len(),
-                        "Indexed package"
+                        "Discovered package"
                     );
                 }
                 Err(e) => {
@@ -143,13 +149,49 @@ impl Indexer {
                         registry = %source.registry,
                         repository = %source.repository,
                         error = %e,
-                        "Failed to index package"
+                        "Failed to discover package"
                     );
                 }
             }
         }
 
-        info!("Sync cycle complete");
+        // Only refetch on the first cycle.
+        self.refetch = false;
+
+        info!("Discovery complete");
+    }
+
+    /// Processing phase: drain the fetch queue, pulling or reindexing
+    /// each enqueued version.  A short delay between tasks avoids
+    /// hammering upstream registries.
+    async fn process_queue(&mut self) {
+        let mut processed = 0u64;
+        let mut consecutive_errors = 0u64;
+        loop {
+            match self.manager.process_next_task().await {
+                Ok(true) => {
+                    processed += 1;
+                    consecutive_errors = 0;
+                    // Brief pause between tasks to be a good citizen to
+                    // upstream registries and let the HTTP server breathe.
+                    tokio::time::sleep(Duration::from_millis(250)).await;
+                }
+                Ok(false) => break, // queue is empty
+                Err(e) => {
+                    consecutive_errors += 1;
+                    error!(error = %e, "Error processing fetch queue");
+                    if consecutive_errors >= 5 {
+                        error!("Too many consecutive queue errors, pausing until next cycle");
+                        break;
+                    }
+                    // Back off before retrying after an error.
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                }
+            }
+        }
+        if processed > 0 {
+            info!(processed, "Fetch queue drained");
+        }
     }
 
     /// Run the indexer in a loop, syncing at the configured interval.
