@@ -1,0 +1,31 @@
+---
+source: crates/wasm-frontend/src/components/ds/link_list.rs
+expression: "crate::components::ds::pretty_html(&html)"
+---
+<div>
+  <div class="text-[12px] mono uppercase tracking-wider text-ink-500">
+    Featured
+  </div>
+  <ol class="mt-4 border-t-[1.5px] border-lineSoft">
+    <li class="border-b border-lineSoft">
+      <a href="/p/wasi/http" class="group flex items-baseline justify-between gap-4 py-3 no-underline">
+        <span class="mono text-[14px] font-medium text-ink-900 group-hover:underline decoration-1 underline-offset-4">
+          wasi:http
+        </span>
+        <span class="text-[13px] text-ink-500 truncate hidden sm:inline">
+          Outgoing & incoming HTTP for components.
+        </span>
+      </a>
+    </li>
+    <li class="border-b border-lineSoft">
+      <a href="/p/wasi/cli" class="group flex items-baseline justify-between gap-4 py-3 no-underline">
+        <span class="mono text-[14px] font-medium text-ink-900 group-hover:underline decoration-1 underline-offset-4">
+          wasi:cli
+        </span>
+        <span class="text-[13px] text-ink-500 truncate hidden sm:inline">
+          POSIX-shaped CLI for WebAssembly components.
+        </span>
+      </a>
+    </li>
+  </ol>
+</div>

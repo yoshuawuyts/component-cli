@@ -3,6 +3,8 @@
 //! These types represent a parsed WIT package as a rich, navigable document
 //! model with pre-resolved URLs for cross-linking.
 
+use std::fmt::Write;
+
 use serde::{Deserialize, Serialize};
 
 /// Root document for a WIT package.
@@ -37,6 +39,9 @@ pub(crate) struct InterfaceDoc {
     pub types: Vec<TypeDoc>,
     /// Freestanding functions defined in this interface.
     pub functions: Vec<FunctionDoc>,
+    /// API stability information.
+    #[serde(default)]
+    pub stability: Stability,
     /// Pre-resolved URL for this interface page.
     pub url: String,
 }
@@ -267,6 +272,9 @@ pub(crate) struct WorldDoc {
     pub imports: Vec<WorldItemDoc>,
     /// Items exported by this world.
     pub exports: Vec<WorldItemDoc>,
+    /// API stability information.
+    #[serde(default)]
+    pub stability: Stability,
     /// Pre-resolved URL for this world's detail page.
     pub url: String,
 }
@@ -286,6 +294,9 @@ pub(crate) enum WorldItemDoc {
         /// First sentence of the interface's documentation.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         docs: Option<String>,
+        /// API stability information.
+        #[serde(default)]
+        stability: Stability,
     },
     /// A freestanding function import/export.
     Function(FunctionDoc),
@@ -334,4 +345,52 @@ pub(crate) enum Stability {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         deprecated: Option<String>,
     },
+}
+
+impl Stability {
+    /// Format as a short label for display in item row badges.
+    ///
+    /// Returns just the version number for stable items, or the feature
+    /// name for unstable items.
+    pub(crate) fn meta_string(&self) -> String {
+        match self {
+            Self::Unknown => String::new(),
+            Self::Stable { since, .. } => format!("since {since}"),
+            Self::Unstable { feature, .. } => feature.clone(),
+        }
+    }
+
+    /// Format a descriptive title / alt-text for the stability badge.
+    pub(crate) fn meta_title(&self, package_name: &str) -> String {
+        match self {
+            Self::Unknown => String::new(),
+            Self::Stable { since, deprecated } => {
+                let mut s = format!("Available since {package_name} version {since}");
+                if let Some(ver) = deprecated {
+                    write!(s, ", deprecated {ver}").unwrap();
+                }
+                s
+            }
+            Self::Unstable {
+                feature,
+                deprecated,
+            } => {
+                let mut s = format!("Unstable: {feature}");
+                if let Some(ver) = deprecated {
+                    write!(s, ", deprecated {ver}").unwrap();
+                }
+                s
+            }
+        }
+    }
+
+    /// Whether this stability marks the item as deprecated.
+    pub(crate) fn is_deprecated(&self) -> bool {
+        match self {
+            Self::Stable { deprecated, .. } | Self::Unstable { deprecated, .. } => {
+                deprecated.is_some()
+            }
+            Self::Unknown => false,
+        }
+    }
 }

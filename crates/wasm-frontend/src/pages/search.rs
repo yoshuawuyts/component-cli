@@ -2,10 +2,10 @@
 
 // r[impl frontend.pages.search]
 
-use html::inline_text::Span;
 use html::text_content::Division;
 use wasm_meta_registry_client::KnownPackage;
 
+use crate::components::ds::{package_row, search_bar};
 use crate::layout;
 use wasm_meta_registry_client::{ApiError, RegistryClient};
 
@@ -23,13 +23,17 @@ fn render_results(query: &str, packages: &[KnownPackage]) -> String {
 
     // Page header
     body.division(|div| {
-        div.class("pt-8 pb-6 border-b-2 border-fg mb-6")
+        div.class("pt-8 pb-6 border-b-[1.5px] border-rule mb-6")
             .heading_1(|h1| {
-                h1.class("text-3xl font-light tracking-display font-display")
+                h1.class(crate::components::ds::typography::H1_CLASS)
                     .text(format!("Results for \u{201c}{query}\u{201d}"))
             })
             .paragraph(|p| {
-                p.class("text-sm text-fg-faint mt-2").text(format!(
+                p.class(format!(
+                    "{} mt-2",
+                    crate::components::ds::typography::SUBTITLE_CLASS
+                ))
+                .text(format!(
                     "{} result{} found",
                     packages.len(),
                     if packages.len() == 1 { "" } else { "s" }
@@ -44,13 +48,13 @@ fn render_results(query: &str, packages: &[KnownPackage]) -> String {
         body.division(|div| {
             div.class("py-16 text-center")
                 .paragraph(|p| {
-                    p.class("text-fg-muted")
+                    p.class("text-ink-500")
                         .text("No results matched your query.")
                 })
                 .paragraph(|p| {
                     p.class("mt-4").anchor(|a| {
                         a.href("/all")
-                            .class("text-sm text-accent hover:underline")
+                            .class("text-[13px] text-accent hover:underline")
                             .text("Browse all →")
                     })
                 })
@@ -58,16 +62,16 @@ fn render_results(query: &str, packages: &[KnownPackage]) -> String {
     } else {
         // Table-style header
         body.division(|div| {
-            div.class("hidden sm:flex items-baseline gap-3 px-2 pb-2 text-sm text-fg-faint")
+            div.class(package_row::HEADER_CLASS)
                 .span(|s| s.class("w-48 shrink-0").text("Name"))
                 .span(|s| s.class("w-20 shrink-0").text("Version"))
                 .span(|s| s.text("Description"))
         });
 
         let mut list = Division::builder();
-        list.class("divide-y divide-border-light");
+        list.class("divide-y divide-lineSoft");
         for pkg in packages {
-            list.push(render_row(pkg));
+            list.push(package_row::render(pkg));
         }
         body.push(list.build());
     }
@@ -80,9 +84,9 @@ fn render_error(query: &str, err: &ApiError) -> String {
     let mut body = Division::builder();
 
     body.division(|div| {
-        div.class("pt-8 pb-6 border-b-2 border-fg mb-6")
+        div.class("pt-8 pb-6 border-b-[1.5px] border-rule mb-6")
             .heading_1(|h1| {
-                h1.class("text-3xl font-light tracking-display font-display")
+                h1.class(crate::components::ds::typography::H1_CLASS)
                     .text(format!("Results for \u{201c}{query}\u{201d}"))
             })
     });
@@ -91,8 +95,11 @@ fn render_error(query: &str, err: &ApiError) -> String {
 
     body.division(|div| {
         div.class("py-16 text-center")
-            .paragraph(|p| p.class("text-fg font-medium").text("Unable to search"))
-            .paragraph(|p| p.class("text-sm text-fg-muted mt-2").text(err.to_string()))
+            .paragraph(|p| p.class("text-ink-900 font-medium").text("Unable to search"))
+            .paragraph(|p| {
+                p.class(crate::components::ds::typography::SUBTITLE_CLASS)
+                    .text(err.to_string())
+            })
     });
 
     layout::document_with_nav("Search", &body.build().to_string())
@@ -100,96 +107,7 @@ fn render_error(query: &str, err: &ApiError) -> String {
 
 /// Inline search form for refining queries.
 fn render_search_form(query: &str) -> Division {
-    Division::builder()
-        .class("mb-8")
-        .form(|form| {
-            form.class("flex gap-2")
-                .method("get")
-                .action("/search")
-                .input(|input| {
-                    input
-                        .type_("search")
-                        .name("q")
-                        .value(query.to_owned())
-                        .placeholder("Search\u{2026}")
-                        .class("flex-1 px-3 py-2 border-2 border-fg bg-page text-fg text-sm placeholder:text-fg-faint focus:border-accent focus:ring-1 focus:ring-accent outline-none")
-                })
-                .button(|btn| {
-                    btn.type_("submit")
-                        .class("px-4 py-2 bg-accent text-white text-sm font-normal hover:bg-accent-hover transition-colors")
-                        .text("Search")
-                })
-        })
-        .build()
-}
-
-/// Render a single package row.
-fn render_row(pkg: &KnownPackage) -> Division {
-    let (display_name, href) = package_identity(pkg);
-    let description = pkg.description.as_deref().unwrap_or("");
-    let version = pkg.tags.first().map_or("—", String::as_str);
-    let [name_span, version_span, description_span] = row_spans(
-        &display_name,
-        version,
-        description,
-        if href.is_some() {
-            "text-accent"
-        } else {
-            "text-fg"
-        },
-    );
-
-    if let Some(href) = href {
-        let mut row = Division::builder();
-        row.anchor(|a| {
-            a.href(href)
-                .class(
-                    "flex items-baseline gap-3 py-3 hover:bg-surface -mx-2 px-2 transition-colors",
-                )
-                .push(name_span)
-                .push(version_span)
-                .push(description_span)
-        });
-        row.build()
-    } else {
-        let mut row = Division::builder();
-        row.class("flex items-baseline gap-3 py-3 -mx-2 px-2 ")
-            .push(name_span)
-            .push(version_span)
-            .push(description_span);
-        row.build()
-    }
-}
-
-fn package_identity(pkg: &KnownPackage) -> (String, Option<String>) {
-    match (&pkg.wit_namespace, &pkg.wit_name) {
-        (Some(ns), Some(name)) => (format!("{ns}:{name}"), Some(format!("/{ns}/{name}"))),
-        _ => (pkg.repository.clone(), None),
-    }
-}
-
-fn row_spans(
-    display_name: &str,
-    version: &str,
-    description: &str,
-    name_color_class: &str,
-) -> [Span; 3] {
-    [
-        Span::builder()
-            .class(format!(
-                "w-48 shrink-0 font-medium {name_color_class} truncate"
-            ))
-            .text(display_name.to_owned())
-            .build(),
-        Span::builder()
-            .class("w-20 shrink-0 text-sm text-fg-faint")
-            .text(version.to_owned())
-            .build(),
-        Span::builder()
-            .class("text-sm text-fg-muted truncate")
-            .text(crate::markdown::render_inline(description))
-            .build(),
-    ]
+    search_bar::inline(query)
 }
 
 #[cfg(test)]
@@ -215,7 +133,7 @@ mod tests {
 
     #[test]
     fn non_wit_rows_render_as_non_links() {
-        let html = render_row(&package_without_wit()).to_string();
+        let html = package_row::render(&package_without_wit()).to_string();
         assert!(!html.contains("href=\"#\""));
         assert!(!html.contains("<a "));
     }

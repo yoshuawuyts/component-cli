@@ -1484,6 +1484,8 @@ impl Store {
                     producers: vec![],
                     kind: None,
                     size_bytes: None,
+                    range_start: None,
+                    range_end: None,
                     languages: vec![],
                     children: vec![],
                     source: None,
@@ -2033,6 +2035,12 @@ fn payload_to_summary(
         if size > 0 { Some(size as u64) } else { None }
     };
 
+    #[allow(clippy::cast_sign_loss)]
+    let (range_start, range_end) = {
+        let r = &meta.range;
+        (Some(r.start as u64), Some(r.end as u64))
+    };
+
     let bill_of_materials: Vec<BomEntry> = meta
         .dependencies
         .as_ref()
@@ -2059,6 +2067,8 @@ fn payload_to_summary(
         producers,
         kind: Some(kind.to_string()),
         size_bytes,
+        range_start,
+        range_end,
         languages,
         children,
         source: meta.source.as_ref().map(ToString::to_string),

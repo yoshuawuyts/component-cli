@@ -162,6 +162,7 @@ impl Converter<'_> {
             docs: iface.docs.contents.clone(),
             types,
             functions: freestanding_functions,
+            stability: convert_stability(&iface.stability),
             url: iface_url,
         }
     }
@@ -534,6 +535,7 @@ impl Converter<'_> {
                 .iter()
                 .map(|(key, item)| self.convert_world_item(key, item))
                 .collect(),
+            stability: convert_stability(&world.stability),
             url,
         }
     }
@@ -541,7 +543,7 @@ impl Converter<'_> {
     /// Convert a world import/export item.
     fn convert_world_item(&self, key: &WorldKey, item: &WorldItem) -> WorldItemDoc {
         match item {
-            WorldItem::Interface { id, .. } => {
+            WorldItem::Interface { id, stability, .. } => {
                 let iface = self
                     .resolve
                     .interfaces
@@ -556,6 +558,7 @@ impl Converter<'_> {
                     name: display_name,
                     url,
                     docs,
+                    stability: convert_stability(stability),
                 }
             }
             WorldItem::Function(func) => {

@@ -11,11 +11,10 @@
 
 // r[impl frontend.server.wasi-http]
 
-mod fonts;
+mod components;
 mod footer;
 mod layout;
 mod markdown;
-mod nav;
 mod pages;
 mod reserved;
 mod wit_doc;
@@ -38,12 +37,9 @@ fn app() -> Router {
         .route("/search", get(search))
         .route("/about", get(about))
         .route("/docs", get(docs))
+        .route("/design-system", get(design_system))
         .route("/downloads", get(downloads))
         .route("/health", get(health))
-        .route("/fonts/iosevka-regular.woff2", get(fonts::regular))
-        .route("/fonts/iosevka-medium.woff2", get(fonts::medium))
-        .route("/fonts/iosevka-semibold.woff2", get(fonts::semibold))
-        .route("/fonts/iosevka-bold.woff2", get(fonts::bold))
         .route("/{namespace}/{name}", get(package_redirect))
         .route("/{namespace}/{name}/", get(package_redirect))
         .route("/{namespace}", get(namespace_page))
@@ -151,6 +147,12 @@ async fn about() -> Response {
 /// Documentation page.
 async fn docs() -> Response {
     let html = pages::docs::render();
+    with_cache_control(html, "public, max-age=3600")
+}
+
+/// Design system reference page.
+async fn design_system() -> Response {
+    let html = pages::design_system::render();
     with_cache_control(html, "public, max-age=3600")
 }
 

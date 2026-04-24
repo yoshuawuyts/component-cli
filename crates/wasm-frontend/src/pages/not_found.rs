@@ -4,6 +4,7 @@
 
 use html::text_content::Division;
 
+use crate::components::ds::link_button;
 use crate::layout;
 
 /// Render a user-friendly 404 page.
@@ -12,11 +13,13 @@ pub(crate) fn render() -> String {
     let body = Division::builder()
         .class("pt-16 pb-20 max-w-lg")
         .heading_1(|h1| {
-            h1.class("text-4xl font-light tracking-display font-display text-accent")
-                .text("Page not found")
+            h1.class(
+                "text-[24px] sm:text-[36px] font-semibold tracking-tight font-mono text-accent",
+            )
+            .text("Page not found")
         })
         .paragraph(|p| {
-            p.class("text-fg-secondary mt-3").text(
+            p.class("text-ink-700 mt-3").text(
                 "The package, interface, or item you're looking for \
                      doesn't exist — or it may have been published under \
                      a different version.",
@@ -24,23 +27,17 @@ pub(crate) fn render() -> String {
         })
         .division(|actions| {
             actions
-                .class("mt-8 flex flex-wrap gap-3 text-sm")
-                .anchor(|a| {
-                    a.href("/")
-                        .class(
-                            "px-4 py-2 bg-accent text-white \
-                             font-medium hover:bg-accent-hover transition-colors",
-                        )
-                        .text("Browse packages")
-                })
-                .anchor(|a| {
-                    a.href("/search")
-                        .class(
-                            "px-4 py-2 border-2 border-fg \
-                             text-fg hover:border-accent/50 transition-colors",
-                        )
-                        .text("Search")
-                })
+                .class("mt-8 flex flex-wrap gap-3 text-[13px]")
+                .push(link_button::render(
+                    &link_button::Variant::Primary,
+                    "/",
+                    "Browse packages",
+                ))
+                .push(link_button::render(
+                    &link_button::Variant::Outline,
+                    "/search",
+                    "Search",
+                ))
         })
         .build();
 

@@ -1,11 +1,50 @@
 //! Item detail page (type or function within an interface).
 
+use crate::components::ds::page_header;
+use crate::components::page_sidebar::SidebarActive;
 use crate::wit_doc::{FunctionDoc, TypeDoc, TypeKind, TypeRef, WitDocument};
 use html::tables::{Table, TableRow};
 use html::text_content::Division;
 use wasm_meta_registry_client::{KnownPackage, PackageVersion};
 
-use super::package_shell;
+use super::detail::{self, DetailSpec};
+
+// ── Table styling constants ──────────────────────────────
+
+const TABLE_CLASS: &str = "w-full text-[13px]";
+const HEADER_ROW_CLASS: &str = "border-b border-line text-left text-ink-500";
+const ROW_CLASS: &str = "border-b-2 border-line";
+const NAME_CELL_CLASS: &str = "py-2 pr-4 font-mono text-accent";
+const VALUE_CELL_CLASS: &str = "py-2 pr-4 font-mono text-ink-900";
+const DESC_CELL_CLASS: &str = "py-2 text-ink-700";
+
+/// Build a header row with N columns.
+fn table_header(columns: &[&str]) -> TableRow {
+    let mut tr = TableRow::builder();
+    tr.class(HEADER_ROW_CLASS);
+    let last = columns.len().saturating_sub(1);
+    for (i, col) in columns.iter().enumerate() {
+        let cls = if i == last {
+            "py-2 font-medium"
+        } else {
+            "py-2 pr-4 font-medium"
+        };
+        tr.table_header(|th| th.class(cls).text(col.to_string()));
+    }
+    tr.build()
+}
+
+/// Build a data row from N cells. Each cell is `(class, text)`.
+fn table_row(cells: &[(&str, &str)]) -> TableRow {
+    let mut tr = TableRow::builder();
+    tr.class(ROW_CLASS);
+    for &(cls, text) in cells {
+        let cls = cls.to_owned();
+        let text = text.to_owned();
+        tr.table_cell(|td| td.class(cls).text(text));
+    }
+    tr.build()
+}
 
 /// Render the item detail page for a type.
 #[must_use]
@@ -15,11 +54,10 @@ pub(crate) fn render_type(
     version_detail: Option<&PackageVersion>,
     iface_name: &str,
     ty: &TypeDoc,
-    _doc: &WitDocument,
+    doc: &WitDocument,
 ) -> String {
-    let display_name = package_shell::display_name_for(pkg);
+    let display_name = crate::components::page_shell::display_name_for(pkg);
     let title = format!("{display_name} \u{2014} {iface_name}::{}", ty.name);
-    let fqn = format!("{display_name}/{iface_name}/{}", ty.name);
 
     let kind_label = type_kind_label(&ty.kind);
 
@@ -27,66 +65,48 @@ pub(crate) fn render_type(
     let code_block = render_type_definition(ty).to_string();
 
     // Description
-    let docs_html = ty
-        .docs
-        .as_deref()
-        .map(|docs| crate::markdown::render_block(docs, crate::markdown::DOC_CLASS))
-        .unwrap_or_default();
 
-    let copy_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>";
-    let check_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>";
-
-    // Header row: name on left, docs on right
-    let header = format!(
-        r#"<div class="max-w-3xl mb-6">
-  <h2 class="text-3xl font-light tracking-display font-display flex items-baseline gap-2 group">
-    <span class="{kind_color}">{name}</span>
-    <button id="copy-fqn-btn" class="text-fg-faint hover:text-fg transition-opacity cursor-pointer opacity-0 group-hover:opacity-100" style="font-size:0.5em;vertical-align:middle" title="Copy item path to clipboard">{copy_icon}</button>
-  </h2>
-  <span class="text-sm text-fg-muted mt-1 block">{kind_label}</span>
-  <div class="mt-4">
-    {code_block}
-    {docs_html}
-  </div>
-</div>
-<script>
-(function(){{
-  var btn=document.getElementById('copy-fqn-btn');
-  var copyIcon="{copy_icon}";
-  var checkIcon="{check_icon}";
-  btn.addEventListener('click',function(){{
-    navigator.clipboard.writeText('{fqn}').then(function(){{
-      btn.innerHTML=checkIcon;
-      setTimeout(function(){{btn.innerHTML=copyIcon}},2000);
-    }});
-  }});
-}})();
-</script>"#,
-        kind_color = type_kind_color(&ty.kind),
-        name = ty.name,
-    );
+    let header = page_header::page_header_block(
+        kind_label,
+        &ty.name,
+        &crate::markdown::render_inline(ty.docs.as_deref().unwrap_or("No description available.")),
+        Some(&code_block),
+    )
+    .to_string();
 
     // Type body content (fields, variants, etc.)
     let body = render_type_body(&ty.kind).to_string();
 
-    let content = format!("{header}<div class=\"max-w-3xl\">{body}</div>");
+    let content = format!("<div class=\"pt-8\">{body}</div>");
 
-    let ctx = package_shell::SidebarContext {
-        pkg,
-        version,
-        version_detail,
-        importers: &[],
-        exporters: &[],
-    };
     let iface_url = format!(
         "/{}/{version}/interface/{iface_name}",
         display_name.replace(':', "/")
     );
-    let extra = vec![crate::nav::Crumb {
-        label: iface_name.to_owned(),
-        href: Some(iface_url),
-    }];
-    package_shell::render_page_with_crumbs(&ctx, &title, &content, &extra)
+    let extra = [
+        crate::components::ds::breadcrumb::Crumb {
+            label: iface_name.to_owned(),
+            href: Some(iface_url),
+        },
+        crate::components::ds::breadcrumb::Crumb {
+            label: ty.name.clone(),
+            href: None,
+        },
+    ];
+    detail::render(&DetailSpec {
+        pkg,
+        version,
+        version_detail,
+        wit_doc: Some(doc),
+        title: &title,
+        header_html: &header,
+        body_html: &content,
+        sidebar_active: SidebarActive::Item(iface_name, &ty.name),
+        extra_crumbs: &extra,
+        toc_html: None,
+        importers: &[],
+        exporters: &[],
+    })
 }
 
 /// Render the item detail page for a freestanding function.
@@ -97,72 +117,56 @@ pub(crate) fn render_function(
     version_detail: Option<&PackageVersion>,
     iface_name: &str,
     func: &FunctionDoc,
-    _doc: &WitDocument,
+    doc: &WitDocument,
 ) -> String {
-    let display_name = package_shell::display_name_for(pkg);
+    let display_name = crate::components::page_shell::display_name_for(pkg);
     let title = format!("{display_name} \u{2014} {iface_name}::{}", func.name);
-    let fqn = format!("{display_name}/{iface_name}/{}", func.name);
 
     // Code block
     let code_block = render_function_definition(func).to_string();
 
     // Description
-    let docs_html = func
-        .docs
-        .as_deref()
-        .map(|docs| crate::markdown::render_block(docs, crate::markdown::DOC_CLASS))
-        .unwrap_or_default();
 
-    let copy_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>";
-    let check_icon = "<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>";
+    let header = page_header::page_header_block(
+        "Function",
+        &func.name,
+        &crate::markdown::render_inline(
+            func.docs.as_deref().unwrap_or("No description available."),
+        ),
+        Some(&code_block),
+    )
+    .to_string();
 
-    // Header row: name on left, docs on right
-    let header = format!(
-        r#"<div class="max-w-3xl mb-6">
-  <h2 class="text-3xl font-light tracking-display font-display flex items-baseline gap-2 group">
-    <span class="text-wit-func">{name}</span>
-    <button id="copy-fqn-btn" class="text-fg-faint hover:text-fg transition-opacity cursor-pointer opacity-0 group-hover:opacity-100" style="font-size:0.5em;vertical-align:middle" title="Copy item path to clipboard">{copy_icon}</button>
-  </h2>
-  <span class="text-sm text-fg-muted mt-1 block">Function</span>
-  <div class="mt-4">
-    {code_block}
-    {docs_html}
-  </div>
-</div>
-<script>
-(function(){{
-  var btn=document.getElementById('copy-fqn-btn');
-  var copyIcon="{copy_icon}";
-  var checkIcon="{check_icon}";
-  btn.addEventListener('click',function(){{
-    navigator.clipboard.writeText('{fqn}').then(function(){{
-      btn.innerHTML=checkIcon;
-      setTimeout(function(){{btn.innerHTML=copyIcon}},2000);
-    }});
-  }});
-}})();
-</script>"#,
-        name = func.name,
-    );
+    let content = String::new();
 
-    let content = header;
-
-    let ctx = package_shell::SidebarContext {
-        pkg,
-        version,
-        version_detail,
-        importers: &[],
-        exporters: &[],
-    };
     let iface_url = format!(
         "/{}/{version}/interface/{iface_name}",
         display_name.replace(':', "/")
     );
-    let extra = vec![crate::nav::Crumb {
-        label: iface_name.to_owned(),
-        href: Some(iface_url),
-    }];
-    package_shell::render_page_with_crumbs(&ctx, &title, &content, &extra)
+    let extra = [
+        crate::components::ds::breadcrumb::Crumb {
+            label: iface_name.to_owned(),
+            href: Some(iface_url),
+        },
+        crate::components::ds::breadcrumb::Crumb {
+            label: func.name.clone(),
+            href: None,
+        },
+    ];
+    detail::render(&DetailSpec {
+        pkg,
+        version,
+        version_detail,
+        wit_doc: Some(doc),
+        title: &title,
+        header_html: &header,
+        body_html: &content,
+        sidebar_active: SidebarActive::Item(iface_name, &func.name),
+        extra_crumbs: &extra,
+        toc_html: None,
+        importers: &[],
+        exporters: &[],
+    })
 }
 
 /// Get the display label for a type kind.
@@ -178,6 +182,7 @@ fn type_kind_label(kind: &TypeKind) -> &'static str {
 }
 
 /// Get the CSS color class for a type kind heading.
+#[allow(dead_code)]
 fn type_kind_color(kind: &TypeKind) -> &'static str {
     match kind {
         TypeKind::Record { .. } | TypeKind::Variant { .. } => "text-wit-struct",
@@ -189,7 +194,7 @@ fn type_kind_color(kind: &TypeKind) -> &'static str {
 
 /// Render the WIT definition code block for a type, with linked type refs.
 fn render_type_definition(ty: &TypeDoc) -> Division {
-    use super::wit_render::{self, CODE_BLOCK_CLASS};
+    use crate::components::wit_render::{self, CODE_BLOCK_CLASS};
 
     Division::builder()
         .class("mb-4")
@@ -207,7 +212,7 @@ fn render_type_definition(ty: &TypeDoc) -> Division {
 
 /// Render the WIT definition code block for a function, with linked type refs.
 fn render_function_definition(func: &FunctionDoc) -> Division {
-    use super::wit_render::{self, CODE_BLOCK_CLASS};
+    use crate::components::wit_render::{self, CODE_BLOCK_CLASS};
 
     Division::builder()
         .class("mb-4")
@@ -225,13 +230,13 @@ fn render_function_definition(func: &FunctionDoc) -> Division {
 
 /// Render a function signature inline (no border/box), like docs.rs style.
 fn render_function_signature(func: &FunctionDoc) -> Division {
-    use super::wit_render;
+    use crate::components::wit_render::{self, CODE_BLOCK_CLASS};
 
     Division::builder()
-        .class("mb-2 bg-surface px-3 py-2")
+        .class("mb-2")
         .push(
             html::text_content::PreformattedText::builder()
-                .class("text-base font-mono text-fg overflow-x-auto")
+                .class(CODE_BLOCK_CLASS)
                 .code(|c| {
                     wit_render::render_func_in_code(c, func, "");
                     c
@@ -261,18 +266,13 @@ fn render_type_body(kind: &TypeKind) -> Division {
 fn render_field_table(heading: &str, fields: &[crate::wit_doc::FieldDoc]) -> Division {
     let mut div = Division::builder();
     div.heading_2(|h2| {
-        h2.class("text-lg font-medium text-fg-muted mb-3")
+        h2.class(crate::components::ds::typography::SECTION_CLASS)
             .text(heading.to_owned())
     });
 
     let mut table = Table::builder();
-    table.class("w-full text-sm");
-    table.table_row(|tr| {
-        tr.class("border-b-2 border-fg text-left text-fg-muted")
-            .table_header(|th| th.class("py-2 pr-4 font-medium").text("Name"))
-            .table_header(|th| th.class("py-2 pr-4 font-medium").text("Type"))
-            .table_header(|th| th.class("py-2 font-medium").text("Description"))
-    });
+    table.class(TABLE_CLASS);
+    table.push(table_header(&["Name", "Type", "Description"]));
     for field in fields {
         table.push(render_field_row(
             &field.name,
@@ -287,17 +287,14 @@ fn render_field_table(heading: &str, fields: &[crate::wit_doc::FieldDoc]) -> Div
 /// Render a single field/param row.
 fn render_field_row(name: &str, ty: &TypeRef, docs: Option<&str>) -> TableRow {
     TableRow::builder()
-        .class("border-b-2 border-fg/50")
+        .class(ROW_CLASS)
+        .table_cell(|td| td.class(NAME_CELL_CLASS).text(name.to_owned()))
         .table_cell(|td| {
-            td.class("py-2 pr-4 font-mono text-accent")
-                .text(name.to_owned())
+            td.class(VALUE_CELL_CLASS)
+                .push(crate::components::wit_render::render_type_ref(ty))
         })
         .table_cell(|td| {
-            td.class("py-2 pr-4 font-mono text-fg")
-                .push(super::wit_render::render_type_ref(ty))
-        })
-        .table_cell(|td| {
-            td.class("py-2 text-fg-secondary")
+            td.class(DESC_CELL_CLASS)
                 .text(crate::markdown::render_inline(docs.unwrap_or("")))
         })
         .build()
@@ -307,36 +304,28 @@ fn render_field_row(name: &str, ty: &TypeRef, docs: Option<&str>) -> TableRow {
 fn render_variant_table(cases: &[crate::wit_doc::CaseDoc]) -> Division {
     let mut div = Division::builder();
     div.heading_2(|h2| {
-        h2.class("text-lg font-medium text-fg-muted mb-3")
+        h2.class(crate::components::ds::typography::SECTION_CLASS)
             .text("Cases")
     });
 
     let mut table = Table::builder();
-    table.class("w-full text-sm");
-    table.table_row(|tr| {
-        tr.class("border-b-2 border-fg text-left text-fg-muted")
-            .table_header(|th| th.class("py-2 pr-4 font-medium").text("Case"))
-            .table_header(|th| th.class("py-2 pr-4 font-medium").text("Payload"))
-            .table_header(|th| th.class("py-2 font-medium").text("Description"))
-    });
+    table.class(TABLE_CLASS);
+    table.push(table_header(&["Case", "Payload", "Description"]));
     for case in cases {
         table.table_row(|tr| {
-            tr.class("border-b-2 border-fg/50")
+            tr.class(ROW_CLASS)
+                .table_cell(|td| td.class(NAME_CELL_CLASS).text(case.name.clone()))
                 .table_cell(|td| {
-                    td.class("py-2 pr-4 font-mono text-accent")
-                        .text(case.name.clone())
-                })
-                .table_cell(|td| {
-                    td.class("py-2 pr-4 font-mono text-fg");
+                    td.class(VALUE_CELL_CLASS);
                     if let Some(t) = &case.ty {
-                        td.push(super::wit_render::render_type_ref(t));
+                        td.push(crate::components::wit_render::render_type_ref(t));
                     } else {
                         td.text("\u{2014}".to_owned());
                     }
                     td
                 })
                 .table_cell(|td| {
-                    td.class("py-2 text-fg-secondary")
+                    td.class(DESC_CELL_CLASS)
                         .text(crate::markdown::render_inline(
                             case.docs.as_deref().unwrap_or(""),
                         ))
@@ -351,30 +340,20 @@ fn render_variant_table(cases: &[crate::wit_doc::CaseDoc]) -> Division {
 fn render_enum_list(cases: &[crate::wit_doc::EnumCaseDoc]) -> Division {
     let mut div = Division::builder();
     div.heading_2(|h2| {
-        h2.class("text-lg font-medium text-fg-muted mb-3")
+        h2.class(crate::components::ds::typography::SECTION_CLASS)
             .text("Cases")
     });
     let mut table = Table::builder();
-    table.class("w-full text-sm");
-    table.table_row(|tr| {
-        tr.class("border-b-2 border-fg text-left text-fg-muted")
-            .table_header(|th| th.class("py-2 pr-4 font-medium").text("Case"))
-            .table_header(|th| th.class("py-2 font-medium").text("Description"))
-    });
+    table.class(TABLE_CLASS);
+    table.push(table_header(&["Case", "Description"]));
     for case in cases {
-        table.table_row(|tr| {
-            tr.class("border-b-2 border-fg/50")
-                .table_cell(|td| {
-                    td.class("py-2 pr-4 font-mono text-accent")
-                        .text(case.name.clone())
-                })
-                .table_cell(|td| {
-                    td.class("py-2 text-fg-secondary")
-                        .text(crate::markdown::render_inline(
-                            case.docs.as_deref().unwrap_or(""),
-                        ))
-                })
-        });
+        table.push(table_row(&[
+            (NAME_CELL_CLASS, &case.name),
+            (
+                DESC_CELL_CLASS,
+                &crate::markdown::render_inline(case.docs.as_deref().unwrap_or("")),
+            ),
+        ]));
     }
     div.push(table.build());
     div.build()
@@ -384,30 +363,20 @@ fn render_enum_list(cases: &[crate::wit_doc::EnumCaseDoc]) -> Division {
 fn render_flags_list(flags: &[crate::wit_doc::FlagDoc]) -> Division {
     let mut div = Division::builder();
     div.heading_2(|h2| {
-        h2.class("text-lg font-medium text-fg-muted mb-3")
+        h2.class(crate::components::ds::typography::SECTION_CLASS)
             .text("Flags")
     });
     let mut table = Table::builder();
-    table.class("w-full text-sm");
-    table.table_row(|tr| {
-        tr.class("border-b-2 border-fg text-left text-fg-muted")
-            .table_header(|th| th.class("py-2 pr-4 font-medium").text("Flag"))
-            .table_header(|th| th.class("py-2 font-medium").text("Description"))
-    });
+    table.class(TABLE_CLASS);
+    table.push(table_header(&["Flag", "Description"]));
     for flag in flags {
-        table.table_row(|tr| {
-            tr.class("border-b-2 border-fg/50")
-                .table_cell(|td| {
-                    td.class("py-2 pr-4 font-mono text-accent")
-                        .text(flag.name.clone())
-                })
-                .table_cell(|td| {
-                    td.class("py-2 text-fg-secondary")
-                        .text(crate::markdown::render_inline(
-                            flag.docs.as_deref().unwrap_or(""),
-                        ))
-                })
-        });
+        table.push(table_row(&[
+            (NAME_CELL_CLASS, &flag.name),
+            (
+                DESC_CELL_CLASS,
+                &crate::markdown::render_inline(flag.docs.as_deref().unwrap_or("")),
+            ),
+        ]));
     }
     div.push(table.build());
     div.build()
@@ -423,67 +392,44 @@ fn render_resource_body(
     div.class("space-y-6");
 
     if let Some(ctor) = constructor {
-        div.division(|d| {
-            d.heading_2(|h2| {
-                h2.class("text-lg font-medium text-fg-muted mb-3")
-                    .text("Constructor")
-            })
-            .push(render_function_signature(ctor));
-            if let Some(docs) = &ctor.docs {
-                d.text(crate::markdown::render_block(
-                    docs,
-                    "text-base text-fg-secondary leading-relaxed prose-doc",
-                ));
-            }
-            d
-        });
+        div.push(render_function_detail_block(ctor));
     }
-    if !methods.is_empty() {
-        div.division(|d| {
-            d.heading_2(|h2| {
-                h2.class("text-lg font-medium text-fg-muted mb-3")
-                    .text("Methods")
-            });
-            for func in methods {
-                d.division(|m| {
-                    m.class("py-3 border-b border-border-light");
-                    m.push(render_function_signature(func));
-                    if let Some(docs) = &func.docs {
-                        m.text(crate::markdown::render_block(
-                            docs,
-                            "text-base text-fg-secondary leading-relaxed prose-doc",
-                        ));
-                    }
-                    m
-                });
-            }
-            d
-        });
+    for func in methods {
+        div.push(render_function_detail_block(func));
     }
-    if !statics.is_empty() {
-        div.division(|d| {
-            d.heading_2(|h2| {
-                h2.class("text-lg font-medium text-fg-muted mb-3")
-                    .text("Static Functions")
-            });
-            for func in statics {
-                d.division(|m| {
-                    m.class("py-3 border-b border-border-light");
-                    m.push(render_function_signature(func));
-                    if let Some(docs) = &func.docs {
-                        m.text(crate::markdown::render_block(
-                            docs,
-                            "text-base text-fg-secondary leading-relaxed prose-doc",
-                        ));
-                    }
-                    m
-                });
-            }
-            d
-        });
+    for func in statics {
+        div.push(render_function_detail_block(func));
     }
 
     div.build()
+}
+
+/// Render a function detail block using the DS C05 Item Details component.
+fn render_function_detail_block(func: &FunctionDoc) -> html::content::Article {
+    use crate::components::ds::item_details::{self, ItemDetailEntry};
+    use crate::components::ds::sigil as s;
+
+    let code = render_function_signature(func).to_string();
+    let docs = func
+        .docs
+        .as_deref()
+        .map(|d| crate::markdown::render_block(d, "id-page-tagline mt-3"));
+
+    item_details::item_detail_entry(
+        &ItemDetailEntry {
+            sigil_bg: s::FUNC.bg.to_owned(),
+            sigil_color: s::FUNC.color.to_owned(),
+            sigil_text: s::FUNC.text.to_owned(),
+            name: func.name.clone(),
+            anchor_href: None,
+            since: None,
+            aux_links: Vec::new(),
+            header_html: Some(code),
+            tagline: None,
+            body_html: docs,
+        },
+        true,
+    )
 }
 
 /// Render a type alias (no-op — the code block already shows the definition).

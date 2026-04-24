@@ -418,6 +418,8 @@ pub struct WitInterfaceRef {
 ///     producers: vec![],
 ///     kind: Some("component".into()),
 ///     size_bytes: None,
+///     range_start: None,
+///     range_end: None,
 ///     languages: vec![],
 ///     children: vec![],
 ///     source: None,
@@ -453,6 +455,12 @@ pub struct ComponentSummary {
     /// Total size in bytes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size_bytes: Option<u64>,
+    /// Start byte offset within the parent binary.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_start: Option<u64>,
+    /// End byte offset within the parent binary.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range_end: Option<u64>,
     /// Languages used (extracted from producers).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub languages: Vec<String>,
@@ -819,6 +827,8 @@ mod tests {
                 producers: vec![],
                 kind: None,
                 size_bytes: None,
+                range_start: None,
+                range_end: None,
                 languages: vec![],
                 children: vec![],
                 source: None,

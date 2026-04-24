@@ -1,6 +1,8 @@
 target/
 tmp/
-vendor/
+vendor/wit
+vendor/wasm
+examples/*/vendor
 Cargo.lock
 .DS_Store
 registry.toml

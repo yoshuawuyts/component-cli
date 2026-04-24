@@ -1,0 +1,133 @@
+---
+source: crates/wasm-frontend/src/components/ds/spacing.rs
+expression: "crate::components::ds::pretty_html(&render(\"spacing\", \"03\",\n\"Spacing & Radius\",\n\"4px base scale. Radii stay small for a precise, instrumental feel; pills used for selection chips only.\",\nSPACING, RADII,))"
+---
+<section class="pt-12 md:pt-16" id="spacing">
+  <div class="grid md:grid-cols-[600px_1fr] gap-6 md:gap-12">
+    <div>
+      <div class="text-[12px] mono uppercase tracking-wider text-ink-500">
+        03
+      </div>
+      <h2 class="mt-2 text-[24px] font-semibold tracking-tight">
+        Spacing & Radius
+      </h2>
+      <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
+        4px base scale. Radii stay small for a precise, instrumental feel; pills used for selection chips only.
+      </p>
+    </div>
+    <div class="space-y-10">
+      <div>
+        <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">
+          Spacing scale
+        </h3>
+        <div class="space-y-2">
+          <div class="flex items-center gap-4">
+            <div class="h-3 bg-ink-900" style="width:4px">
+            </div>
+            <span class="text-[13px] mono w-12">
+              4
+            </span>
+            <span class="text-[12px] text-ink-500">
+              xs
+            </span>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="h-3 bg-ink-900" style="width:8px">
+            </div>
+            <span class="text-[13px] mono w-12">
+              8
+            </span>
+            <span class="text-[12px] text-ink-500">
+              sm
+            </span>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="h-3 bg-ink-900" style="width:12px">
+            </div>
+            <span class="text-[13px] mono w-12">
+              12
+            </span>
+            <span class="text-[12px] text-ink-500">
+              md
+            </span>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="h-3 bg-ink-900" style="width:16px">
+            </div>
+            <span class="text-[13px] mono w-12">
+              16
+            </span>
+            <span class="text-[12px] text-ink-500">
+              lg
+            </span>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="h-3 bg-ink-900" style="width:24px">
+            </div>
+            <span class="text-[13px] mono w-12">
+              24
+            </span>
+            <span class="text-[12px] text-ink-500">
+              xl
+            </span>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="h-3 bg-ink-900" style="width:32px">
+            </div>
+            <span class="text-[13px] mono w-12">
+              32
+            </span>
+            <span class="text-[12px] text-ink-500">
+              2xl
+            </span>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="h-3 bg-ink-900" style="width:48px">
+            </div>
+            <span class="text-[13px] mono w-12">
+              48
+            </span>
+            <span class="text-[12px] text-ink-500">
+              3xl
+            </span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">
+          Radius
+        </h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <div class="h-16 bg-surfaceMuted" style="border-radius:2px">
+            </div>
+            <div class="mt-2 text-[13px]">
+              sm — 2px
+            </div>
+          </div>
+          <div>
+            <div class="h-16 bg-surfaceMuted" style="border-radius:4px">
+            </div>
+            <div class="mt-2 text-[13px]">
+              md — 4px (inputs, bars)
+            </div>
+          </div>
+          <div>
+            <div class="h-16 bg-surfaceMuted" style="border-radius:5px">
+            </div>
+            <div class="mt-2 text-[13px]">
+              lg — 5px (buttons, cards)
+            </div>
+          </div>
+          <div>
+            <div class="h-16 bg-surfaceMuted rounded-pill">
+            </div>
+            <div class="mt-2 text-[13px]">
+              pill — 9999px
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

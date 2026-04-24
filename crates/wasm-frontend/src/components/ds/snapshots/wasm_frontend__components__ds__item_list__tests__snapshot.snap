@@ -1,0 +1,294 @@
+---
+source: crates/wasm-frontend/src/components/ds/item_list.rs
+expression: "crate::components::ds::pretty_html(&render(\"c-item-list\", \"C04\", \"Item List\",\n\"Compact index of a group\\u{2019}s children \\u{2014} subcommands, endpoints, schemas. Each row is a sigil, a name + one-line description, and trailing meta. Rows separate with hairline rules, no card chrome.\",\nCMD_ROWS, ENDPOINT_ROWS, ANATOMY_ITEMS,))"
+---
+<section class="pt-12 md:pt-16" id="c-item-list">
+  <div class="grid md:grid-cols-[600px_1fr] gap-6 md:gap-12">
+    <div>
+      <div class="text-[12px] mono uppercase tracking-wider text-ink-500">
+        C04
+      </div>
+      <h2 class="mt-2 text-[24px] font-semibold tracking-tight">
+        Item List
+      </h2>
+      <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
+        Compact index of a group’s children — subcommands, endpoints, schemas. Each row is a sigil, a name + one-line description, and trailing meta. Rows separate with hairline rules, no card chrome.
+      </p>
+    </div>
+    <div class="space-y-8">
+      <div>
+        <div class="text-[12px] text-ink-500 mb-3">
+          Subcommands of
+          <span class="mono">
+            wasm registry
+          </span>
+        </div>
+        <div class="item-list">
+          <a href="#c-item-list" class="item-row">
+            <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-green-ink);">
+              c
+            </span>
+            <div>
+              <span class="name">
+                add
+              </span>
+              <div class="desc">
+                Register a new namespace and point it at an OCI registry URL.
+              </div>
+            </div>
+            <span class="meta">
+              1.2.0
+            </span>
+          </a>
+          <a href="#c-item-list" class="item-row">
+            <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-green-ink);">
+              c
+            </span>
+            <div>
+              <span class="name">
+                remove
+              </span>
+              <div class="desc">
+                Forget a registered namespace. Locally cached artifacts are kept.
+              </div>
+            </div>
+            <span class="meta">
+              1.2.0
+            </span>
+          </a>
+          <a href="#c-item-list" class="item-row">
+            <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-green-ink);">
+              c
+            </span>
+            <div>
+              <span class="name">
+                list
+              </span>
+              <div class="desc">
+                Print the effective set of registries, with the source of each entry.
+              </div>
+            </div>
+            <span class="meta">
+              1.2.0
+            </span>
+          </a>
+          <a href="#c-item-list" class="item-row">
+            <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-green-ink);">
+              c
+            </span>
+            <div>
+              <span class="name">
+                login
+              </span>
+              <div class="desc">
+                Store credentials for a registry in the OS keychain.
+              </div>
+            </div>
+            <span class="meta">
+              1.4.0
+            </span>
+          </a>
+          <a href="#c-item-list" class="item-row">
+            <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-green-ink);">
+              c
+            </span>
+            <div>
+              <span class="name">
+                publish
+              </span>
+              <div class="desc">
+                Build and upload the current package to a registry.
+              </div>
+            </div>
+            <span class="meta">
+              1.3.0
+            </span>
+          </a>
+          <a href="#c-item-list" class="item-row deprecated">
+            <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-green-ink);">
+              c
+            </span>
+            <div>
+              <span class="name">
+                login-token
+              </span>
+              <div class="desc">
+                Legacy token-only login. Removed in 2.0 — use
+                <span class="mono text-[12px]">
+                  login --password-stdin
+                </span>
+                instead.
+              </div>
+            </div>
+            <span class="meta">
+              deprecated
+            </span>
+          </a>
+        </div>
+      </div>
+      <div>
+        <div class="text-[12px] text-ink-500 mb-3">
+          Endpoints under
+          <span class="mono">
+            /v1/packages
+          </span>
+        </div>
+        <div class="item-list">
+          <a href="#c-item-list" class="item-row">
+            <span class="sigil" style="background:var(--c-cat-blue);color:var(--c-cat-blue-ink);">
+              G
+            </span>
+            <div>
+              <span class="name">
+                /v1/packages/{name}
+              </span>
+              <div class="desc">
+                Resolve a package by canonical name. Returns the latest version metadata.
+              </div>
+            </div>
+            <span class="meta">
+              v1
+            </span>
+          </a>
+          <a href="#c-item-list" class="item-row">
+            <span class="sigil" style="background:var(--c-cat-blue);color:var(--c-cat-blue-ink);">
+              G
+            </span>
+            <div>
+              <span class="name">
+                /v1/packages/{name}/versions
+              </span>
+              <div class="desc">
+                List every published version of a package, newest first.
+              </div>
+            </div>
+            <span class="meta">
+              v1
+            </span>
+          </a>
+          <a href="#c-item-list" class="item-row">
+            <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-green-ink);">
+              P
+            </span>
+            <div>
+              <span class="name">
+                /v1/packages/{name}
+              </span>
+              <div class="desc">
+                Publish a new version. Body is a streaming OCI image manifest.
+              </div>
+            </div>
+            <span class="meta">
+              v1
+            </span>
+          </a>
+          <a href="#c-item-list" class="item-row">
+            <span class="sigil" style="background:var(--c-cat-pink);color:var(--c-cat-pink-ink);">
+              D
+            </span>
+            <div>
+              <span class="name">
+                /v1/packages/{name}/versions/{ver}
+              </span>
+              <div class="desc">
+                Yank a version. The artifact remains, but it stops resolving by default.
+              </div>
+            </div>
+            <span class="meta">
+              v1
+            </span>
+          </a>
+        </div>
+      </div>
+      <div>
+        <div class="text-[12px] text-ink-500 mb-3">
+          Anatomy
+        </div>
+        <ul class="text-[13px] text-ink-700 leading-relaxed space-y-1.5 pl-5 list-disc marker:text-ink-400">
+          <li>
+            <p>
+              The whole row is the link —
+              <code class="mono text-[12px]">
+                &lt;a class="item-row"&gt;
+              </code>
+              — so the entire chip is the click target. The inner
+              <code class="mono text-[12px]">
+                .name
+              </code>
+              stays a
+              <code class="mono text-[12px]">
+                &lt;span&gt;
+              </code>
+              .
+            </p>
+          </li>
+          <li>
+            <p>
+              Three-column grid:
+              <code class="mono text-[12px]">
+                sigil · name+desc · meta
+              </code>
+              ; the middle column is the only flexible one.
+            </p>
+          </li>
+          <li>
+            <p>
+              The whole list sits in a
+              <code class="mono text-[12px]">
+                rounded-lg border border-line bg-canvas
+              </code>
+              card — same surface treatment as the search trigger and Item Details. Rows separate with a 1px
+              <code class="mono text-[12px]">
+                --c-line-soft
+              </code>
+              hairline inside the card; the first row drops it.
+            </p>
+          </li>
+          <li>
+            <p>
+              Name is 13.5px mono ink-900 medium; underlines on hover only. Description is 13px ink-700, one line, no wrapping pressure.
+            </p>
+          </li>
+          <li>
+            <p>
+              Trailing
+              <code class="mono text-[12px]">
+                .meta
+              </code>
+              stays mono ink-500 — version, status, or count. Drop it entirely if there's nothing to show.
+            </p>
+          </li>
+          <li>
+            <p>
+              Sigil colour follows the C01 convention so the same kind reads consistently across sidebar and item list.
+            </p>
+          </li>
+          <li>
+            <p>
+              <strong>
+                Hover
+              </strong>
+              tints the entire row to
+              <code class="mono text-[12px]">
+                --c-surface-muted
+              </code>
+              — the only affordance that the row is interactive. No border or accent change.
+            </p>
+          </li>
+          <li>
+            <p>
+              <strong>
+                Deprecated
+              </strong>
+              rows fade name + description to ink-400, strike through the name with a 1px line, and drop the sigil opacity to 50%. Set the trailing
+              <code class="mono text-[12px]">
+                .meta
+              </code>
+              to a one-word state ("deprecated", "removed") instead of a version.
+            </p>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>

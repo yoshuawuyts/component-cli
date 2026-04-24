@@ -1,0 +1,126 @@
+---
+source: crates/wasm-frontend/src/components/ds/regions.rs
+expression: "crate::components::ds::pretty_html(&render(\"regions\", \"22\", \"Regions\",\n\"Pages are composed of stacked <em>regions</em>. The primary region uses the canvas surface; secondary regions (supporting data, references, appendices) switch to the white surface. The surface swap signals \\u{201c}this is additional content\\u{201d} \\u{2014} no rules or borders are drawn between regions.\",\nRULES,))"
+---
+<section class="pt-12 md:pt-16" id="regions">
+  <div class="grid md:grid-cols-[600px_1fr] gap-6 md:gap-12">
+    <div>
+      <div class="text-[12px] mono uppercase tracking-wider text-ink-500">
+        22
+      </div>
+      <h2 class="mt-2 text-[24px] font-semibold tracking-tight">
+        Regions
+      </h2>
+      <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
+        Pages are composed of stacked
+        <em>
+          regions
+        </em>
+        . The primary region uses the canvas surface; secondary regions (supporting data, references, appendices) switch to the white surface. The surface swap signals “this is additional content” — no rules or borders are drawn between regions.
+      </p>
+    </div>
+    <div class="space-y-8">
+      <div class="border border-line rounded-lg overflow-hidden">
+        <div class="bg-canvas p-6">
+          <div class="text-[11px] mono uppercase tracking-wider text-ink-500">
+            Primary region · canvas
+          </div>
+          <div class="mt-3 text-[18px] font-semibold tracking-tight">
+            Lorem ipsum dolor sit
+          </div>
+          <div class="mt-4 grid grid-cols-3 gap-3">
+            <div class="h-12 rounded bg-surfaceMuted">
+            </div>
+            <div class="h-12 rounded bg-surfaceMuted">
+            </div>
+            <div class="h-12 rounded bg-surfaceMuted">
+            </div>
+          </div>
+        </div>
+        <div class="bg-surface p-6">
+          <div class="text-[11px] mono uppercase tracking-wider text-ink-500">
+            Secondary region · surface
+          </div>
+          <div class="mt-3 text-[18px] font-semibold tracking-tight">
+            Aenean lectus pellentesque
+          </div>
+          <div class="mt-4 h-px bg-lineSoft">
+          </div>
+          <div class="mt-4 grid grid-cols-4 gap-3 text-[12px] text-ink-500">
+            <div>
+              Vestibulum
+            </div>
+            <div>
+              Convallis
+            </div>
+            <div>
+              Tempor
+            </div>
+            <div>
+              Faucibus
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">
+          Rules
+        </h3>
+        <ul class="space-y-2 text-[13px] text-ink-700 leading-relaxed">
+          <li class="flex gap-3">
+            <span class="mono text-ink-500 w-12 shrink-0">
+              01
+            </span>
+            <p>
+              The primary region (top of page) sits on
+              <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">
+                canvas
+              </code>
+              . Use it for the main subject.
+            </p>
+          </li>
+          <li class="flex gap-3">
+            <span class="mono text-ink-500 w-12 shrink-0">
+              02
+            </span>
+            <p>
+              Secondary regions sit on
+              <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">
+                surface
+              </code>
+              . The boundary is the surface swap itself — no rule, no border.
+            </p>
+          </li>
+          <li class="flex gap-3">
+            <span class="mono text-ink-500 w-12 shrink-0">
+              03
+            </span>
+            <p>
+              Use full-bleed background swap on wide screens so the boundary reads as a true section break, not a card.
+            </p>
+          </li>
+          <li class="flex gap-3">
+            <span class="mono text-ink-500 w-12 shrink-0">
+              04
+            </span>
+            <p>
+              Maximum two surface swaps per page. Beyond that, switch to a new page or tabs.
+            </p>
+          </li>
+          <li class="flex gap-3">
+            <span class="mono text-ink-500 w-12 shrink-0">
+              05
+            </span>
+            <p>
+              Within a region, use
+              <code class="px-1 py-0.5 rounded-sm bg-surfaceMuted text-ink-900 mono text-[0.875em]">
+                lineSoft
+              </code>
+              for internal subdivisions (table rows, list separators).
+            </p>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>

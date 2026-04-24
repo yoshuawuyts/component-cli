@@ -5,6 +5,7 @@
 use html::text_content::Division;
 use wasm_meta_registry_client::KnownPackage;
 
+use crate::components::ds::package_row;
 use crate::layout;
 use wasm_meta_registry_client::{ApiError, RegistryClient};
 
@@ -22,13 +23,13 @@ fn render_packages(packages: &[KnownPackage], offset: u32, limit: u32) -> String
 
     // Page header with count
     body.division(|div| {
-        div.class("pt-8 flex items-baseline justify-between pb-6 border-b-2 border-fg mb-6")
+        div.class("pt-8 flex items-baseline justify-between pb-6 border-b-[1.5px] border-rule mb-6")
             .heading_1(|h1| {
-                h1.class("text-3xl font-light tracking-display font-display")
+                h1.class(crate::components::ds::typography::H1_CLASS)
                     .text("All Packages")
             })
             .span(|s| {
-                s.class("text-sm text-fg-faint")
+                s.class(crate::components::ds::typography::SUBTITLE_CLASS)
                     .text(format!("showing {} packages", packages.len()))
             })
     });
@@ -36,23 +37,24 @@ fn render_packages(packages: &[KnownPackage], offset: u32, limit: u32) -> String
     if packages.is_empty() {
         body.division(|div| {
             div.class("py-16 text-center").paragraph(|p| {
-                p.class("text-fg-muted")
+                p.class("text-ink-500")
                     .text("No packages found. The registry may still be syncing.")
             })
         });
     } else {
         // Table-style header
         body.division(|div| {
-            div.class("hidden sm:flex items-baseline gap-3 px-2 pb-2 text-sm text-fg-faint")
-                .span(|s| s.class("w-48 shrink-0").text("Package"))
+            div.class(package_row::HEADER_CLASS)
+                .span(|s| s.class("w-96 shrink-0").text("Package"))
+                .span(|s| s.class("w-28 shrink-0").text("Kind"))
                 .span(|s| s.class("w-20 shrink-0").text("Version"))
                 .span(|s| s.text("Description"))
         });
 
         let mut list = Division::builder();
-        list.class("divide-y divide-border-light");
+        list.class("divide-y divide-lineSoft");
         for pkg in packages {
-            list.push(render_row(pkg));
+            list.push(package_row::render(pkg));
         }
         body.push(list.build());
 
@@ -67,9 +69,9 @@ fn render_error(err: &ApiError, offset: u32, limit: u32) -> String {
     let mut body = Division::builder();
 
     body.division(|div| {
-        div.class("pt-8 pb-6 border-b-2 border-fg mb-6")
+        div.class("pt-8 pb-6 border-b-[1.5px] border-rule mb-6")
             .heading_1(|h1| {
-                h1.class("text-3xl font-light tracking-display font-display")
+                h1.class(crate::components::ds::typography::H1_CLASS)
                     .text("All Packages")
             })
     });
@@ -77,10 +79,13 @@ fn render_error(err: &ApiError, offset: u32, limit: u32) -> String {
     body.division(|div| {
         div.class("py-16 text-center")
             .paragraph(|p| {
-                p.class("text-fg font-medium")
+                p.class("text-ink-900 font-medium")
                     .text("Unable to load packages")
             })
-            .paragraph(|p| p.class("text-sm text-fg-muted mt-2").text(err.to_string()))
+            .paragraph(|p| {
+                p.class(crate::components::ds::typography::SUBTITLE_CLASS)
+                    .text(err.to_string())
+            })
     });
 
     body.push(render_pagination(&[], offset, limit));
@@ -88,62 +93,13 @@ fn render_error(err: &ApiError, offset: u32, limit: u32) -> String {
     layout::document_with_nav("All Packages", &body.build().to_string())
 }
 
-/// Render a single package row.
-fn render_row(pkg: &KnownPackage) -> Division {
-    let display_name = match (&pkg.wit_namespace, &pkg.wit_name) {
-        (Some(ns), Some(name)) => format!("{ns}:{name}"),
-        _ => pkg.repository.clone(),
-    };
-
-    let description = pkg.description.as_deref().unwrap_or("");
-
-    let version = pkg.tags.first().map_or("—", String::as_str);
-
-    match (&pkg.wit_namespace, &pkg.wit_name) {
-        (Some(ns), Some(name)) => Division::builder()
-            .anchor(|a| {
-                a.href(format!("/{ns}/{name}"))
-                    .class(
-                        "flex items-baseline gap-3 py-3 hover:bg-surface -mx-2 px-2 transition-colors",
-                    )
-                    .span(|s| {
-                        s.class("w-48 shrink-0 font-medium text-accent truncate")
-                            .text(display_name)
-                    })
-                    .span(|s| {
-                        s.class("w-20 shrink-0 text-sm text-fg-faint")
-                            .text(version.to_owned())
-                    })
-                    .span(|s| {
-                        s.class("text-sm text-fg-muted truncate")
-                            .text(crate::markdown::render_inline(description))
-                    })
-            })
-            .build(),
-        _ => Division::builder()
-            .class("flex items-baseline gap-3 py-3 -mx-2 px-2 ")
-            .span(|s| {
-                s.class("w-48 shrink-0 font-medium text-fg truncate")
-                    .text(display_name)
-            })
-            .span(|s| {
-                s.class("w-20 shrink-0 text-sm text-fg-faint")
-                    .text(version.to_owned())
-            })
-            .span(|s| {
-                s.class("text-sm text-fg-muted truncate")
-                    .text(crate::markdown::render_inline(description))
-            })
-            .build(),
-    }
-}
-
 fn render_pagination(packages: &[KnownPackage], offset: u32, limit: u32) -> Division {
     let state = PaginationState::new(packages.len(), offset, limit);
     let mut container = Division::builder();
-    container.class("flex items-center justify-between gap-4 mt-8 pt-6 border-t-2 border-fg");
+    container
+        .class("flex items-center justify-between gap-4 mt-8 pt-6 border-t-[1.5px] border-rule");
     container.span(|s| {
-        s.class("text-sm text-fg-faint")
+        s.class("text-[13px] text-ink-400")
             .text(format!("Showing {}–{}", state.start, state.end))
     });
     container.push(render_pagination_controls(&state));
@@ -197,12 +153,12 @@ fn render_pagination_controls(state: &PaginationState) -> Division {
                 "/all?offset={}&limit={}",
                 state.prev_offset, state.effective_limit
             ))
-            .class("px-3 py-1.5 border-2 border-fg text-sm hover:bg-surface transition-colors")
+            .class(crate::components::ds::breadcrumb::PAGINATION_BUTTON_CLASS)
             .text("Previous")
         });
     } else {
         controls.span(|s| {
-            s.class("px-3 py-1.5 border-2 border-fg-light text-sm text-fg-faint")
+            s.class(crate::components::ds::breadcrumb::PAGINATION_DISABLED_CLASS)
                 .text("Previous")
         });
     }
@@ -212,12 +168,12 @@ fn render_pagination_controls(state: &PaginationState) -> Division {
                 "/all?offset={}&limit={}",
                 state.next_offset, state.effective_limit
             ))
-            .class("px-3 py-1.5 border-2 border-fg text-sm hover:bg-surface transition-colors")
+            .class(crate::components::ds::breadcrumb::PAGINATION_BUTTON_CLASS)
             .text("Next")
         });
     } else {
         controls.span(|s| {
-            s.class("px-3 py-1.5 border-2 border-fg-light text-sm text-fg-faint")
+            s.class(crate::components::ds::breadcrumb::PAGINATION_DISABLED_CLASS)
                 .text("Next")
         });
     }

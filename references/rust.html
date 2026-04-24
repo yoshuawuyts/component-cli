@@ -1,0 +1,1423 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="light dark">
+  <style>html{background:#F4F4F5}@media(prefers-color-scheme:dark){html:not([data-theme=light]){background:#1C1C20}}html[data-theme=dark]{background:#1C1C20}html[data-theme=light]{background:#F4F4F5}</style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>wasm_component — Rust</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("ds-theme");
+        if (t === "light" || t === "dark") {
+          document.documentElement.setAttribute("data-theme", t);
+          document.documentElement.style.background = t === "dark" ? "#1C1C20" : "#F4F4F5";
+        } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+          document.documentElement.style.background = "#1C1C20";
+        }
+      } catch (e) { }
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ["-apple-system","BlinkMacSystemFont","system-ui","\"Segoe UI\"","\"Helvetica Neue\"","Helvetica","Arial","sans-serif"],
+            mono: ["ui-monospace","SFMono-Regular","Menlo","Monaco","Consolas","monospace"],
+          },
+          colors: {
+            canvas: "var(--c-canvas)",
+            surface: { DEFAULT: "var(--c-surface)", muted: "var(--c-surface-muted)" },
+            surfaceMuted: "var(--c-surface-muted)",
+            ink: { 900:"var(--c-ink-900)",700:"var(--c-ink-700)",500:"var(--c-ink-500)",400:"var(--c-ink-400)",300:"var(--c-ink-300)" },
+            line: "var(--c-line)",
+            lineSoft: "var(--c-line-soft)",
+            rule: "var(--c-rule)",
+            positive: "var(--c-positive)",
+            negative: "var(--c-negative)",
+            accent: "var(--c-accent)",
+            cat: {
+              blue:"var(--c-cat-blue)", blueInk:"var(--c-cat-blue-ink)",
+              pink:"var(--c-cat-pink)", pinkInk:"var(--c-cat-pink-ink)",
+              green:"var(--c-cat-green)", greenInk:"var(--c-cat-green-ink)",
+              peach:"var(--c-cat-peach)", peachInk:"var(--c-cat-peach-ink)",
+              lilac:"var(--c-cat-lilac)", lilacInk:"var(--c-cat-lilac-ink)",
+              cream:"var(--c-cat-cream)", creamInk:"var(--c-cat-cream-ink)",
+              teal:"var(--c-cat-teal)", tealInk:"var(--c-cat-teal-ink)",
+              rust:"var(--c-cat-rust)", rustInk:"var(--c-cat-rust-ink)",
+              plum:"var(--c-cat-plum)", plumInk:"var(--c-cat-plum-ink)",
+              slate:"var(--c-cat-slate)", slateInk:"var(--c-cat-slate-ink)",
+            },
+          },
+          letterSpacing: { display:"-0.06em" },
+          boxShadow: { tooltip:"var(--shadow-tooltip)", card:"var(--shadow-card)" },
+          borderRadius: { DEFAULT:"3px", sm:"2px", md:"4px", lg:"5px", pill:"9999px" },
+        },
+      },
+    };
+  </script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --c-canvas:#F4F4F5;--c-surface:#FFFFFF;--c-surface-muted:#E8E8EA;
+      --c-ink-900:#18181B;--c-ink-700:#3F3F46;--c-ink-500:#71717A;
+      --c-ink-400:#A1A1AA;--c-ink-300:#D4D4D8;
+      --c-line:#D4D4D8;--c-line-soft:#E4E4E7;
+      --c-positive:#1F8A4C;--c-negative:#9B4F5E;--c-accent:#18181B;
+      --c-cat-blue:#D6E4FF;--c-cat-blue-ink:#3D5A99;
+      --c-cat-pink:#FBD9DF;--c-cat-pink-ink:#9B4F5E;
+      --c-cat-green:#D2ECD8;--c-cat-green-ink:#3F7A52;
+      --c-cat-peach:#F8E2C2;--c-cat-peach-ink:#8E6529;
+      --c-cat-lilac:#E4DAF1;--c-cat-lilac-ink:#6B528F;
+      --c-cat-cream:#F4ECC2;--c-cat-cream-ink:#7A6A2A;
+      --c-cat-teal:#BFE3EE;--c-cat-teal-ink:#1F6F87;
+      --c-cat-rust:#F4D2C0;--c-cat-rust-ink:#9F5536;
+      --c-cat-plum:#E8C5E8;--c-cat-plum-ink:#7E2E7E;
+      --c-cat-slate:#DADCE0;--c-cat-slate-ink:#535A66;
+      --c-rule:var(--c-ink-900);--c-scrollbar:#D4D4D8;
+      --shadow-tooltip:0 8px 24px -8px rgba(20,22,28,.35);
+      --shadow-card:0 1px 0 0 rgba(20,22,28,.04);
+      --c-code-comment:#71717A;--c-code-keyword:#9333ea;--c-code-type:#4338ca;
+      --c-code-trait:#0369a1;--c-code-fn:#15803d;--c-code-string:#b45309;
+      --c-code-macro:#be185d;--c-code-lifetime:#b91c1c;
+    }
+    @media (prefers-color-scheme:dark){
+      :root:not([data-theme="light"]){
+        --c-canvas:#1C1C20;--c-surface:#26262B;--c-surface-muted:#2F2F35;
+        --c-ink-900:#ECECEE;--c-ink-700:#B5B5BB;--c-ink-500:#8B8B92;
+        --c-ink-400:#76767D;--c-ink-300:#4A4A50;
+        --c-line:#3A3A40;--c-line-soft:#323238;
+        --c-positive:#5EC787;--c-negative:#EE7B8E;--c-accent:#8FB1F5;
+        --c-cat-blue:#B8D0FF;--c-cat-blue-ink:#1F3F8C;
+        --c-cat-pink:#FFB8B0;--c-cat-pink-ink:#9E2823;
+        --c-cat-green:#B5E8C0;--c-cat-green-ink:#1F6738;
+        --c-cat-peach:#FBD3A0;--c-cat-peach-ink:#7A4E10;
+        --c-cat-lilac:#C6B1F0;--c-cat-lilac-ink:#422684;
+        --c-cat-cream:#F5E696;--c-cat-cream-ink:#6B5610;
+        --c-cat-teal:#A6DDF0;--c-cat-teal-ink:#0F5C7A;
+        --c-cat-rust:#F5BFA0;--c-cat-rust-ink:#87401C;
+        --c-cat-plum:#DDB2EF;--c-cat-plum-ink:#571485;
+        --c-cat-slate:#C6CDD8;--c-cat-slate-ink:#424B5C;
+        --c-rule:#6B6B72;--c-scrollbar:#4A4A50;
+        --shadow-tooltip:0 10px 28px -10px rgba(0,0,0,.7);
+        --shadow-card:inset 0 1px 0 0 rgba(255,255,255,.06),0 1px 0 0 rgba(0,0,0,.5),0 8px 16px -12px rgba(0,0,0,.6);
+        --c-code-comment:#8B8B92;--c-code-keyword:#c084fc;--c-code-type:#818cf8;
+        --c-code-trait:#38bdf8;--c-code-fn:#4ade80;--c-code-string:#fbbf24;
+        --c-code-macro:#f472b6;--c-code-lifetime:#f87171;
+      }
+    }
+    :root[data-theme="dark"]{
+      --c-canvas:#1C1C20;--c-surface:#26262B;--c-surface-muted:#2F2F35;
+      --c-ink-900:#ECECEE;--c-ink-700:#B5B5BB;--c-ink-500:#8B8B92;
+      --c-ink-400:#76767D;--c-ink-300:#4A4A50;
+      --c-line:#3A3A40;--c-line-soft:#323238;
+      --c-positive:#5EC787;--c-negative:#EE7B8E;--c-accent:#8FB1F5;
+      --c-cat-blue:#B8D0FF;--c-cat-blue-ink:#1F3F8C;
+      --c-cat-pink:#FFB8B0;--c-cat-pink-ink:#9E2823;
+      --c-cat-green:#B5E8C0;--c-cat-green-ink:#1F6738;
+      --c-cat-peach:#FBD3A0;--c-cat-peach-ink:#7A4E10;
+      --c-cat-lilac:#C6B1F0;--c-cat-lilac-ink:#422684;
+      --c-cat-cream:#F5E696;--c-cat-cream-ink:#6B5610;
+      --c-cat-teal:#A6DDF0;--c-cat-teal-ink:#0F5C7A;
+      --c-cat-rust:#F5BFA0;--c-cat-rust-ink:#87401C;
+      --c-cat-plum:#DDB2EF;--c-cat-plum-ink:#571485;
+      --c-cat-slate:#C6CDD8;--c-cat-slate-ink:#424B5C;
+      --c-rule:#6B6B72;--c-scrollbar:#4A4A50;
+      --shadow-tooltip:0 10px 28px -10px rgba(0,0,0,.7);
+      --shadow-card:inset 0 1px 0 0 rgba(255,255,255,.06),0 1px 0 0 rgba(0,0,0,.5),0 8px 16px -12px rgba(0,0,0,.6);
+      --c-code-comment:#8B8B92;--c-code-keyword:#c084fc;--c-code-type:#818cf8;
+      --c-code-trait:#38bdf8;--c-code-fn:#4ade80;--c-code-string:#fbbf24;
+      --c-code-macro:#f472b6;--c-code-lifetime:#f87171;
+    }
+
+    html,body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;}
+    .rule{border-color:var(--c-rule)!important;border-top-width:1.5px!important;}
+    .hairline{border-color:var(--c-line-soft);}
+    ::-webkit-scrollbar{width:10px;height:10px;}
+    ::-webkit-scrollbar-thumb{background:var(--c-scrollbar);border-radius:999px;}
+    ::selection{background:color-mix(in oklab,var(--c-accent) 35%,transparent);color:var(--c-ink-900);}
+    :focus-visible{outline:2px solid var(--c-accent);outline-offset:2px;}
+    :focus:not(:focus-visible){outline:none;}
+    [id]{scroll-margin-top:72px;}
+
+    /* Theme toggle icons */
+    .theme-icon-sun{display:none;}.theme-icon-moon{display:inline-block;}
+    @media(prefers-color-scheme:dark){
+      :root:not([data-theme="light"]) .theme-icon-sun{display:inline-block;}
+      :root:not([data-theme="light"]) .theme-icon-moon{display:none;}
+    }
+    :root[data-theme="dark"] .theme-icon-sun{display:inline-block;}
+    :root[data-theme="dark"] .theme-icon-moon{display:none;}
+    :root[data-theme="light"] .theme-icon-sun{display:none;}
+    :root[data-theme="light"] .theme-icon-moon{display:inline-block;}
+
+    /* Kind sigil — small, low-saturation taxonomy marker.
+       It's a hint, not a logo: ink-500 on a faint surface tint. */
+    .sigil{
+      display:inline-grid;place-items:center;
+      height:16px;width:16px;border-radius:3px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:10px;font-weight:500;line-height:1;flex-shrink:0;
+      background:var(--c-surface-muted);color:var(--c-ink-500);
+    }
+    .sigil[data-kind="M"]{background:var(--c-cat-pink);color:var(--c-cat-pinkInk);}
+    .sigil[data-kind="S"]{background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);}
+    .sigil[data-kind="E"]{background:var(--c-cat-teal);color:var(--c-cat-tealInk);}
+    .sigil[data-kind="T"]{background:var(--c-cat-blue);color:var(--c-cat-blueInk);}
+    .sigil[data-kind="f"]{background:var(--c-cat-green);color:var(--c-cat-greenInk);}
+    .sigil[data-kind="Y"]{background:var(--c-cat-peach);color:var(--c-cat-peachInk);}
+    .sigil[data-kind="!"]{background:var(--c-cat-plum);color:var(--c-cat-plumInk);}
+    .sigil[data-kind="C"]{background:var(--c-cat-slate);color:var(--c-cat-slateInk);}
+
+    /* Code blocks */
+    .code{
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:13px;line-height:1.65;
+      background:var(--c-surface);
+      border:1px solid var(--c-line-soft);
+      border-radius:5px;
+      padding:16px 18px;
+      overflow-x:auto;color:var(--c-ink-900);
+      margin:0;white-space:pre;
+    }
+    .code.signature{
+      background:transparent;border:none;
+      border-left:2px solid var(--c-line);
+      border-radius:0;padding:2px 0 2px 14px;
+      font-size:14px;overflow-x:auto;
+    }
+    .code .cm{color:var(--c-code-comment);font-style:italic;}
+    .code .kw{color:var(--c-code-keyword);}
+    .code .ty{color:var(--c-code-type);}
+    .code .tr{color:var(--c-code-trait);}
+    .code .fn{color:var(--c-code-fn);}
+    .code .st{color:var(--c-code-string);}
+    .code .mc{color:var(--c-code-macro);}
+    .code .lt{color:var(--c-code-lifetime);}
+    .code a.link{color:inherit;text-decoration:underline;
+      text-decoration-color:var(--c-line);text-underline-offset:3px;}
+    .code a.link:hover{text-decoration-color:currentColor;}
+    .code-head{
+      display:flex;align-items:center;gap:8px;
+      padding:6px 8px 6px 12px;
+      border:1px solid var(--c-line-soft);border-bottom:none;
+      border-radius:5px 5px 0 0;
+      background:var(--c-surface-muted);
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:11px;color:var(--c-ink-500);
+    }
+    .code-head + .code{border-top-left-radius:0;border-top-right-radius:0;}
+    .copy-btn{
+      margin-left:auto;
+      display:inline-flex;align-items:center;gap:4px;
+      height:22px;padding:0 8px;
+      border:1px solid var(--c-line-soft);
+      border-radius:4px;background:var(--c-surface);
+      color:var(--c-ink-500);font-size:11px;cursor:pointer;
+    }
+    .copy-btn:hover{color:var(--c-ink-900);background:var(--c-surface-muted);}
+    .copy-btn.copied{color:var(--c-positive);}
+
+    /* Inline code */
+    .icode{
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:.875em;padding:1px 5px;
+      background:var(--c-surface-muted);color:var(--c-ink-700);
+      border-radius:3px;
+    }
+    a > .icode,.prose a > .icode{color:var(--c-ink-900);}
+
+    /* Prose */
+    .prose p{margin:0 0 12px;color:var(--c-ink-700);line-height:1.65;font-size:14px;}
+    .prose p:last-child{margin-bottom:0;}
+    .prose a{color:var(--c-ink-900);text-decoration:underline;
+      text-decoration-color:var(--c-line);text-underline-offset:3px;}
+    .prose a:hover{text-decoration-color:var(--c-ink-700);}
+    .prose ul{margin:0 0 12px;padding-left:20px;list-style:disc;
+      color:var(--c-ink-700);font-size:14px;line-height:1.65;}
+    .prose ul li::marker{color:var(--c-ink-400);}
+    .prose strong{color:var(--c-ink-900);font-weight:600;}
+
+    /* Sidebar link — categorical color is a 2px left rail.
+       Hover shows the rail at 50%, active at 100%. The kind letter is
+       a quiet mono prefix in ink-400 — scannable, never shouts. */
+    .side-link{
+      position:relative;display:flex;align-items:center;gap:10px;
+      padding:5px 8px 5px 12px;border-radius:4px;
+      font-size:13px;color:var(--c-ink-700);
+      text-decoration:none;line-height:1.4;
+    }
+    .side-link::before{
+      content:"";position:absolute;left:2px;top:6px;bottom:6px;width:2px;
+      border-radius:2px;background:transparent;
+      transition:background-color .1s linear;
+    }
+    .side-link .kind{
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:11px;color:var(--c-ink-400);width:10px;text-align:center;
+      flex-shrink:0;
+    }
+    .side-link .count{
+      margin-left:auto;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-variant-numeric:tabular-nums;
+      font-size:10.5px;color:var(--c-ink-400);
+    }
+    .side-link:hover{background:var(--c-surface-muted);color:var(--c-ink-900);}
+    .side-link:hover::before{background:color-mix(in oklab,var(--c-rail,var(--c-line)) 60%,transparent);}
+    .side-link:hover .kind{color:var(--c-ink-700);}
+    .side-link.active{background:var(--c-surface-muted);color:var(--c-ink-900);}
+    .side-link.active::before{background:var(--c-rail,var(--c-ink-900));}
+    .side-link.active .kind{color:var(--c-ink-900);}
+
+    /* Right TOC — in-page scrollspy. Hierarchy is real indent, no bullets. */
+    .toc-link{
+      display:block;padding:3px 10px;
+      font-size:12px;color:var(--c-ink-500);
+      border-left:1.5px solid transparent;
+      line-height:1.5;text-decoration:none;
+    }
+    .toc-link:hover{color:var(--c-ink-900);border-left-color:var(--c-line);}
+    .toc-link.active{color:var(--c-ink-900);border-left-color:var(--c-ink-900);}
+    .toc-link.indent{padding-left:22px;color:var(--c-ink-500);}
+    .toc-link.indent.active{color:var(--c-ink-900);}
+    .toc-sub-label{
+      padding:10px 10px 4px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+      color:var(--c-ink-500);
+    }
+
+    /* Anchor — persistently visible but quiet */
+    .anchor{
+      color:var(--c-ink-400);text-decoration:none;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      margin-left:6px;opacity:.6;
+    }
+    .anchor:hover{color:var(--c-ink-900);opacity:1;}
+
+    /* Source / aux link */
+    .src-link{
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:11px;color:var(--c-ink-500);
+      text-decoration:none;padding:2px 6px;border-radius:3px;
+    }
+    .src-link:hover{color:var(--c-ink-900);background:var(--c-surface-muted);}
+
+    /* Item list — DS C04. Sigil · name+desc · meta. Hairline rules. */
+    .item-list{margin:0;}
+    .item-row{
+      display:grid;grid-template-columns:auto 1fr auto;
+      gap:12px;align-items:baseline;
+      padding:12px 14px;
+      border-top:1px solid var(--c-line-soft);
+      border-radius:4px;
+      color:inherit;text-decoration:none;
+    }
+    .item-row:first-child{border-top:none;}
+    .item-row:hover{background:var(--c-surface-muted);}
+    .item-row .name{
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:13.5px;color:var(--c-ink-900);font-weight:500;text-decoration:none;
+    }
+    .item-row:hover .name{color:var(--c-ink-900);}
+    .item-row .desc{
+      color:var(--c-ink-700);font-size:13px;line-height:1.55;margin-top:2px;
+    }
+    .item-row .meta{
+      font-size:11px;color:var(--c-ink-500);
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+    }
+    .item-row.deprecated .name,
+    .item-row.deprecated .desc{color:var(--c-ink-400);}
+    .item-row.deprecated .name{text-decoration:line-through;text-decoration-thickness:1px;}
+    .item-row.deprecated .sigil{opacity:.5;}
+    /* Tables sit on surface (the secondary region) — sigils there get the
+       muted treatment so the table reads as calm reference data. */
+    .items-region .item-row{padding-left:0;padding-right:0;}
+
+    /* Method entry */
+    .method{padding:16px 0 0;border-top:1px solid var(--c-line-soft);}
+    .method:first-of-type{border-top:none;padding-top:0;}
+    .method-header{
+      display:flex;align-items:flex-start;gap:8px;
+      margin-bottom:10px;
+    }
+    .method-header .code.signature{flex:1;min-width:0;}
+    .method-header .aux{
+      flex-shrink:0;display:flex;align-items:center;gap:4px;padding-top:2px;
+    }
+    .method-meta{
+      display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+      margin:0 0 10px;font-size:11px;color:var(--c-ink-500);
+    }
+    .since-tag{
+      display:inline-flex;align-items:center;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:10.5px;color:var(--c-ink-500);
+      padding:1px 6px;border:1px solid var(--c-line-soft);border-radius:3px;
+    }
+
+    /* Section sub-heads inside methods */
+    .sub-head{
+      font-size:11px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      letter-spacing:.08em;text-transform:uppercase;
+      color:var(--c-ink-500);margin:14px 0 6px;
+    }
+
+    /* Param table — DS §11 Definition pattern */
+    table.def{width:100%;font-size:13px;border-top:1.5px solid var(--c-line-soft);}
+    table.def tr{border-bottom:1.5px solid var(--c-line-soft);}
+    table.def td{padding:12px 0;vertical-align:baseline;}
+    table.def td:first-child{
+      padding-right:24px;white-space:nowrap;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      color:var(--c-ink-900);
+    }
+    table.def td:last-child{color:var(--c-ink-700);line-height:1.55;}
+    table.def .qual{margin-left:8px;font-size:11px;color:var(--c-ink-500);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;}
+
+    /* Section heading */
+    .section-head{
+      display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+      border-bottom:1px solid var(--c-line-soft);
+      padding-bottom:8px;
+    }
+
+    /* Details collapse chevron */
+    details > summary{list-style:none;}
+    details > summary::-webkit-details-marker{display:none;}
+    details[open] > summary .chev{transform:rotate(90deg);}
+  </style>
+</head>
+
+<body class="bg-canvas text-ink-900 font-sans antialiased">
+
+  <!-- ============================== -->
+  <!-- TOP BAR                        -->
+  <!-- ============================== -->
+  <div class="sticky top-0 z-20 bg-canvas/90 backdrop-blur border-b hairline">
+    <div class="max-w-[1440px] px-4 md:px-6 h-12 flex items-center gap-4">
+      <!-- Brand + breadcrumb. The brand is the rust-monogram; the breadcrumb
+           tells you WHERE in the crate you are. No dead-weight single item. -->
+      <div class="flex items-center gap-2.5 min-w-0">
+        <a href="#" aria-label="Home" class="inline-grid place-items-center h-6 w-6 rounded-md bg-cat-rust text-cat-rustInk mono text-[11px] font-semibold no-underline">W</a>
+        <nav aria-label="Breadcrumb" class="flex items-center gap-1.5 mono text-[13px] min-w-0">
+          <a href="#" class="text-ink-700 hover:text-ink-900 truncate">wasm_component</a>
+          <span class="text-ink-400" aria-hidden="true">/</span>
+          <a href="#struct.Component" class="text-ink-900 truncate">Component</a>
+        </nav>
+      </div>
+
+      <!-- Command palette trigger: honest about being a trigger, not a live input -->
+      <button type="button" id="palette-trigger"
+        class="flex-1 max-w-xl h-8 px-2.5 rounded-md bg-surface border border-line text-[13px] text-ink-500 flex items-center gap-2 hover:bg-surfaceMuted hover:text-ink-700 transition-colors">
+        <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/>
+        </svg>
+        <span class="truncate">Search items and docs…</span>
+        <span class="ml-auto mono text-[10px] text-ink-500 border border-lineSoft rounded-sm px-1.5 py-0.5 bg-surfaceMuted">⌘K</span>
+      </button>
+
+      <div class="flex items-center gap-1 text-[12px] text-ink-500">
+        <a href="#" class="hidden md:inline-flex items-center h-7 px-2 rounded-md hover:bg-surfaceMuted hover:text-ink-900">Crates</a>
+        <a href="#" class="hidden md:inline-flex items-center h-7 px-2 rounded-md hover:bg-surfaceMuted hover:text-ink-900">Releases</a>
+        <button id="theme-toggle" type="button" aria-label="Toggle color theme"
+          class="inline-flex items-center gap-1.5 h-7 px-2 rounded-md border border-line bg-surface text-ink-700 hover:bg-surfaceMuted hover:text-ink-900 transition-colors">
+          <svg class="theme-icon-sun h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <circle cx="8" cy="8" r="3"/>
+            <path d="M8 1.5v1.5M8 13v1.5M1.5 8h1.5M13 8h1.5M3.3 3.3l1.05 1.05M11.65 11.65l1.05 1.05M3.3 12.7l1.05-1.05M11.65 4.35l1.05-1.05"/>
+          </svg>
+          <svg class="theme-icon-moon h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7Z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================== -->
+  <!-- LAYOUT                         -->
+  <!-- ============================== -->
+  <div class="max-w-[1440px] px-4 md:px-6 grid grid-cols-1 lg:grid-cols-[240px_1fr_200px] gap-8 lg:gap-10 pt-8 pb-24">
+
+    <!-- ============================== -->
+    <!-- LEFT SIDEBAR                   -->
+    <!-- ============================== -->
+    <aside class="lg:sticky lg:top-16 lg:self-start lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto -mx-2 px-2">
+
+      <!-- Crate summary -->
+      <div class="pb-5 border-b hairline">
+        <div class="flex items-center gap-2">
+          <span class="inline-grid place-items-center h-8 w-8 rounded-md bg-cat-rust text-cat-rustInk mono text-[14px] font-semibold">W</span>
+          <div class="min-w-0">
+            <div class="mono text-[14px] font-semibold leading-tight truncate">wasm_component</div>
+            <div class="mono text-[11px] text-ink-500">0.4.2 · rust 2021</div>
+          </div>
+        </div>
+        <p class="mt-3 text-[12.5px] text-ink-700 leading-relaxed">
+          A minimal, ergonomic runtime for WebAssembly Components.
+        </p>
+      </div>
+
+      <!-- Version / platform / features -->
+      <div class="py-4 border-b hairline space-y-2.5">
+        <div>
+          <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-1">Version</div>
+          <button class="w-full h-7 px-2 rounded-md border border-line bg-surface flex items-center justify-between text-ink-900 hover:bg-surfaceMuted text-[12px]">
+            <span class="mono">0.4.2</span>
+            <svg class="h-3 w-3 text-ink-500" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m3 4.5 3 3 3-3"/></svg>
+          </button>
+        </div>
+        <div>
+          <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-1">Platform</div>
+          <button class="w-full h-7 px-2 rounded-md border border-line bg-surface flex items-center justify-between text-ink-900 hover:bg-surfaceMuted text-[12px]">
+            <span class="mono truncate">x86_64-linux-gnu</span>
+            <svg class="h-3 w-3 text-ink-500 flex-shrink-0" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m3 4.5 3 3 3-3"/></svg>
+          </button>
+        </div>
+        <div>
+          <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-1">Features</div>
+          <div class="flex flex-wrap gap-1">
+            <span class="inline-flex items-center h-5 px-1.5 rounded-sm bg-surfaceMuted text-ink-700 mono text-[10.5px]">default</span>
+            <span class="inline-flex items-center h-5 px-1.5 rounded-sm bg-cat-green text-cat-greenInk mono text-[10.5px]">async</span>
+            <span class="inline-flex items-center h-5 px-1.5 rounded-sm bg-cat-blue text-cat-blueInk mono text-[10.5px]">wasi</span>
+            <span class="inline-flex items-center h-5 px-1.5 rounded-sm bg-surfaceMuted text-ink-700 mono text-[10.5px]">std</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- In-crate nav — the global crate map, never changes per page.
+           Categorical color is a hairline rail; kind letter is a quiet prefix. -->
+      <div class="py-4">
+        <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-2">In wasm_component</div>
+        <nav class="space-y-px">
+          <a href="#modules" class="side-link" style="--c-rail:var(--c-cat-pinkInk)">
+            <span class="sigil" data-kind="M">M</span>Modules<span class="count">8</span>
+          </a>
+          <a href="#macros" class="side-link" style="--c-rail:var(--c-cat-plumInk)">
+            <span class="sigil" data-kind="!">!</span>Macros<span class="count">2</span>
+          </a>
+          <a href="#structs" class="side-link active" style="--c-rail:var(--c-cat-lilacInk)">
+            <span class="sigil" data-kind="S">S</span>Structs<span class="count">6</span>
+          </a>
+          <a href="#enums" class="side-link" style="--c-rail:var(--c-cat-tealInk)">
+            <span class="sigil" data-kind="E">E</span>Enums<span class="count">2</span>
+          </a>
+          <a href="#traits" class="side-link" style="--c-rail:var(--c-cat-blueInk)">
+            <span class="sigil" data-kind="T">T</span>Traits<span class="count">3</span>
+          </a>
+          <a href="#functions" class="side-link" style="--c-rail:var(--c-cat-greenInk)">
+            <span class="sigil" data-kind="f">f</span>Functions<span class="count">3</span>
+          </a>
+          <a href="#types" class="side-link" style="--c-rail:var(--c-cat-peachInk)">
+            <span class="sigil" data-kind="Y">Y</span>Type Aliases<span class="count">2</span>
+          </a>
+          <a href="#constants" class="side-link" style="--c-rail:var(--c-cat-slateInk)">
+            <span class="sigil" data-kind="C">C</span>Constants<span class="count">2</span>
+          </a>
+        </nav>
+      </div>
+
+      <!-- Project links — the crate's external endpoints; the per-page TOC
+           on the right covers in-page navigation, so we don't duplicate it here. -->
+      <div class="py-4 border-t hairline">
+        <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-2">Project</div>
+        <nav class="space-y-px">
+          <a href="#" class="side-link gap-2">
+            <svg class="h-3.5 w-3.5 text-ink-500" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 .2a8 8 0 0 0-2.5 15.6c.4 0 .55-.17.55-.38v-1.4c-2.22.48-2.69-1.07-2.69-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.71 1.23 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.77-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.83-2.15-.08-.2-.36-1.02.08-2.13 0 0 .67-.22 2.2.82A7.6 7.6 0 0 1 8 4.04c.68 0 1.37.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.11.16 1.93.08 2.13.52.56.83 1.28.83 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.74.54 1.49v2.21c0 .21.15.46.55.38A8 8 0 0 0 8 .2Z"/></svg>
+            Repository
+          </a>
+          <a href="#" class="side-link gap-2">
+            <svg class="h-3.5 w-3.5 text-ink-500" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="1"/><path d="M2.5 6.5h11M6 3v10"/></svg>
+            Crates.io
+          </a>
+          <a href="#" class="side-link gap-2">
+            <svg class="h-3.5 w-3.5 text-ink-500" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3.5M8 11v.01"/></svg>
+            Issues<span class="count">12</span>
+          </a>
+        </nav>
+      </div>
+    </aside>
+
+    <!-- ============================== -->
+    <!-- CONTENT                        -->
+    <!-- ============================== -->
+    <article class="min-w-0">
+
+      <!-- ============================== -->
+      <!-- PAGE HEADER (DS C03)           -->
+      <!-- Kicker · Title · Tagline · Metadata strip                     -->
+      <!-- ============================== -->
+      <header class="pb-8 md:pb-12">
+        <div class="flex items-center gap-2 text-[12px] text-ink-500 mono uppercase tracking-wider">
+          <span>v0.4.2</span>
+          <span class="h-1 w-1 rounded-full bg-ink-300"></span>
+          <span>API Reference</span>
+          <span class="h-1 w-1 rounded-full bg-ink-300"></span>
+          <span>Crate</span>
+        </div>
+        <h1 class="mt-3 text-[36px] md:text-[44px] leading-[1.05] font-semibold tracking-tight">
+          wasm_component
+        </h1>
+        <p class="mt-3 max-w-2xl text-[15px] text-ink-700 leading-relaxed">
+          A minimal, ergonomic runtime for WebAssembly Components — a typed
+          <span class="mono text-[13px]">Linker</span>, host bindings, and a
+          wire-compatible ABI for interface types.
+        </p>
+        <!-- Metadata strip -->
+        <div class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3 text-[13px]">
+          <div class="inline-flex items-center gap-2">
+            <span class="text-[11px] mono uppercase tracking-wider text-ink-500">Version</span>
+            <span class="inline-flex items-center h-7 px-2.5 rounded-md bg-surfaceMuted text-ink-900 mono text-[12.5px]">0.4.2</span>
+          </div>
+          <div class="inline-flex items-center gap-2">
+            <span class="text-[11px] mono uppercase tracking-wider text-ink-500">Edition</span>
+            <span class="inline-flex items-center h-7 px-2.5 rounded-md bg-surfaceMuted text-ink-900 mono text-[12.5px]">2021</span>
+          </div>
+          <div class="inline-flex items-center gap-2">
+            <span class="text-[11px] mono uppercase tracking-wider text-ink-500">Source</span>
+            <a href="#" class="text-ink-700 underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900 mono text-[12.5px]">github.com/yosh/wasm</a>
+          </div>
+          <div class="inline-flex items-center gap-2">
+            <span class="text-[11px] mono uppercase tracking-wider text-ink-500">Status</span>
+            <span class="inline-flex items-center gap-1.5 px-2 h-6 rounded-pill bg-cat-green text-cat-greenInk text-[12px] font-medium">
+              <span class="h-1.5 w-1.5 rounded-full bg-cat-greenInk"></span>Stable
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <div class="border-t rule"></div>
+
+      <!-- Overview prose -->
+      <section class="pt-8 prose max-w-[72ch]">
+        <p class="!text-[15px] !text-ink-700">
+          A minimal, ergonomic runtime for <a href="#">WebAssembly Components</a>.
+          Provides a typed <a href="#"><span class="icode">Linker</span></a>,
+          host bindings, and a wire-compatible ABI for interface types. Designed to
+          pair cleanly with <a href="#"><span class="icode">wasmtime</span></a>
+          while remaining embeddable in smaller hosts.
+        </p>
+        <p>
+          Components are loaded from a binary artifact, linked against host-provided
+          imports, and then instantiated into a
+          <a href="#"><span class="icode">Store</span></a>. Each instantiation
+          produces a strongly-typed <a href="#"><span class="icode">Instance</span></a>
+          whose exported functions can be called directly from Rust.
+        </p>
+
+        <!-- Example -->
+        <div class="mt-8">
+          <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Example</div>
+          <div class="code-head">
+            <span>examples/hello.rs</span>
+            <button class="copy-btn" data-copy="hello">
+              <svg class="h-3 w-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="6" height="6" rx="1"/><path d="M2 8V3a1 1 0 0 1 1-1h5"/></svg>
+              <span>Copy</span>
+            </button>
+          </div>
+          <pre class="code" id="hello"><span class="cm">// Load, link, and run a component end-to-end.</span>
+<span class="kw">use</span> <a class="link" href="#struct.Component">wasm_component::Component</a>;
+<span class="kw">use</span> wasm_component::{<span class="ty">Engine</span>, <span class="ty">Linker</span>, <span class="ty">Store</span>};
+
+<span class="kw">fn</span> <span class="fn">main</span>() -&gt; wasm_component::<span class="ty">Result</span>&lt;()&gt; {
+    <span class="kw">let</span> engine    = <span class="ty">Engine</span>::<span class="fn">default</span>();
+    <span class="kw">let</span> component = <span class="ty">Component</span>::<span class="fn">from_file</span>(&amp;engine, <span class="st">"hello.wasm"</span>)?;
+
+    <span class="kw">let</span> <span class="kw">mut</span> linker = <span class="ty">Linker</span>::&lt;()&gt;::<span class="fn">new</span>(&amp;engine);
+    wasm_component::wasi::<span class="fn">add_to_linker</span>(&amp;<span class="kw">mut</span> linker)?;
+
+    <span class="kw">let</span> <span class="kw">mut</span> store = <span class="ty">Store</span>::<span class="fn">new</span>(&amp;engine, ());
+    <span class="kw">let</span> instance  = linker.<span class="fn">instantiate</span>(&amp;<span class="kw">mut</span> store, &amp;component)?;
+
+    instance.<span class="fn">get_typed_func</span>::&lt;(), ()&gt;(&amp;<span class="kw">mut</span> store, <span class="st">"run"</span>)?
+            .<span class="fn">call</span>(&amp;<span class="kw">mut</span> store, ())?;
+    <span class="ty">Ok</span>(())
+}</pre>
+        </div>
+
+        <p class="mt-5 !text-ink-500">
+          For the full tutorial see the <a href="#">book</a>. To browse all items jump
+          to <a href="#modules">Modules</a> below.
+        </p>
+      </section>
+
+      <!-- ============================== -->
+      <!-- SECONDARY REGION: ITEMS INDEX  -->
+      <!-- Full-bleed surface swap (DS §21 Regions) — no rule between
+           regions; the surface change IS the boundary.               -->
+      <!-- ============================== -->
+      <div class="items-region relative mt-12 md:mt-16 pt-10 md:pt-14 pb-12 md:pb-16">
+        <!-- Full-bleed BG anchored to viewport-left (page is left-aligned).
+             Offset = outer padding + sidebar + grid gap.
+             sm: 16px · md: 24px · lg: 24 + 240 + 40 = 304px -->
+        <div class="absolute top-0 h-full bg-surface -z-10 left-[-16px] md:left-[-24px] lg:left-[-304px] w-screen"></div>
+
+        <div class="flex items-baseline justify-between mb-6">
+          <div>
+            <div class="text-[11px] mono uppercase tracking-wider text-ink-500">Reference</div>
+            <h2 class="mt-1 text-[22px] font-semibold tracking-tight">Items in this crate</h2>
+          </div>
+          <span class="text-[11px] text-ink-500 mono">28 items</span>
+        </div>
+
+      <!-- ============================== -->
+      <!-- MODULES                        -->
+      <!-- ============================== -->
+      <section id="modules" class="mt-8">
+        <div class="flex items-baseline justify-between mb-2">
+          <h3 class="text-[15px] font-semibold tracking-tight">
+            Modules
+            <a href="#modules" class="anchor text-[12px]">§</a>
+          </h3>
+          <span class="text-[11px] text-ink-500 mono">8</span>
+        </div>
+        <div class="item-list">
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="M">M</span>
+            <div><span class="name">component</span><div class="desc">Loading and compiling component artifacts.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="M">M</span>
+            <div><span class="name">engine</span><div class="desc">Global engine configuration and compilation caches.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="M">M</span>
+            <div><span class="name">linker</span><div class="desc">Typed and untyped linking of host-defined imports.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="M">M</span>
+            <div><span class="name">store</span><div class="desc">Per-instance state, fuel, and epoch interruption.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="M">M</span>
+            <div><span class="name">types</span><div class="desc">Reflection for component interface types.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="M">M</span>
+            <div>
+              <span class="name">wasi</span>
+              <span class="ml-1.5 inline-flex items-center h-4 px-1.5 rounded-sm bg-cat-blue text-cat-blueInk mono text-[10px] align-middle">wasi</span>
+              <div class="desc">WASI Preview 2 bindings.</div>
+            </div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="M">M</span>
+            <div><span class="name">testing</span><div class="desc">Utilities for unit-testing components.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row deprecated">
+            <span class="sigil" data-kind="M">M</span>
+            <div><span class="name">legacy</span><div class="desc">Preview 1 compatibility shims. Removed in 0.5.</div></div>
+            <span class="meta">deprecated</span>
+          </a>
+        </div>
+      </section>
+
+      <!-- ============================== -->
+      <!-- MACROS                         -->
+      <!-- ============================== -->
+      <section id="macros" class="mt-12">
+        <div class="flex items-baseline justify-between mb-2">
+          <h3 class="text-[15px] font-semibold tracking-tight">
+            Macros
+            <a href="#macros" class="anchor text-[12px]">§</a>
+          </h3>
+          <span class="text-[11px] text-ink-500 mono">2</span>
+        </div>
+        <div class="item-list">
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="!">!</span>
+            <div><span class="name">bindgen!</span><div class="desc">Generate typed host bindings from a <span class="icode">.wit</span> world.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="!">!</span>
+            <div><span class="name">component!</span><div class="desc">Declarative builder for defining linker imports inline.</div></div>
+            <span class="meta"></span>
+          </a>
+        </div>
+      </section>
+
+      <!-- ============================== -->
+      <!-- STRUCTS                        -->
+      <!-- ============================== -->
+      <section id="structs" class="mt-12">
+        <div class="flex items-baseline justify-between mb-2">
+          <h3 class="text-[15px] font-semibold tracking-tight">
+            Structs
+            <a href="#structs" class="anchor text-[12px]">§</a>
+          </h3>
+          <span class="text-[11px] text-ink-500 mono">6</span>
+        </div>
+        <div class="item-list">
+          <a href="#struct.Component" class="item-row">
+            <span class="sigil" data-kind="S">S</span>
+            <div><span class="name">Component</span><div class="desc">A compiled WebAssembly component ready to be instantiated.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="S">S</span>
+            <div><span class="name">Engine</span><div class="desc">Shared compilation environment. Cheap to clone.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="S">S</span>
+            <div><span class="name">Linker</span><div class="desc">A collection of host-provided imports available to a component.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="S">S</span>
+            <div><span class="name">Store</span><div class="desc">Owns the resources of an instantiated component.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="S">S</span>
+            <div><span class="name">Instance</span><div class="desc">A linked and initialised component, ready to run.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="S">S</span>
+            <div><span class="name">TypedFunc</span><div class="desc">A statically-typed handle to a component export.</div></div>
+            <span class="meta"></span>
+          </a>
+        </div>
+      </section>
+
+      <!-- ============================== -->
+      <!-- ENUMS                          -->
+      <!-- ============================== -->
+      <section id="enums" class="mt-12">
+        <div class="flex items-baseline justify-between mb-2">
+          <h3 class="text-[15px] font-semibold tracking-tight">
+            Enums
+            <a href="#enums" class="anchor text-[12px]">§</a>
+          </h3>
+          <span class="text-[11px] text-ink-500 mono">2</span>
+        </div>
+        <div class="item-list">
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="E">E</span>
+            <div><span class="name">Error</span><div class="desc">Errors that may occur while loading, linking, or running a component.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="E">E</span>
+            <div><span class="name">Val</span><div class="desc">A dynamically-typed component value usable across the ABI boundary.</div></div>
+            <span class="meta"></span>
+          </a>
+        </div>
+      </section>
+
+      <!-- ============================== -->
+      <!-- TRAITS                         -->
+      <!-- ============================== -->
+      <section id="traits" class="mt-12">
+        <div class="flex items-baseline justify-between mb-2">
+          <h3 class="text-[15px] font-semibold tracking-tight">
+            Traits
+            <a href="#traits" class="anchor text-[12px]">§</a>
+          </h3>
+          <span class="text-[11px] text-ink-500 mono">3</span>
+        </div>
+        <div class="item-list">
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="T">T</span>
+            <div><span class="name">ComponentType</span><div class="desc">Types with a canonical representation in the component model.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="T">T</span>
+            <div><span class="name">Lower</span><div class="desc">Marshal a host value into the guest's ABI.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="T">T</span>
+            <div><span class="name">Lift</span><div class="desc">Marshal a guest value out of the ABI into a host-owned value.</div></div>
+            <span class="meta"></span>
+          </a>
+        </div>
+      </section>
+
+      <!-- ============================== -->
+      <!-- FUNCTIONS                      -->
+      <!-- ============================== -->
+      <section id="functions" class="mt-12">
+        <div class="flex items-baseline justify-between mb-2">
+          <h3 class="text-[15px] font-semibold tracking-tight">
+            Functions
+            <a href="#functions" class="anchor text-[12px]">§</a>
+          </h3>
+          <span class="text-[11px] text-ink-500 mono">3</span>
+        </div>
+        <div class="item-list">
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="f">f</span>
+            <div><span class="name">version</span><div class="desc">The runtime version as a <span class="icode">&amp;'static str</span>.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="f">f</span>
+            <div><span class="name">default_engine</span><div class="desc">Convenience accessor for a lazily-initialised process-wide engine.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="f">f</span>
+            <div><span class="name">validate</span><div class="desc">Validate a component binary without compiling it.</div></div>
+            <span class="meta"></span>
+          </a>
+        </div>
+      </section>
+
+      <!-- ============================== -->
+      <!-- TYPE ALIASES                   -->
+      <!-- ============================== -->
+      <section id="types" class="mt-12">
+        <div class="flex items-baseline justify-between mb-2">
+          <h3 class="text-[15px] font-semibold tracking-tight">
+            Type Aliases
+            <a href="#types" class="anchor text-[12px]">§</a>
+          </h3>
+          <span class="text-[11px] text-ink-500 mono">2</span>
+        </div>
+        <div class="item-list">
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="Y">Y</span>
+            <div><span class="name">Result</span><div class="desc">A specialised <span class="icode">Result</span> returning <span class="icode">Error</span>.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="Y">Y</span>
+            <div><span class="name">HostFn</span><div class="desc">A boxed, object-safe host function callable from a component.</div></div>
+            <span class="meta"></span>
+          </a>
+        </div>
+      </section>
+
+      <!-- ============================== -->
+      <!-- CONSTANTS                      -->
+      <!-- ============================== -->
+      <section id="constants" class="mt-12">
+        <div class="flex items-baseline justify-between mb-2">
+          <h3 class="text-[15px] font-semibold tracking-tight">
+            Constants
+            <a href="#constants" class="anchor text-[12px]">§</a>
+          </h3>
+          <span class="text-[11px] text-ink-500 mono">2</span>
+        </div>
+        <div class="item-list">
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="C">C</span>
+            <div><span class="name">VERSION</span><div class="desc">Semver string of this crate. See also <span class="icode">version</span>.</div></div>
+            <span class="meta"></span>
+          </a>
+          <a href="#" class="item-row">
+            <span class="sigil" data-kind="C">C</span>
+            <div><span class="name">DEFAULT_EPOCH_MS</span><div class="desc">Default epoch deadline used by <span class="icode">Store::set_epoch_deadline</span>.</div></div>
+            <span class="meta"></span>
+          </a>
+        </div>
+      </section>
+
+      </div>
+      <!-- /SECONDARY REGION — surface swap back to canvas; no rule needed -->
+
+      <!-- ============================== -->
+      <!-- DETAIL: Component              -->
+      <!-- Back on canvas — primary subject of the page when you're here. -->
+      <!-- ============================== -->
+      <section id="struct.Component" class="pt-12 md:pt-16">
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+          <div class="min-w-0">
+            <div class="text-[11px] mono uppercase tracking-wider text-ink-500">Struct</div>
+            <h2 class="mt-1 flex items-baseline gap-3 text-[32px] md:text-[36px] leading-[1.1] font-semibold tracking-tight mono">
+              Component
+              <a href="#struct.Component" class="anchor text-[16px]">§</a>
+            </h2>
+          </div>
+          <div class="flex items-center gap-2 pt-2">
+            <span class="since-tag">1.0.0</span>
+            <a href="#" class="src-link">source</a>
+          </div>
+        </div>
+
+        <div class="mt-6 border-t rule"></div>
+
+        <pre class="mt-6 code signature"><span class="kw">pub struct</span> <span class="ty">Component</span> { <span class="cm">/* private fields */</span> }</pre>
+
+        <div class="prose mt-5 max-w-[72ch]">
+          <p>
+            A compiled WebAssembly Component. <a href="#struct.Component"><span class="icode">Component</span></a>
+            values are immutable and cheaply cloneable — internally they share an
+            <span class="icode">Arc</span>-ed compiled artifact, so passing one across
+            threads is essentially free.
+          </p>
+          <p>
+            Compilation is performed by an <a href="#"><span class="icode">Engine</span></a>,
+            typically via <a href="#method.from_file"><span class="icode">Component::from_file</span></a>
+            or <a href="#method.from_bytes"><span class="icode">Component::from_bytes</span></a>.
+            Both methods validate the binary against the component-model spec before
+            producing a <span class="icode">Component</span>.
+          </p>
+
+          <div class="sub-head">See also</div>
+          <ul>
+            <li><a href="#"><span class="icode">Engine</span></a> — the compilation environment that produces components.</li>
+            <li><a href="#"><span class="icode">Linker</span></a> — supplies imports for a component at link time.</li>
+            <li><a href="#"><span class="icode">validate</span></a> — check a binary without compiling it.</li>
+          </ul>
+        </div>
+
+        <!-- Implementations -->
+        <div id="impl-Component" class="mt-10">
+          <div class="section-head">
+            <h3 class="text-[16px] font-semibold tracking-tight flex items-baseline gap-2">
+              <span class="mono text-ink-500 font-normal text-[13px]">impl</span>
+              <span class="mono">Component</span>
+              <a href="#impl-Component" class="anchor text-[12px]">§</a>
+            </h3>
+            <a href="#" class="src-link">source</a>
+          </div>
+
+          <div class="mt-5 space-y-2">
+
+            <!-- from_file -->
+            <div id="method.from_file" class="method">
+              <div class="method-header">
+                <pre class="code signature"><span class="kw">pub fn</span> <span class="fn">from_file</span>&lt;<span class="lt">P</span>: <span class="tr">AsRef</span>&lt;<span class="ty">Path</span>&gt;&gt;(
+    engine: &amp;<span class="ty">Engine</span>,
+    path: <span class="lt">P</span>,
+) -&gt; <span class="ty">Result</span>&lt;<span class="ty">Self</span>&gt;</pre>
+                <div class="aux">
+                  <a href="#method.from_file" class="anchor text-[12px]">§</a>
+                  <a href="#" class="src-link">source</a>
+                </div>
+              </div>
+              <div class="method-meta">
+                <span class="since-tag">since 1.0.0</span>
+              </div>
+              <div class="prose max-w-[72ch]">
+                <p>
+                  Load and compile a component from a file on disk. The file is
+                  memory-mapped where supported, so large components do not need to be
+                  fully read into memory before compilation begins.
+                </p>
+              </div>
+
+              <div class="sub-head">Parameters</div>
+              <table class="def">
+                <tbody>
+                  <tr>
+                    <td>engine<span class="qual">&amp;Engine</span></td>
+                    <td>The <a href="#"><span class="icode">Engine</span></a> to compile with. Compilation caches are keyed per-engine.</td>
+                  </tr>
+                  <tr>
+                    <td>path<span class="qual">P: AsRef&lt;Path&gt;</span></td>
+                    <td>Path to a <span class="icode">.wasm</span> component binary. May be absolute or relative to the current working directory.</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="sub-head">Errors</div>
+              <div class="prose max-w-[72ch]">
+                <ul>
+                  <li><span class="icode">Error::Io</span> — the file could not be opened or read.</li>
+                  <li><span class="icode">Error::Validation</span> — the binary is not a valid component (see <a href="#"><span class="icode">validate</span></a> for a non-compiling check).</li>
+                  <li><span class="icode">Error::Compilation</span> — the component is well-formed but could not be compiled for the current target.</li>
+                </ul>
+              </div>
+
+              <div class="sub-head">Example</div>
+              <div class="code-head -mt-1">
+                <span>Compile a component from disk</span>
+                <button class="copy-btn" data-copy="ex-from-file">
+                  <svg class="h-3 w-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="6" height="6" rx="1"/><path d="M2 8V3a1 1 0 0 1 1-1h5"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre class="code" id="ex-from-file"><span class="kw">let</span> engine    = <span class="ty">Engine</span>::<span class="fn">default</span>();
+<span class="kw">let</span> component = <span class="ty">Component</span>::<span class="fn">from_file</span>(&amp;engine, <span class="st">"./dist/app.wasm"</span>)?;
+<span class="fn">println!</span>(<span class="st">"exports: {}"</span>, component.<span class="fn">exports</span>().<span class="fn">count</span>());</pre>
+            </div>
+
+            <!-- from_bytes -->
+            <div id="method.from_bytes" class="method">
+              <div class="method-header">
+                <pre class="code signature"><span class="kw">pub fn</span> <span class="fn">from_bytes</span>(engine: &amp;<span class="ty">Engine</span>, bytes: &amp;[<span class="ty">u8</span>]) -&gt; <span class="ty">Result</span>&lt;<span class="ty">Self</span>&gt;</pre>
+                <div class="aux">
+                  <a href="#method.from_bytes" class="anchor text-[12px]">§</a>
+                  <a href="#" class="src-link">source</a>
+                </div>
+              </div>
+              <div class="method-meta">
+                <span class="since-tag">since 1.0.0</span>
+              </div>
+              <div class="prose max-w-[72ch]">
+                <p>
+                  Compile a component directly from an in-memory byte slice. Prefer this
+                  when the binary is embedded in the host executable
+                  (<span class="icode">include_bytes!</span>) or delivered over the
+                  network.
+                </p>
+              </div>
+
+              <div class="sub-head">Parameters</div>
+              <table class="def">
+                <tbody>
+                  <tr>
+                    <td>engine<span class="qual">&amp;Engine</span></td>
+                    <td>The <a href="#"><span class="icode">Engine</span></a> to compile with.</td>
+                  </tr>
+                  <tr>
+                    <td>bytes<span class="qual">&amp;[u8]</span></td>
+                    <td>The raw bytes of a component binary. The slice need not outlive the returned <span class="icode">Component</span>.</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="sub-head">Errors</div>
+              <div class="prose max-w-[72ch]">
+                <ul>
+                  <li><span class="icode">Error::Validation</span> — the slice is not a valid component.</li>
+                  <li><span class="icode">Error::Compilation</span> — compilation failed for the current target.</li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- from_file_async -->
+            <div id="method.from_file_async" class="method">
+              <div class="method-header">
+                <pre class="code signature"><span class="kw">pub async fn</span> <span class="fn">from_file_async</span>&lt;<span class="lt">P</span>: <span class="tr">AsRef</span>&lt;<span class="ty">Path</span>&gt;&gt;(
+    engine: &amp;<span class="ty">Engine</span>,
+    path: <span class="lt">P</span>,
+) -&gt; <span class="ty">Result</span>&lt;<span class="ty">Self</span>&gt;</pre>
+                <div class="aux">
+                  <a href="#method.from_file_async" class="anchor text-[12px]">§</a>
+                  <a href="#" class="src-link">source</a>
+                </div>
+              </div>
+              <div class="method-meta">
+                <span class="since-tag">since 1.2.0</span>
+                <span class="inline-flex items-center gap-1 h-5 px-1.5 rounded-sm bg-cat-green text-cat-greenInk mono text-[10.5px]">
+                  feature <span class="font-semibold">async</span>
+                </span>
+              </div>
+              <div class="prose max-w-[72ch]">
+                <p>
+                  Asynchronous counterpart of
+                  <a href="#method.from_file"><span class="icode">from_file</span></a>.
+                  Compilation runs on a blocking executor so the calling task is not
+                  starved.
+                </p>
+              </div>
+            </div>
+
+            <!-- exports -->
+            <div id="method.exports" class="method">
+              <div class="method-header">
+                <pre class="code signature"><span class="kw">pub fn</span> <span class="fn">exports</span>(&amp;<span class="kw">self</span>) -&gt; <span class="ty">Exports</span>&lt;<span class="lt">'_</span>&gt;</pre>
+                <div class="aux">
+                  <a href="#method.exports" class="anchor text-[12px]">§</a>
+                  <a href="#" class="src-link">source</a>
+                </div>
+              </div>
+              <div class="method-meta">
+                <span class="since-tag">since 1.0.0</span>
+              </div>
+              <div class="prose max-w-[72ch]">
+                <p>
+                  Return an iterator over this component's exported items. Exports are
+                  yielded in declaration order. The returned
+                  <a href="#"><span class="icode">Exports</span></a> borrows from
+                  <span class="icode">self</span>.
+                </p>
+              </div>
+              <div class="sub-head">Returns</div>
+              <div class="prose max-w-[72ch]">
+                <p>An iterator of <span class="icode">(&amp;str, ExportKind)</span> pairs.</p>
+              </div>
+            </div>
+
+            <!-- deprecated: types -->
+            <div id="method.types" class="method">
+              <div class="method-header">
+                <pre class="code signature" style="opacity:.6;"><span class="kw">pub fn</span> <span class="fn">types</span>(&amp;<span class="kw">self</span>) -&gt; <span class="ty">TypesView</span>&lt;<span class="lt">'_</span>&gt;</pre>
+                <div class="aux">
+                  <a href="#method.types" class="anchor text-[12px]">§</a>
+                  <a href="#" class="src-link">source</a>
+                </div>
+              </div>
+              <div class="method-meta">
+                <span class="since-tag">since 1.0.0</span>
+                <span class="inline-flex items-center gap-1 h-5 px-1.5 rounded-sm bg-cat-pink text-cat-pinkInk mono text-[10.5px]">
+                  deprecated 1.3.0
+                </span>
+              </div>
+              <div class="prose max-w-[72ch]" style="opacity:.85;">
+                <p>
+                  <strong>Deprecated.</strong> Use <a href="#"><span class="icode">component_type</span></a>
+                  instead. This method will be removed in 2.0.0.
+                </p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Trait impls -->
+        <div id="trait-impls" class="mt-12">
+          <div class="section-head">
+            <h3 class="text-[16px] font-semibold tracking-tight flex items-baseline gap-2">
+              Trait Implementations
+              <span class="mono text-[11px] text-ink-500 font-normal">4</span>
+              <a href="#trait-impls" class="anchor text-[12px]">§</a>
+            </h3>
+          </div>
+
+          <div class="mt-4 space-y-2">
+            <details class="group border border-lineSoft rounded-md bg-surface">
+              <summary class="cursor-pointer px-3 py-2 flex items-center gap-2 text-[13px]">
+                <svg class="chev h-3 w-3 text-ink-500 transition-transform" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m4.5 3 3 3-3 3"/></svg>
+                <span class="mono text-ink-500">impl</span>
+                <span class="mono">Clone</span>
+                <span class="mono text-ink-500">for</span>
+                <span class="mono">Component</span>
+                <a href="#" class="src-link ml-auto">source</a>
+              </summary>
+              <div class="px-10 pb-3 pt-1 border-t hairline prose max-w-[72ch]">
+                <p>Cloning a <span class="icode">Component</span> is cheap — it increments a reference count on the shared compiled artifact.</p>
+                <pre class="code signature mt-2"><span class="kw">fn</span> <span class="fn">clone</span>(&amp;<span class="kw">self</span>) -&gt; <span class="ty">Self</span></pre>
+              </div>
+            </details>
+
+            <details class="group border border-lineSoft rounded-md bg-surface">
+              <summary class="cursor-pointer px-3 py-2 flex items-center gap-2 text-[13px]">
+                <svg class="chev h-3 w-3 text-ink-500 transition-transform" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m4.5 3 3 3-3 3"/></svg>
+                <span class="mono text-ink-500">impl</span>
+                <span class="mono">Debug</span>
+                <span class="mono text-ink-500">for</span>
+                <span class="mono">Component</span>
+                <a href="#" class="src-link ml-auto">source</a>
+              </summary>
+              <div class="px-10 pb-3 pt-1 border-t hairline prose max-w-[72ch]">
+                <p>Prints the component's name and export count; does not dump the compiled binary.</p>
+              </div>
+            </details>
+
+            <details class="group border border-lineSoft rounded-md bg-surface">
+              <summary class="cursor-pointer px-3 py-2 flex items-center gap-2 text-[13px]">
+                <svg class="chev h-3 w-3 text-ink-500 transition-transform" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m4.5 3 3 3-3 3"/></svg>
+                <span class="mono text-ink-500">impl</span>
+                <span class="mono">AsRef&lt;[u8]&gt;</span>
+                <span class="mono text-ink-500">for</span>
+                <span class="mono">Component</span>
+                <a href="#" class="src-link ml-auto">source</a>
+              </summary>
+              <div class="px-10 pb-3 pt-1 border-t hairline prose max-w-[72ch]">
+                <p>Returns the raw component bytes used to compile this component. Useful for serialising back to disk.</p>
+              </div>
+            </details>
+
+            <details class="group border border-lineSoft rounded-md bg-surface">
+              <summary class="cursor-pointer px-3 py-2 flex items-center gap-2 text-[13px]">
+                <svg class="chev h-3 w-3 text-ink-500 transition-transform" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m4.5 3 3 3-3 3"/></svg>
+                <span class="mono text-ink-500">impl</span>
+                <span class="mono">From&lt;&amp;Path&gt;</span>
+                <span class="mono text-ink-500">for</span>
+                <span class="mono">Component</span>
+                <a href="#" class="src-link ml-auto">source</a>
+              </summary>
+              <div class="px-10 pb-3 pt-1 border-t hairline prose max-w-[72ch]">
+                <p>Convenience conversion that delegates to <a href="#method.from_file"><span class="icode">from_file</span></a>, using the process-wide default engine. Panics on error — prefer <a href="#method.from_file"><span class="icode">from_file</span></a> directly in production code.</p>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <!-- Auto trait impls — quietest content on the page; trivial facts. -->
+        <div id="auto-trait-impls" class="mt-8">
+          <div class="flex items-baseline gap-3 text-[12px] text-ink-500">
+            <span class="mono uppercase tracking-wider">Auto traits</span>
+            <span class="mono">·</span>
+            <span class="mono text-ink-700">Send</span>
+            <span class="mono">·</span>
+            <span class="mono text-ink-700">Sync</span>
+            <a href="#auto-trait-impls" class="anchor">§</a>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Footer -->
+      <footer class="mt-20 pt-6 border-t hairline flex items-center justify-between text-[11px] text-ink-500 mono flex-wrap gap-2">
+        <span>Generated 2026-04-18 · rustdoc 1.84.0</span>
+        <div class="flex items-center gap-3">
+          <a href="#" class="hover:text-ink-900">Settings</a>
+          <a href="#" class="hover:text-ink-900">Help</a>
+        </div>
+      </footer>
+    </article>
+
+    <!-- ============================== -->
+    <!-- RIGHT: ON-PAGE TOC             -->
+    <!-- ============================== -->
+    <aside class="hidden lg:block lg:sticky lg:top-16 lg:self-start lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto">
+      <div class="py-1">
+        <div class="toc-sub-label" style="padding-top:0">On this page</div>
+        <nav id="toc" class="-ml-px">
+          <a href="#modules" class="toc-link">Modules</a>
+          <a href="#macros" class="toc-link">Macros</a>
+          <a href="#structs" class="toc-link">Structs</a>
+          <a href="#enums" class="toc-link">Enums</a>
+          <a href="#traits" class="toc-link">Traits</a>
+          <a href="#functions" class="toc-link">Functions</a>
+          <a href="#types" class="toc-link">Type Aliases</a>
+          <a href="#constants" class="toc-link">Constants</a>
+        </nav>
+        <div class="toc-sub-label">On Component</div>
+        <nav class="-ml-px" id="toc-component">
+          <a href="#struct.Component" class="toc-link">Overview</a>
+          <a href="#impl-Component" class="toc-link">Methods</a>
+          <a href="#method.from_file" class="toc-link indent mono">from_file</a>
+          <a href="#method.from_bytes" class="toc-link indent mono">from_bytes</a>
+          <a href="#method.from_file_async" class="toc-link indent mono">from_file_async</a>
+          <a href="#method.exports" class="toc-link indent mono">exports</a>
+          <a href="#method.types" class="toc-link indent mono">types</a>
+          <a href="#trait-impls" class="toc-link">Trait impls</a>
+          <a href="#auto-trait-impls" class="toc-link">Auto traits</a>
+        </nav>
+        <div class="px-2.5 mt-4">
+          <button type="button" id="back-to-top"
+            class="inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[11px] mono text-ink-500 hover:bg-surfaceMuted hover:text-ink-900 transition-colors">
+            <svg class="h-3 w-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="m3 7.5 3-3 3 3"/></svg>
+            Back to top
+          </button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    // Theme toggle
+    (function () {
+      var btn = document.getElementById("theme-toggle");
+      if (!btn) return;
+      var root = document.documentElement;
+      var mq = window.matchMedia("(prefers-color-scheme: dark)");
+      function currentMode() {
+        var t = root.getAttribute("data-theme");
+        if (t === "dark" || t === "light") return t;
+        return mq.matches ? "dark" : "light";
+      }
+      btn.addEventListener("click", function () {
+        var next = currentMode() === "dark" ? "light" : "dark";
+        root.setAttribute("data-theme", next);
+        try { localStorage.setItem("ds-theme", next); } catch (e) { }
+      });
+    })();
+
+    // Copy-to-clipboard
+    document.querySelectorAll(".copy-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-copy");
+        var el = document.getElementById(id);
+        if (!el) return;
+        navigator.clipboard.writeText(el.innerText).then(function () {
+          btn.classList.add("copied");
+          var label = btn.querySelector("span");
+          var prev = label ? label.textContent : null;
+          if (label) label.textContent = "Copied";
+          setTimeout(function () {
+            btn.classList.remove("copied");
+            if (label && prev) label.textContent = prev;
+          }, 1200);
+        });
+      });
+    });
+
+    // Scrollspy — drives BOTH the right TOC and the left in-crate nav, so
+    // the left rail always shows which top-level section you're reading.
+    (function () {
+      var tocLinks = Array.prototype.slice.call(
+        document.querySelectorAll("#toc a[href^='#'], #toc-component a[href^='#']")
+      );
+      var sideLinks = Array.prototype.slice.call(
+        document.querySelectorAll("aside .side-link[href^='#']")
+      );
+      var allLinks = tocLinks.concat(sideLinks);
+      if (!allLinks.length) return;
+
+      // Build href -> target map once.
+      var seen = {};
+      var entries = [];
+      allLinks.forEach(function (a) {
+        var id = a.getAttribute("href").slice(1);
+        if (!id || seen[id]) return;
+        seen[id] = true;
+        var el = document.getElementById(id);
+        if (el) entries.push({ id: id, el: el });
+      });
+
+      function setActive(activeIds) {
+        allLinks.forEach(function (a) {
+          var id = a.getAttribute("href").slice(1);
+          a.classList.toggle("active", activeIds.indexOf(id) !== -1);
+        });
+      }
+
+      function onScroll() {
+        var y = window.scrollY + 100;
+        // Find the deepest entry whose top is above the threshold.
+        var current = null;
+        for (var i = 0; i < entries.length; i++) {
+          var top = entries[i].el.getBoundingClientRect().top + window.scrollY;
+          if (top <= y) current = entries[i];
+        }
+        if (!current) { setActive([]); return; }
+
+        // Activate the current id, plus its top-level ancestor (so the left
+        // in-crate rail lights up its section while you scroll into methods).
+        var ids = [current.id];
+        var ancestor = current.el.closest("section[id]");
+        if (ancestor && ancestor.id !== current.id) ids.push(ancestor.id);
+        setActive(ids);
+      }
+      document.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", onScroll);
+      onScroll();
+    })();
+
+    // Back to top
+    (function () {
+      var btn = document.getElementById("back-to-top");
+      if (!btn) return;
+      btn.addEventListener("click", function () {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    })();
+
+    // ⌘K placeholder
+    document.addEventListener("keydown", function (e) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        var t = document.getElementById("palette-trigger");
+        if (t) t.focus();
+      }
+    });
+  </script>
+</body>
+
+</html>

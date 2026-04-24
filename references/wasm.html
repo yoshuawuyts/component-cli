@@ -1,0 +1,1329 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="light dark">
+  <style>html{background:#F4F4F5}@media(prefers-color-scheme:dark){html:not([data-theme=light]){background:#1C1C20}}html[data-theme=dark]{background:#1C1C20}html[data-theme=light]{background:#F4F4F5}</style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>wasi:http · WIT Reference</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("ds-theme");
+        if (t === "light" || t === "dark") {
+          document.documentElement.setAttribute("data-theme", t);
+          document.documentElement.style.background = t === "dark" ? "#1C1C20" : "#F4F4F5";
+        } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+          document.documentElement.style.background = "#1C1C20";
+        }
+      } catch (e) { }
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ["-apple-system","BlinkMacSystemFont","system-ui","\"Segoe UI\"","\"Helvetica Neue\"","Helvetica","Arial","sans-serif"],
+            mono: ["ui-monospace","SFMono-Regular","Menlo","Monaco","Consolas","monospace"],
+          },
+          colors: {
+            canvas: "var(--c-canvas)",
+            surface: { DEFAULT: "var(--c-surface)", muted: "var(--c-surface-muted)" },
+            surfaceMuted: "var(--c-surface-muted)",
+            ink: { 900:"var(--c-ink-900)", 700:"var(--c-ink-700)", 500:"var(--c-ink-500)", 400:"var(--c-ink-400)", 300:"var(--c-ink-300)" },
+            line: "var(--c-line)",
+            lineSoft: "var(--c-line-soft)",
+            rule: "var(--c-rule)",
+            positive: "var(--c-positive)",
+            negative: "var(--c-negative)",
+            accent: "var(--c-accent)",
+            cat: {
+              blue:"var(--c-cat-blue)", blueInk:"var(--c-cat-blue-ink)",
+              pink:"var(--c-cat-pink)", pinkInk:"var(--c-cat-pink-ink)",
+              green:"var(--c-cat-green)", greenInk:"var(--c-cat-green-ink)",
+              peach:"var(--c-cat-peach)", peachInk:"var(--c-cat-peach-ink)",
+              lilac:"var(--c-cat-lilac)", lilacInk:"var(--c-cat-lilac-ink)",
+              cream:"var(--c-cat-cream)", creamInk:"var(--c-cat-cream-ink)",
+              teal:"var(--c-cat-teal)", tealInk:"var(--c-cat-teal-ink)",
+              rust:"var(--c-cat-rust)", rustInk:"var(--c-cat-rust-ink)",
+              plum:"var(--c-cat-plum)", plumInk:"var(--c-cat-plum-ink)",
+              slate:"var(--c-cat-slate)", slateInk:"var(--c-cat-slate-ink)",
+            },
+            wit: {
+              struct:"var(--color-wit-struct)",
+              enum:"var(--color-wit-enum)",
+              resource:"var(--color-wit-resource)",
+              func:"var(--color-wit-func)",
+              world:"var(--color-wit-world)",
+              iface:"var(--color-wit-iface)",
+              import:"var(--color-wit-import)",
+              module:"var(--color-wit-module)",
+            },
+          },
+          letterSpacing: { display: "-0.06em" },
+          borderRadius: { DEFAULT:"3px", sm:"2px", md:"4px", lg:"5px", pill:"9999px" },
+        },
+      },
+    };
+  </script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --c-canvas: #F4F4F5;
+      --c-surface: #FFFFFF;
+      --c-surface-muted: #E8E8EA;
+      --c-ink-900: #18181B; --c-ink-700: #3F3F46; --c-ink-500: #71717A;
+      --c-ink-400: #A1A1AA; --c-ink-300: #D4D4D8;
+      --c-line: #D4D4D8; --c-line-soft: #E4E4E7;
+      --c-positive: #1F8A4C; --c-negative: #9B4F5E; --c-accent: #18181B;
+      --c-cat-blue:#D6E4FF;  --c-cat-blue-ink:#3D5A99;
+      --c-cat-pink:#FBD9DF;  --c-cat-pink-ink:#9B4F5E;
+      --c-cat-green:#D2ECD8; --c-cat-green-ink:#3F7A52;
+      --c-cat-peach:#F8E2C2; --c-cat-peach-ink:#8E6529;
+      --c-cat-lilac:#E4DAF1; --c-cat-lilac-ink:#6B528F;
+      --c-cat-cream:#F4ECC2; --c-cat-cream-ink:#7A6A2A;
+      --c-cat-teal:#BFE3EE;  --c-cat-teal-ink:#1F6F87;
+      --c-cat-rust:#F4D2C0;  --c-cat-rust-ink:#9F5536;
+      --c-cat-plum:#E8C5E8;  --c-cat-plum-ink:#7E2E7E;
+      --c-cat-slate:#DADCE0; --c-cat-slate-ink:#535A66;
+      --c-rule: var(--c-ink-900);
+      --c-swatch-border: var(--c-line-soft);
+      --c-scrollbar:#D4D4D8;
+      --shadow-tooltip: 0 8px 24px -8px rgba(20,22,28,.35);
+      --shadow-card: 0 1px 0 0 rgba(20,22,28,.04);
+      --color-wit-struct:#4338ca;
+      --color-wit-enum:#0d7377;
+      --color-wit-resource:#b45309;
+      --color-wit-func:#15803d;
+      --color-wit-world:#9333ea;
+      --color-wit-iface:#0369a1;
+      --color-wit-import:#b91c1c;
+      --color-wit-module:#be185d;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --c-canvas:#1C1C20; --c-surface:#26262B; --c-surface-muted:#2F2F35;
+        --c-ink-900:#ECECEE; --c-ink-700:#B5B5BB; --c-ink-500:#8B8B92;
+        --c-ink-400:#76767D; --c-ink-300:#4A4A50;
+        --c-line:#3A3A40; --c-line-soft:#323238;
+        --c-positive:#5EC787; --c-negative:#EE7B8E; --c-accent:#8FB1F5;
+        --c-cat-blue:#B8D0FF;  --c-cat-blue-ink:#1F3F8C;
+        --c-cat-pink:#FFB8B0;  --c-cat-pink-ink:#9E2823;
+        --c-cat-green:#B5E8C0; --c-cat-green-ink:#1F6738;
+        --c-cat-peach:#FBD3A0; --c-cat-peach-ink:#7A4E10;
+        --c-cat-lilac:#C6B1F0; --c-cat-lilac-ink:#422684;
+        --c-cat-cream:#F5E696; --c-cat-cream-ink:#6B5610;
+        --c-cat-teal:#A6DDF0;  --c-cat-teal-ink:#0F5C7A;
+        --c-cat-rust:#F5BFA0;  --c-cat-rust-ink:#87401C;
+        --c-cat-plum:#DDB2EF;  --c-cat-plum-ink:#571485;
+        --c-cat-slate:#C6CDD8; --c-cat-slate-ink:#424B5C;
+        --c-rule:#6B6B72; --c-swatch-border:#3A3A40; --c-scrollbar:#4A4A50;
+        --shadow-tooltip:0 10px 28px -10px rgba(0,0,0,.7);
+        --shadow-card: inset 0 1px 0 0 rgba(255,255,255,.06), 0 1px 0 0 rgba(0,0,0,.5), 0 8px 16px -12px rgba(0,0,0,.6);
+        --color-wit-struct:#818cf8;
+        --color-wit-enum:#2dd4bf;
+        --color-wit-resource:#fbbf24;
+        --color-wit-func:#4ade80;
+        --color-wit-world:#c084fc;
+        --color-wit-iface:#38bdf8;
+        --color-wit-import:#f87171;
+        --color-wit-module:#f472b6;
+      }
+    }
+    :root[data-theme="dark"] {
+      --c-canvas:#1C1C20; --c-surface:#26262B; --c-surface-muted:#2F2F35;
+      --c-ink-900:#ECECEE; --c-ink-700:#B5B5BB; --c-ink-500:#8B8B92;
+      --c-ink-400:#76767D; --c-ink-300:#4A4A50;
+      --c-line:#3A3A40; --c-line-soft:#323238;
+      --c-positive:#5EC787; --c-negative:#EE7B8E; --c-accent:#8FB1F5;
+      --c-cat-blue:#B8D0FF;  --c-cat-blue-ink:#1F3F8C;
+      --c-cat-pink:#FFB8B0;  --c-cat-pink-ink:#9E2823;
+      --c-cat-green:#B5E8C0; --c-cat-green-ink:#1F6738;
+      --c-cat-peach:#FBD3A0; --c-cat-peach-ink:#7A4E10;
+      --c-cat-lilac:#C6B1F0; --c-cat-lilac-ink:#422684;
+      --c-cat-cream:#F5E696; --c-cat-cream-ink:#6B5610;
+      --c-cat-teal:#A6DDF0;  --c-cat-teal-ink:#0F5C7A;
+      --c-cat-rust:#F5BFA0;  --c-cat-rust-ink:#87401C;
+      --c-cat-plum:#DDB2EF;  --c-cat-plum-ink:#571485;
+      --c-cat-slate:#C6CDD8; --c-cat-slate-ink:#424B5C;
+      --c-rule:#6B6B72; --c-swatch-border:#3A3A40; --c-scrollbar:#4A4A50;
+      --shadow-tooltip:0 10px 28px -10px rgba(0,0,0,.7);
+      --shadow-card: inset 0 1px 0 0 rgba(255,255,255,.06), 0 1px 0 0 rgba(0,0,0,.5), 0 8px 16px -12px rgba(0,0,0,.6);
+      --color-wit-struct:#818cf8; --color-wit-enum:#2dd4bf; --color-wit-resource:#fbbf24;
+      --color-wit-func:#4ade80; --color-wit-world:#c084fc; --color-wit-iface:#38bdf8;
+      --color-wit-import:#f87171; --color-wit-module:#f472b6;
+    }
+
+    html, body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    .hairline { border-color: var(--c-line-soft); }
+    .rule { border-color: var(--c-rule) !important; border-top-width: 1.5px !important; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    ::-webkit-scrollbar { width:10px; height:10px; }
+    ::-webkit-scrollbar-thumb { background: var(--c-scrollbar); border-radius:999px; }
+    ::selection { background: color-mix(in oklab, var(--c-accent) 35%, transparent); color: var(--c-ink-900); }
+    :focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; }
+    :focus:not(:focus-visible) { outline: none; }
+
+    /* Theme toggle */
+    .theme-icon-sun { display: none; }
+    .theme-icon-moon { display: inline-block; }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) .theme-icon-sun  { display: inline-block; }
+      :root:not([data-theme="light"]) .theme-icon-moon { display: none; }
+    }
+    :root[data-theme="dark"]  .theme-icon-sun  { display: inline-block; }
+    :root[data-theme="dark"]  .theme-icon-moon { display: none; }
+    :root[data-theme="light"] .theme-icon-sun  { display: none; }
+    :root[data-theme="light"] .theme-icon-moon { display: inline-block; }
+
+    /* ── Sigil ────────────────────────────────────────── */
+    .sigil {
+      display:inline-grid; place-items:center;
+      height:18px; width:18px; border-radius:3px;
+      font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:10px; font-weight:600; line-height:1; flex-shrink:0;
+    }
+
+    /* ── Tree-link (sidebar) ──────────────────────────── */
+    .tree-link {
+      display:flex; align-items:center; gap:8px;
+      padding:3px 8px; border-radius:4px;
+      font-size:13px; color: var(--c-ink-700);
+      text-decoration:none; line-height:1.4;
+    }
+    .tree-link .mono { font-size:12.5px; }
+    .tree-link:hover { background: var(--c-surface-muted); color: var(--c-ink-900); }
+    .tree-link.active { background: var(--c-surface-muted); color: var(--c-ink-900); font-weight:500; }
+    .tree-link .chev {
+      width:10px; height:10px; flex-shrink:0;
+      color: var(--c-ink-400);
+      transition: transform 120ms cubic-bezier(.2,0,0,1);
+    }
+    details[open] > summary .chev { transform: rotate(90deg); }
+    details > summary { list-style:none; cursor:pointer; }
+    details > summary::-webkit-details-marker { display:none; }
+    .tree-children {
+      margin-left:14px; padding-left:8px;
+      border-left:1px solid var(--c-line-soft);
+      margin-top:1px;
+    }
+
+    /* ── On-this-page TOC ─────────────────────────────── */
+    .toc-link {
+      display:block; padding:3px 10px;
+      font-size:12px; color: var(--c-ink-500);
+      border-left:1.5px solid transparent;
+      line-height:1.5; text-decoration:none;
+    }
+    .toc-link:hover  { color: var(--c-ink-900); border-left-color: var(--c-line); }
+    .toc-link.active { color: var(--c-ink-900); border-left-color: var(--c-ink-900); }
+    .toc-link.indent { padding-left: 22px; }
+
+    /* ── Item list ────────────────────────────────────── */
+    .item-list { margin: 0; }
+    .item-row {
+      display:grid; grid-template-columns: auto 1fr auto;
+      gap:12px; align-items:baseline;
+      padding:12px 14px;
+      border-top:1px solid var(--c-line-soft);
+      border-radius:4px;
+      color:inherit; text-decoration:none;
+    }
+    .item-row:first-child { border-top:none; }
+    .item-row:hover { background: var(--c-surface-muted); }
+    .item-row.deprecated .name,
+    .item-row.deprecated .desc { color: var(--c-ink-400); }
+    .item-row.deprecated .name { text-decoration: line-through; text-decoration-thickness:1px; }
+    .item-row.deprecated .sigil { opacity:.5; }
+    .item-row .name {
+      font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:13.5px; color: var(--c-ink-900);
+      font-weight:500; text-decoration:none;
+    }
+    .item-row .desc { color: var(--c-ink-700); font-size:13px; line-height:1.55; margin-top:2px; }
+    .item-row .meta {
+      font-size:11px; color: var(--c-ink-500);
+      font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+    }
+
+    /* ── Item details ─────────────────────────────────── */
+    .id-header {
+      display:flex; align-items:center; flex-wrap:wrap; gap:12px;
+      padding:10px 12px; border-radius:5px;
+      background: var(--c-canvas);
+      border:1px solid var(--c-line-soft);
+    }
+    .id-kind {
+      display:inline-flex; align-items:center; justify-content:center;
+      height:22px; min-width:64px; padding:0 8px; border-radius:4px;
+      font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:11px; font-weight:600; letter-spacing:.04em;
+    }
+    .id-kind-world    { background: var(--c-cat-lilac); color: var(--c-cat-lilac-ink); }
+    .id-kind-iface    { background: var(--c-cat-teal);  color: var(--c-cat-teal-ink); }
+    .id-kind-resource { background: var(--c-cat-peach); color: var(--c-cat-peach-ink); }
+    .id-kind-record   { background: var(--c-cat-blue);  color: var(--c-cat-blue-ink); }
+    .id-kind-variant  { background: var(--c-cat-plum);  color: var(--c-cat-plum-ink); }
+    .id-kind-enum     { background: var(--c-cat-green); color: var(--c-cat-green-ink); }
+    .id-kind-flags    { background: var(--c-cat-cream); color: var(--c-cat-cream-ink); }
+    .id-kind-func     { background: var(--c-cat-green); color: var(--c-cat-green-ink); }
+    .id-path {
+      font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:13px;
+    }
+    .id-path .pkg  { color: var(--c-ink-400); }
+    .id-path .ns   { color: var(--c-ink-900); }
+    .id-path .sl   { color: var(--c-ink-400); }
+    .id-path .iface{ color: var(--color-wit-iface); font-weight:600; }
+    .id-path .world{ color: var(--color-wit-world); font-weight:600; }
+    .id-path .ty   { color: var(--c-cat-plum-ink); font-weight:600; }
+    .id-path .seg  { color: var(--c-ink-900); }
+
+    .id-stable-tag {
+      display:inline-flex; align-items:center; gap:6px;
+      height:24px; padding:0 8px; border-radius:9999px;
+      background: var(--c-cat-green); color: var(--c-cat-green-ink);
+      font-size:11px; font-weight:500;
+      margin-left:auto;
+    }
+    .id-stable-tag::before {
+      content:''; display:inline-block; height:6px; width:6px; border-radius:999px;
+      background: var(--c-cat-green-ink);
+    }
+    .id-experimental-tag {
+      display:inline-flex; align-items:center; gap:6px;
+      height:24px; padding:0 8px; border-radius:9999px;
+      background: var(--c-cat-cream); color: var(--c-cat-cream-ink);
+      font-size:11px; font-weight:500;
+      margin-left:auto;
+    }
+    .id-experimental-tag::before {
+      content:''; display:inline-block; height:6px; width:6px; border-radius:999px;
+      background: var(--c-cat-cream-ink);
+    }
+
+    /* ── Code block ───────────────────────────────────── */
+    pre.id-code {
+      background: var(--c-surface-muted);
+      border:1px solid var(--c-line-soft);
+      border-radius:5px;
+      padding:14px 16px;
+      font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:12.5px; line-height:1.55;
+      overflow-x:auto;
+      color: var(--c-ink-900);
+      margin:0;
+    }
+    /* WIT syntax tokens — keyed off the dedicated --color-wit-* palette */
+    pre.id-code .kw     { color: var(--c-cat-blue-ink); font-weight:600; } /* keywords: package, world, interface, record, etc. */
+    pre.id-code .pkg    { color: var(--c-ink-400); }                        /* package paths */
+    pre.id-code .iface  { color: var(--color-wit-iface);  font-weight:600; }
+    pre.id-code .world  { color: var(--color-wit-world);  font-weight:600; }
+    pre.id-code .struct { color: var(--color-wit-struct); font-weight:600; }
+    pre.id-code .enum   { color: var(--color-wit-enum);   font-weight:600; }
+    pre.id-code .res    { color: var(--color-wit-resource); font-weight:600; }
+    pre.id-code .fn     { color: var(--color-wit-func);   font-weight:600; }
+    pre.id-code .imp    { color: var(--color-wit-import); }
+    pre.id-code .mod    { color: var(--color-wit-module); }
+    pre.id-code .ty     { color: var(--c-cat-plum-ink); }                   /* type references in signatures */
+    pre.id-code .field  { color: var(--c-cat-teal-ink); }                   /* record fields / params */
+    pre.id-code .s      { color: var(--c-cat-rust-ink); }                   /* strings */
+    pre.id-code .n      { color: var(--c-cat-green-ink); }                  /* numbers / booleans */
+    pre.id-code .c      { color: var(--c-ink-500); font-style:italic; }
+    pre.id-code .p      { color: var(--c-ink-400); }                        /* punctuation */
+    pre.id-code .v      { color: var(--c-ink-900); font-weight:600; }       /* shell verb */
+    pre.id-code .f      { color: var(--c-cat-blue-ink); }                   /* shell flag */
+
+    /* ── Title head ───────────────────────────────────── */
+    .id-title-head {
+      display:flex; align-items:baseline; justify-content:space-between;
+      gap:16px; flex-wrap:wrap;
+      margin-bottom:8px;
+    }
+    .id-title-head h2 {
+      font-size:24px; font-weight:600; letter-spacing:-.02em;
+      display:flex; align-items:baseline; gap:6px; margin:0;
+    }
+    .id-title-head .id-anchor {
+      color: var(--c-ink-400); text-decoration:none;
+      font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:14px; margin-left:6px; opacity:0;
+      transition: opacity .12s ease;
+    }
+    .id-title-head h2:hover .id-anchor,
+    .id-title-head .id-anchor:hover { opacity:1; color: var(--c-ink-900); }
+    .id-title-head .id-aux { display:flex; align-items:center; gap:6px; color: var(--c-ink-500); }
+    .id-since-tag {
+      display:inline-flex; align-items:center;
+      font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:10.5px; color: var(--c-ink-500);
+      padding:1px 6px;
+      border:1px solid var(--c-line-soft); border-radius:3px;
+    }
+    .id-src-link {
+      font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      font-size:11px; color: var(--c-ink-500);
+      text-decoration:none; padding:2px 6px; border-radius:3px;
+    }
+    .id-src-link:hover { color: var(--c-ink-900); background: var(--c-surface-muted); }
+    .id-page-tagline {
+      color: var(--c-ink-700); font-size:14px; line-height:1.6;
+      margin:0; max-width:72ch;
+    }
+
+    /* ── Layout shell — three-column docs grid ────────── */
+    .docs-shell {
+      display:grid;
+      grid-template-columns: minmax(0,1fr);
+      gap: 32px;
+    }
+    @media (min-width: 1024px) {
+      .docs-shell {
+        grid-template-columns: 280px minmax(0,1fr);
+        gap: 48px;
+      }
+    }
+    @media (min-width: 1280px) {
+      .docs-shell {
+        grid-template-columns: 280px minmax(0,1fr) 200px;
+      }
+    }
+    .docs-aside { position: sticky; top: 16px; align-self:start; max-height: calc(100vh - 32px); overflow-y:auto; }
+    @media (max-width: 1023px) { .docs-aside { position: static; max-height:none; } }
+  </style>
+</head>
+
+<body class="bg-canvas text-ink-900 font-sans antialiased">
+
+  <!-- ============================== -->
+  <!-- TOP BAR                         -->
+  <!-- ============================== -->
+  <div class="border-b hairline">
+    <div class="mx-auto max-w-[1440px] px-4 md:px-8 h-12 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="inline-grid place-items-center h-6 w-6 rounded-md bg-cat-teal text-cat-tealInk mono text-[12px] font-semibold">$</span>
+        <span class="mono text-[13px] font-semibold tracking-tight">wasm</span>
+        <span class="text-ink-400">/</span>
+        <span class="mono text-[13px] text-ink-700">registry</span>
+        <span class="text-ink-400">/</span>
+        <span class="mono text-[13px] text-ink-900">wasi:http</span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <a href="#" class="inline-flex items-center h-7 px-2.5 rounded-md text-[12px] text-ink-700 hover:bg-surfaceMuted hover:text-ink-900">Packages</a>
+        <a href="#" class="inline-flex items-center h-7 px-2.5 rounded-md text-[12px] text-ink-700 hover:bg-surfaceMuted hover:text-ink-900">Docs</a>
+        <a href="#" class="inline-flex items-center h-7 px-2.5 rounded-md text-[12px] text-ink-700 hover:bg-surfaceMuted hover:text-ink-900">CLI</a>
+        <button id="theme-toggle" class="inline-flex items-center justify-center h-7 w-7 rounded-md text-ink-500 hover:bg-surfaceMuted hover:text-ink-900" aria-label="Toggle theme">
+          <svg class="theme-icon-moon h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M13 9.5A5.5 5.5 0 1 1 6.5 3a4.5 4.5 0 0 0 6.5 6.5Z"/></svg>
+          <svg class="theme-icon-sun h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.5 3.5l1 1M11.5 11.5l1 1M3.5 12.5l1-1M11.5 4.5l1-1"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <main class="mx-auto max-w-[1440px] px-4 md:px-8 pb-24">
+
+    <!-- ============================== -->
+    <!-- PAGE HEADER                     -->
+    <!-- ============================== -->
+    <header class="pt-8 md:pt-12 pb-8 md:pb-12">
+      <div class="flex items-center gap-2 text-[12px] text-ink-500 mono uppercase tracking-wider">
+        <span>v0.2.4</span>
+        <span class="h-1 w-1 rounded-full bg-ink-300"></span>
+        <span>WIT Package</span>
+        <span class="h-1 w-1 rounded-full bg-ink-300"></span>
+        <span>Apache-2.0 WITH LLVM-exception</span>
+      </div>
+      <h1 class="mt-3 text-[36px] md:text-[44px] leading-[1.05] font-semibold tracking-tight">
+        wasi:http
+      </h1>
+      <p class="mt-3 max-w-2xl text-[15px] text-ink-700 leading-relaxed">
+        A portable interface for performing and serving HTTP requests from
+        WebAssembly components. Defines the
+        <span class="mono text-[13px]">incoming-handler</span> and
+        <span class="mono text-[13px]">outgoing-handler</span> shapes alongside the
+        types, resources, and worlds needed to implement either side.
+      </p>
+      <!-- Metadata strip -->
+      <div class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3 text-[13px]">
+        <div class="inline-flex items-center gap-2">
+          <span class="text-[11px] mono uppercase tracking-wider text-ink-500">Add</span>
+          <div class="flex">
+            <span class="inline-flex items-center px-2.5 h-7 rounded-l-md border border-r-0 border-line bg-surfaceMuted text-[12.5px] text-ink-500 mono select-none" aria-hidden="true">$</span>
+            <code class="inline-flex items-center px-2.5 h-7 border border-line bg-surface mono text-[12.5px] text-ink-900 whitespace-nowrap">wasm add wasi:http@0.2.4</code>
+            <button type="button" class="inline-flex items-center justify-center w-7 h-7 rounded-r-md border border-l-0 border-line bg-surface text-ink-500 hover:text-ink-900 hover:bg-surfaceMuted" aria-label="Copy">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4" y="4" width="9" height="9" rx="1.2"/><path d="M4 11H3.2A1.2 1.2 0 0 1 2 9.8V3.2A1.2 1.2 0 0 1 3.2 2h6.6A1.2 1.2 0 0 1 11 3.2V4"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="inline-flex items-center gap-2">
+          <span class="text-[11px] mono uppercase tracking-wider text-ink-500">Source</span>
+          <a href="#" class="text-ink-700 underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900 mono text-[12.5px]">github.com/WebAssembly/wasi-http</a>
+        </div>
+        <div class="inline-flex items-center gap-2">
+          <span class="text-[11px] mono uppercase tracking-wider text-ink-500">Phase</span>
+          <span class="inline-flex items-center gap-1.5 px-2 h-6 rounded-pill bg-cat-green text-cat-greenInk text-[12px] font-medium">
+            <span class="h-1.5 w-1.5 rounded-full bg-cat-greenInk"></span>Stable
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <div class="border-t rule"></div>
+
+    <!-- ============================== -->
+    <!-- THREE-COLUMN DOCS LAYOUT        -->
+    <!-- ============================== -->
+    <div class="docs-shell pt-10">
+
+      <!-- ============================ -->
+      <!-- C01 — NESTED SIDEBAR          -->
+      <!-- ============================ -->
+      <aside class="docs-aside">
+        <div class="border border-line rounded-lg bg-canvas p-4">
+
+          <!-- Package summary -->
+          <div class="pb-4 border-b hairline">
+            <div class="flex items-center gap-2">
+              <span class="inline-grid place-items-center h-8 w-8 rounded-md bg-cat-lilac text-cat-lilacInk mono text-[14px] font-semibold">W</span>
+              <div class="min-w-0">
+                <div class="mono text-[14px] font-semibold leading-tight truncate">wasi:http</div>
+                <div class="mono text-[11px] text-ink-500">v0.2.4 · WIT package</div>
+              </div>
+            </div>
+            <p class="mt-3 text-[12.5px] text-ink-700 leading-relaxed">
+              Portable HTTP I/O for WebAssembly components — the standard
+              <span class="mono text-[12px]">handler</span> shape.
+            </p>
+          </div>
+
+          <!-- Version / target -->
+          <div class="py-4 border-b hairline space-y-2.5">
+            <div>
+              <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-1">Version</div>
+              <button class="w-full h-7 px-2.5 rounded-md border border-line bg-surface flex items-center justify-between text-ink-900 hover:bg-surfaceMuted text-[12px]">
+                <span class="mono">v0.2.4 (latest)</span>
+                <svg class="h-3 w-3 text-ink-500" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m3 4.5 3 3 3-3"/></svg>
+              </button>
+            </div>
+            <div>
+              <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-1">Bindings</div>
+              <button class="w-full h-7 px-2.5 rounded-md border border-line bg-surface flex items-center justify-between text-ink-900 hover:bg-surfaceMuted text-[12px]">
+                <span class="mono">rust · js · py · go</span>
+                <svg class="h-3 w-3 text-ink-500" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m3 4.5 3 3 3-3"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Worlds -->
+          <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-2 mt-4">Worlds</div>
+          <nav class="space-y-0.5 text-[13px]">
+            <a href="#world-proxy" class="tree-link">
+              <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">W</span>
+              <span class="mono">proxy</span>
+            </a>
+            <a href="#" class="tree-link">
+              <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">W</span>
+              <span class="mono">imports</span>
+            </a>
+          </nav>
+
+          <!-- Interfaces -->
+          <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-2 mt-5">Interfaces</div>
+          <nav class="space-y-0.5 text-[13px]">
+
+            <details open>
+              <summary class="tree-link active">
+                <svg class="chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m4 2 3 3-3 3"/></svg>
+                <span class="sigil" style="background:var(--c-cat-teal);color:var(--c-cat-tealInk);">I</span>
+                <span class="mono">incoming-handler</span>
+              </summary>
+              <div class="tree-children space-y-0.5">
+                <a href="#fn-handle" class="tree-link">
+                  <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">f</span>
+                  <span class="mono">handle</span>
+                </a>
+              </div>
+            </details>
+
+            <details open>
+              <summary class="tree-link">
+                <svg class="chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m4 2 3 3-3 3"/></svg>
+                <span class="sigil" style="background:var(--c-cat-teal);color:var(--c-cat-tealInk);">I</span>
+                <span class="mono">types</span>
+                <span class="ml-auto mono text-[10.5px] text-ink-400">14</span>
+              </summary>
+              <div class="tree-children space-y-0.5">
+                <a href="#res-incoming-request" class="tree-link">
+                  <span class="sigil" style="background:var(--c-cat-peach);color:var(--c-cat-peachInk);">R</span>
+                  <span class="mono">incoming-request</span>
+                </a>
+                <a href="#res-outgoing-response" class="tree-link">
+                  <span class="sigil" style="background:var(--c-cat-peach);color:var(--c-cat-peachInk);">R</span>
+                  <span class="mono">outgoing-response</span>
+                </a>
+                <a href="#" class="tree-link">
+                  <span class="sigil" style="background:var(--c-cat-peach);color:var(--c-cat-peachInk);">R</span>
+                  <span class="mono">fields</span>
+                </a>
+                <a href="#" class="tree-link">
+                  <span class="sigil" style="background:var(--c-cat-peach);color:var(--c-cat-peachInk);">R</span>
+                  <span class="mono">request-options</span>
+                </a>
+                <a href="#enum-method" class="tree-link">
+                  <span class="sigil" style="background:var(--c-cat-plum);color:var(--c-cat-plumInk);">V</span>
+                  <span class="mono">method</span>
+                </a>
+                <a href="#enum-scheme" class="tree-link">
+                  <span class="sigil" style="background:var(--c-cat-plum);color:var(--c-cat-plumInk);">V</span>
+                  <span class="mono">scheme</span>
+                </a>
+                <a href="#variant-error-code" class="tree-link">
+                  <span class="sigil" style="background:var(--c-cat-plum);color:var(--c-cat-plumInk);">V</span>
+                  <span class="mono">error-code</span>
+                </a>
+                <a href="#" class="tree-link">
+                  <span class="sigil" style="background:var(--c-cat-blue);color:var(--c-cat-blueInk);">T</span>
+                  <span class="mono">status-code</span>
+                </a>
+              </div>
+            </details>
+
+            <details>
+              <summary class="tree-link">
+                <svg class="chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m4 2 3 3-3 3"/></svg>
+                <span class="sigil" style="background:var(--c-cat-teal);color:var(--c-cat-tealInk);">I</span>
+                <span class="mono">outgoing-handler</span>
+                <span class="ml-auto mono text-[10.5px] text-ink-400">1</span>
+              </summary>
+            </details>
+
+            <details>
+              <summary class="tree-link">
+                <svg class="chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m4 2 3 3-3 3"/></svg>
+                <span class="sigil" style="background:var(--c-cat-teal);color:var(--c-cat-tealInk);">I</span>
+                <span class="mono">proxy</span>
+                <span class="ml-auto mono text-[10.5px] text-ink-400">2</span>
+              </summary>
+            </details>
+          </nav>
+
+          <!-- Reference -->
+          <div class="mt-5 pt-4 border-t hairline">
+            <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-2">Reference</div>
+            <nav class="space-y-0.5">
+              <a href="#" class="tree-link">
+                <span class="sigil" style="background:var(--c-cat-rust);color:var(--c-cat-rustInk);">D</span>
+                Dependencies <span class="ml-auto mono text-[10.5px] text-ink-400">3</span>
+              </a>
+              <a href="#" class="tree-link">
+                <span class="sigil" style="background:var(--c-cat-cream);color:var(--c-cat-creamInk);">V</span>
+                Versions <span class="ml-auto mono text-[10.5px] text-ink-400">12</span>
+              </a>
+              <a href="#" class="tree-link">
+                <span class="sigil" style="background:var(--c-cat-slate);color:var(--c-cat-slateInk);">·</span>
+                Changelog
+              </a>
+            </nav>
+          </div>
+
+          <!-- Project -->
+          <div class="mt-5 pt-4 border-t hairline">
+            <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-2">Project</div>
+            <nav class="space-y-px">
+              <a href="#" class="tree-link">
+                <svg class="h-3.5 w-3.5 text-ink-500 flex-shrink-0" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <path d="M8 .2a8 8 0 0 0-2.5 15.6c.4 0 .55-.17.55-.38v-1.4c-2.22.48-2.69-1.07-2.69-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.71 1.23 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.77-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.83-2.15-.08-.2-.36-1.02.08-2.13 0 0 .67-.22 2.2.82A7.6 7.6 0 0 1 8 4.04c.68 0 1.37.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.11.16 1.93.08 2.13.52.56.83 1.28.83 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.74.54 1.49v2.21c0 .21.15.46.55.38A8 8 0 0 0 8 .2Z"/>
+                </svg>
+                Repository
+              </a>
+              <a href="#" class="tree-link">
+                <svg class="h-3.5 w-3.5 text-ink-500 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
+                  <circle cx="8" cy="8" r="5.5"/><path d="M8 5v3.5M8 11v.01"/>
+                </svg>
+                Issues<span class="ml-auto mono text-[10.5px] text-ink-400">7</span>
+              </a>
+            </nav>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ============================ -->
+      <!-- MAIN CONTENT                  -->
+      <!-- ============================ -->
+      <article class="min-w-0 space-y-16">
+
+        <!-- ── OVERVIEW ───────────────────────────── -->
+        <section id="overview">
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">§ 01</div>
+          <h2 class="mt-1 text-[28px] font-semibold tracking-tight">Overview</h2>
+          <p class="mt-3 text-[14px] text-ink-700 leading-relaxed max-w-2xl">
+            <span class="mono text-[13px]">wasi:http</span> is the standard
+            wire-format-free HTTP interface for WebAssembly components. It splits
+            into two halves: <em>incoming</em> requests delivered to a guest, and
+            <em>outgoing</em> requests issued from a guest. Both share a common
+            <span class="mono text-[13px]">types</span> interface for headers,
+            bodies, and streams.
+          </p>
+
+          <!-- Package declaration -->
+          <div class="mt-6">
+            <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Package declaration</div>
+<pre class="id-code"><span class="kw">package</span> <span class="pkg">wasi</span><span class="p">:</span><span class="iface">http</span><span class="p">@</span><span class="n">0.2.4</span><span class="p">;</span>
+
+<span class="c">/// Portable HTTP for WebAssembly components.</span>
+<span class="kw">interface</span> <span class="iface">types</span> <span class="p">{</span> ... <span class="p">}</span>
+<span class="kw">interface</span> <span class="iface">incoming-handler</span> <span class="p">{</span> ... <span class="p">}</span>
+<span class="kw">interface</span> <span class="iface">outgoing-handler</span> <span class="p">{</span> ... <span class="p">}</span>
+
+<span class="kw">world</span> <span class="world">proxy</span> <span class="p">{</span>
+  <span class="kw">import</span> <span class="iface">types</span><span class="p">;</span>
+  <span class="kw">import</span> <span class="iface">outgoing-handler</span><span class="p">;</span>
+  <span class="kw">export</span> <span class="iface">incoming-handler</span><span class="p">;</span>
+<span class="p">}</span></pre>
+          </div>
+        </section>
+
+        <!-- ── WORLDS LIST ────────────────────────── -->
+        <section id="worlds">
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">§ 02</div>
+          <h2 class="mt-1 text-[28px] font-semibold tracking-tight">Worlds</h2>
+          <p class="mt-3 text-[14px] text-ink-700 leading-relaxed max-w-2xl">
+            A world is the contract between a component and its host: which
+            interfaces it imports and which it exports.
+          </p>
+          <div class="mt-6 item-list">
+            <a href="#world-proxy" class="item-row">
+              <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">W</span>
+              <div>
+                <span class="name">proxy</span>
+                <div class="desc">A component that handles incoming HTTP requests and may issue outgoing ones.</div>
+              </div>
+              <span class="meta">stable</span>
+            </a>
+            <a href="#" class="item-row">
+              <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilacInk);">W</span>
+              <div>
+                <span class="name">imports</span>
+                <div class="desc">Imports-only world useful for clients that issue outgoing requests but do not serve.</div>
+              </div>
+              <span class="meta">stable</span>
+            </a>
+          </div>
+        </section>
+
+        <!-- ── INTERFACES LIST ────────────────────── -->
+        <section id="interfaces">
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">§ 03</div>
+          <h2 class="mt-1 text-[28px] font-semibold tracking-tight">Interfaces</h2>
+          <p class="mt-3 text-[14px] text-ink-700 leading-relaxed max-w-2xl">
+            Interfaces group related types and functions. Components import
+            interfaces from the host and export interfaces to it.
+          </p>
+          <div class="mt-6 item-list">
+            <a href="#iface-incoming-handler" class="item-row">
+              <span class="sigil" style="background:var(--c-cat-teal);color:var(--c-cat-tealInk);">I</span>
+              <div>
+                <span class="name">incoming-handler</span>
+                <div class="desc">Handle an HTTP request delivered by the host. Exported by servers.</div>
+              </div>
+              <span class="meta">1 fn</span>
+            </a>
+            <a href="#iface-outgoing-handler" class="item-row">
+              <span class="sigil" style="background:var(--c-cat-teal);color:var(--c-cat-tealInk);">I</span>
+              <div>
+                <span class="name">outgoing-handler</span>
+                <div class="desc">Issue an HTTP request to the host. Imported by clients.</div>
+              </div>
+              <span class="meta">1 fn</span>
+            </a>
+            <a href="#iface-types" class="item-row">
+              <span class="sigil" style="background:var(--c-cat-teal);color:var(--c-cat-tealInk);">I</span>
+              <div>
+                <span class="name">types</span>
+                <div class="desc">Shared resources, records, and variants used by both handler interfaces.</div>
+              </div>
+              <span class="meta">14 types</span>
+            </a>
+            <a href="#" class="item-row deprecated">
+              <span class="sigil" style="background:var(--c-cat-teal);color:var(--c-cat-tealInk);">I</span>
+              <div>
+                <span class="name">handler</span>
+                <div class="desc">Pre-0.2 unified handler interface. Split into incoming/outgoing in 0.2.0.</div>
+              </div>
+              <span class="meta">removed</span>
+            </a>
+          </div>
+        </section>
+
+        <!-- ── WORLD: PROXY (Item Details) ────────── -->
+        <section id="world-proxy">
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">§ 04</div>
+          <article class="mt-2 space-y-5">
+            <header>
+              <div class="id-title-head">
+                <h2>
+                  <span class="mono">world proxy</span>
+                  <a href="#world-proxy" class="id-anchor">§</a>
+                </h2>
+                <div class="id-aux">
+                  <span class="id-since-tag">since 0.2.0</span>
+                  <a href="#" class="id-src-link">source</a>
+                  <a href="#" class="id-src-link">spec</a>
+                </div>
+              </div>
+              <p class="id-page-tagline">
+                The canonical HTTP component shape: imports the
+                <span class="mono text-[13px]">types</span> and
+                <span class="mono text-[13px]">outgoing-handler</span> interfaces
+                from the host, and exports
+                <span class="mono text-[13px]">incoming-handler</span> back. Hosts
+                instantiate one component per request.
+              </p>
+            </header>
+
+            <div class="id-header">
+              <span class="id-kind id-kind-world">WORLD</span>
+              <span class="id-path">
+                <span class="pkg">wasi:http</span><span class="sl">/</span><span class="world">proxy</span>
+              </span>
+              <span class="id-stable-tag">Stable</span>
+            </div>
+
+            <!-- Definition -->
+            <div>
+              <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Definition</div>
+<pre class="id-code"><span class="kw">world</span> <span class="world">proxy</span> <span class="p">{</span>
+  <span class="kw">import</span> <span class="iface">wasi:cli/stdout</span><span class="p">;</span>
+  <span class="kw">import</span> <span class="iface">wasi:cli/stderr</span><span class="p">;</span>
+  <span class="kw">import</span> <span class="iface">wasi:clocks/wall-clock</span><span class="p">;</span>
+  <span class="kw">import</span> <span class="iface">wasi:clocks/monotonic-clock</span><span class="p">;</span>
+  <span class="kw">import</span> <span class="iface">wasi:random/random</span><span class="p">;</span>
+
+  <span class="kw">import</span> <span class="iface">types</span><span class="p">;</span>
+  <span class="kw">import</span> <span class="iface">outgoing-handler</span><span class="p">;</span>
+
+  <span class="kw">export</span> <span class="iface">incoming-handler</span><span class="p">;</span>
+<span class="p">}</span></pre>
+            </div>
+
+            <!-- Imports table -->
+            <div>
+              <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Imports</div>
+              <div class="overflow-x-auto border-t-[1.5px] border-lineSoft">
+                <table class="w-full min-w-[560px] text-[13px]">
+                  <tbody class="text-ink-900">
+                    <tr class="border-b border-lineSoft">
+                      <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                        <span class="mono">types</span>
+                        <span class="ml-2 text-[11px] text-ink-500">interface</span>
+                      </td>
+                      <td class="py-3 align-baseline text-ink-700">Shared HTTP types (request, response, fields, body streams).</td>
+                    </tr>
+                    <tr class="border-b border-lineSoft">
+                      <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                        <span class="mono">outgoing-handler</span>
+                        <span class="ml-2 text-[11px] text-ink-500">interface</span>
+                      </td>
+                      <td class="py-3 align-baseline text-ink-700">Lets the component send HTTP requests through the host.</td>
+                    </tr>
+                    <tr class="border-b border-lineSoft">
+                      <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                        <span class="mono">wasi:clocks/*</span>
+                        <span class="ml-2 text-[11px] text-ink-500">interface · 2</span>
+                      </td>
+                      <td class="py-3 align-baseline text-ink-700">Wall and monotonic clocks for timeouts and timestamps.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Exports table -->
+            <div>
+              <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Exports</div>
+              <div class="overflow-x-auto border-t-[1.5px] border-lineSoft">
+                <table class="w-full min-w-[560px] text-[13px]">
+                  <tbody class="text-ink-900">
+                    <tr class="border-b border-lineSoft">
+                      <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                        <span class="mono">incoming-handler</span>
+                        <span class="ml-2 text-[11px] text-ink-500">interface · required</span>
+                      </td>
+                      <td class="py-3 align-baseline text-ink-700">The component must supply
+                        <a href="#fn-handle" class="underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900 mono">handle</a>.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Example bindings -->
+            <div>
+              <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Example · Rust</div>
+<pre class="id-code"><span class="kw">use</span> wasi::http::types::<span class="p">{</span><span class="ty">IncomingRequest</span><span class="p">,</span> <span class="ty">ResponseOutparam</span><span class="p">}</span><span class="p">;</span>
+
+<span class="kw">struct</span> <span class="struct">MyProxy</span><span class="p">;</span>
+
+<span class="kw">impl</span> wasi::exports::http::incoming_handler::<span class="ty">Guest</span> <span class="kw">for</span> <span class="struct">MyProxy</span> <span class="p">{</span>
+  <span class="kw">fn</span> <span class="fn">handle</span><span class="p">(</span><span class="field">req</span><span class="p">:</span> <span class="ty">IncomingRequest</span><span class="p">,</span> <span class="field">out</span><span class="p">:</span> <span class="ty">ResponseOutparam</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c">// build a 200 OK and hand it back to the host</span>
+    <span class="kw">let</span> resp <span class="p">=</span> <span class="ty">OutgoingResponse</span>::<span class="fn">new</span><span class="p">(</span><span class="ty">Fields</span>::<span class="fn">new</span><span class="p">())</span><span class="p">;</span>
+    <span class="ty">ResponseOutparam</span>::<span class="fn">set</span><span class="p">(</span>out<span class="p">,</span> <span class="ty">Ok</span><span class="p">(</span>resp<span class="p">))</span><span class="p">;</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+wasi::http::proxy::<span class="fn">export</span><span class="p">!(</span><span class="struct">MyProxy</span> <span class="kw">with_types_in</span> wasi<span class="p">)</span><span class="p">;</span></pre>
+            </div>
+          </article>
+        </section>
+
+        <!-- ── INTERFACE: incoming-handler ────────── -->
+        <section id="iface-incoming-handler">
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">§ 05</div>
+          <article class="mt-2 space-y-5">
+            <header>
+              <div class="id-title-head">
+                <h2>
+                  <span class="mono">interface incoming-handler</span>
+                  <a href="#iface-incoming-handler" class="id-anchor">§</a>
+                </h2>
+                <div class="id-aux">
+                  <span class="id-since-tag">since 0.2.0</span>
+                  <a href="#" class="id-src-link">source</a>
+                </div>
+              </div>
+              <p class="id-page-tagline">
+                Exported by any component that handles HTTP requests on behalf of
+                a host. The host hands the component an
+                <span class="mono text-[13px]">incoming-request</span> and a
+                response slot, and the component fills the slot before returning.
+              </p>
+            </header>
+
+            <div class="id-header">
+              <span class="id-kind id-kind-iface">INTERFACE</span>
+              <span class="id-path">
+                <span class="pkg">wasi:http</span><span class="sl">/</span><span class="iface">incoming-handler</span>
+              </span>
+              <span class="id-stable-tag">Stable</span>
+            </div>
+
+            <div>
+              <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Definition</div>
+<pre class="id-code"><span class="kw">interface</span> <span class="iface">incoming-handler</span> <span class="p">{</span>
+  <span class="kw">use</span> <span class="iface">types</span>.<span class="p">{</span><span class="ty">incoming-request</span><span class="p">,</span> <span class="ty">response-outparam</span><span class="p">}</span><span class="p">;</span>
+
+  <span class="c">/// Handle a single HTTP request. The implementation must</span>
+  <span class="c">/// fulfil the response-outparam before returning.</span>
+  <span class="fn">handle</span><span class="p">:</span> <span class="kw">func</span><span class="p">(</span>
+    <span class="field">request</span><span class="p">:</span> <span class="ty">incoming-request</span><span class="p">,</span>
+    <span class="field">response-out</span><span class="p">:</span> <span class="ty">response-outparam</span><span class="p">,</span>
+  <span class="p">)</span><span class="p">;</span>
+<span class="p">}</span></pre>
+            </div>
+
+            <!-- Functions -->
+            <div>
+              <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Functions</div>
+              <div class="item-list">
+                <a href="#fn-handle" class="item-row">
+                  <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">f</span>
+                  <div>
+                    <span class="name">handle(request, response-out)</span>
+                    <div class="desc">Process an incoming request and write a response into the outparam.</div>
+                  </div>
+                  <span class="meta">→ ()</span>
+                </a>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <!-- ── FUNCTION: handle ───────────────────── -->
+        <section id="fn-handle">
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">§ 06</div>
+          <article class="mt-2 space-y-5">
+            <header>
+              <div class="id-title-head">
+                <h2>
+                  <span class="mono">func handle</span>
+                  <a href="#fn-handle" class="id-anchor">§</a>
+                </h2>
+                <div class="id-aux">
+                  <span class="id-since-tag">since 0.2.0</span>
+                  <a href="#" class="id-src-link">source</a>
+                </div>
+              </div>
+              <p class="id-page-tagline">
+                Process a single HTTP request. The function does not return a
+                response value — instead, the implementation writes the response
+                (or an error) into the
+                <span class="mono text-[13px]">response-outparam</span>. This
+                makes streaming responses cheap: the body can be produced
+                asynchronously after the function returns.
+              </p>
+            </header>
+
+            <div class="id-header">
+              <span class="id-kind id-kind-func">FUNC</span>
+              <span class="id-path">
+                <span class="pkg">incoming-handler</span><span class="sl">.</span><span class="seg">handle</span>
+              </span>
+              <span class="id-stable-tag">Stable</span>
+            </div>
+
+            <!-- Signature -->
+            <div>
+              <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Signature</div>
+<pre class="id-code"><span class="fn">handle</span><span class="p">:</span> <span class="kw">func</span><span class="p">(</span>
+  <span class="field">request</span><span class="p">:</span>      <span class="ty">incoming-request</span><span class="p">,</span>
+  <span class="field">response-out</span><span class="p">:</span> <span class="ty">response-outparam</span><span class="p">,</span>
+<span class="p">)</span><span class="p">;</span></pre>
+            </div>
+
+            <!-- Parameters -->
+            <div>
+              <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Parameters</div>
+              <div class="overflow-x-auto border-t-[1.5px] border-lineSoft">
+                <table class="w-full min-w-[560px] text-[13px]">
+                  <tbody class="text-ink-900">
+                    <tr class="border-b border-lineSoft">
+                      <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                        <span class="mono">request</span>
+                        <span class="ml-2 text-[11px] text-ink-500">
+                          <a href="#res-incoming-request" class="underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900">incoming-request</a> · owned</span>
+                      </td>
+                      <td class="py-3 align-baseline text-ink-700">The request handed in by the host. Ownership transfers to the guest; drop to release host resources.</td>
+                    </tr>
+                    <tr class="border-b border-lineSoft">
+                      <td class="py-3 pr-6 align-baseline whitespace-nowrap">
+                        <span class="mono">response-out</span>
+                        <span class="ml-2 text-[11px] text-ink-500">response-outparam · owned</span>
+                      </td>
+                      <td class="py-3 align-baseline text-ink-700">A write-once slot the implementation must fulfil with either an
+                        <a href="#res-outgoing-response" class="underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900 mono">outgoing-response</a>
+                        or an <a href="#variant-error-code" class="underline decoration-line decoration-1 underline-offset-[3px] hover:text-ink-900 mono">error-code</a>.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Returns -->
+            <div>
+              <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Returns</div>
+              <p class="text-[13px] text-ink-700 leading-relaxed">
+                Nothing. Side effects flow through
+                <span class="mono text-[13px]">response-out</span>. Failing to
+                fulfil the outparam before the function returns is a host-defined
+                trap — typically materialised as a 500 by the runtime.
+              </p>
+            </div>
+
+            <!-- Examples — paired Rust / JS -->
+            <div class="grid md:grid-cols-2 gap-4">
+              <div>
+                <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Rust</div>
+<pre class="id-code"><span class="kw">fn</span> <span class="fn">handle</span><span class="p">(</span><span class="field">req</span><span class="p">:</span> <span class="ty">IncomingRequest</span><span class="p">,</span> <span class="field">out</span><span class="p">:</span> <span class="ty">ResponseOutparam</span><span class="p">)</span> <span class="p">{</span>
+  <span class="kw">let</span> hdrs <span class="p">=</span> <span class="ty">Fields</span>::<span class="fn">from_list</span><span class="p">(&amp;[</span>
+    <span class="p">(</span><span class="s">"content-type"</span>.<span class="fn">into</span><span class="p">(),</span> <span class="s">b"text/plain"</span>.<span class="fn">into</span><span class="p">())</span>
+  <span class="p">])</span>.<span class="fn">unwrap</span><span class="p">();</span>
+  <span class="kw">let</span> resp <span class="p">=</span> <span class="ty">OutgoingResponse</span>::<span class="fn">new</span><span class="p">(</span>hdrs<span class="p">);</span>
+
+  <span class="kw">let</span> body <span class="p">=</span> resp.<span class="fn">body</span><span class="p">().</span><span class="fn">unwrap</span><span class="p">();</span>
+  body.<span class="fn">write</span><span class="p">().</span><span class="fn">unwrap</span><span class="p">().</span><span class="fn">write</span><span class="p">(</span><span class="s">b"hello, wasm\n"</span><span class="p">).</span><span class="fn">unwrap</span><span class="p">();</span>
+  <span class="ty">OutgoingBody</span>::<span class="fn">finish</span><span class="p">(</span>body<span class="p">,</span> <span class="ty">None</span><span class="p">).</span><span class="fn">unwrap</span><span class="p">();</span>
+
+  <span class="ty">ResponseOutparam</span>::<span class="fn">set</span><span class="p">(</span>out<span class="p">,</span> <span class="ty">Ok</span><span class="p">(</span>resp<span class="p">));</span>
+<span class="p">}</span></pre>
+              </div>
+              <div>
+                <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">JavaScript</div>
+<pre class="id-code"><span class="kw">export</span> <span class="kw">const</span> <span class="fn">incomingHandler</span> <span class="p">=</span> <span class="p">{</span>
+  <span class="fn">handle</span><span class="p">(</span><span class="field">req</span><span class="p">,</span> <span class="field">out</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kw">const</span> hdrs <span class="p">=</span> <span class="kw">new</span> <span class="ty">Fields</span><span class="p">([</span>
+      <span class="p">[</span><span class="s">"content-type"</span><span class="p">,</span> <span class="s">"text/plain"</span><span class="p">]</span>
+    <span class="p">]);</span>
+    <span class="kw">const</span> resp <span class="p">=</span> <span class="kw">new</span> <span class="ty">OutgoingResponse</span><span class="p">(</span>hdrs<span class="p">);</span>
+
+    <span class="kw">const</span> body <span class="p">=</span> resp.<span class="fn">body</span><span class="p">();</span>
+    body.<span class="fn">write</span><span class="p">().</span><span class="fn">write</span><span class="p">(</span>
+      <span class="kw">new</span> <span class="ty">TextEncoder</span><span class="p">().</span><span class="fn">encode</span><span class="p">(</span><span class="s">"hello, wasm\n"</span><span class="p">)</span>
+    <span class="p">);</span>
+    <span class="ty">OutgoingBody</span>.<span class="fn">finish</span><span class="p">(</span>body<span class="p">);</span>
+
+    <span class="ty">ResponseOutparam</span>.<span class="fn">set</span><span class="p">(</span>out<span class="p">,</span> <span class="p">{</span> <span class="field">tag</span><span class="p">:</span> <span class="s">"ok"</span><span class="p">,</span> <span class="field">val</span><span class="p">:</span> resp <span class="p">});</span>
+  <span class="p">}</span>
+<span class="p">};</span></pre>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <!-- ── RESOURCE: incoming-request ─────────── -->
+        <section id="res-incoming-request">
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">§ 07</div>
+          <article class="mt-2 space-y-5">
+            <header>
+              <div class="id-title-head">
+                <h2>
+                  <span class="mono">resource incoming-request</span>
+                  <a href="#res-incoming-request" class="id-anchor">§</a>
+                </h2>
+                <div class="id-aux">
+                  <span class="id-since-tag">since 0.2.0</span>
+                  <a href="#" class="id-src-link">source</a>
+                </div>
+              </div>
+              <p class="id-page-tagline">
+                A live handle to an HTTP request being delivered to the
+                component. Owns the request body stream — drop the resource (or
+                let it go out of scope) to release the underlying host
+                connection.
+              </p>
+            </header>
+
+            <div class="id-header">
+              <span class="id-kind id-kind-resource">RESOURCE</span>
+              <span class="id-path">
+                <span class="pkg">types</span><span class="sl">.</span><span class="ty">incoming-request</span>
+              </span>
+              <span class="id-stable-tag">Stable</span>
+            </div>
+
+            <div>
+              <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Definition</div>
+<pre class="id-code"><span class="kw">resource</span> <span class="res">incoming-request</span> <span class="p">{</span>
+  <span class="fn">method</span><span class="p">:</span>           <span class="kw">func</span><span class="p">()</span> -&gt; <span class="ty">method</span><span class="p">;</span>
+  <span class="fn">path-with-query</span><span class="p">:</span>  <span class="kw">func</span><span class="p">()</span> -&gt; <span class="ty">option</span><span class="p">&lt;</span><span class="ty">string</span><span class="p">&gt;;</span>
+  <span class="fn">scheme</span><span class="p">:</span>           <span class="kw">func</span><span class="p">()</span> -&gt; <span class="ty">option</span><span class="p">&lt;</span><span class="ty">scheme</span><span class="p">&gt;;</span>
+  <span class="fn">authority</span><span class="p">:</span>        <span class="kw">func</span><span class="p">()</span> -&gt; <span class="ty">option</span><span class="p">&lt;</span><span class="ty">string</span><span class="p">&gt;;</span>
+  <span class="fn">headers</span><span class="p">:</span>          <span class="kw">func</span><span class="p">()</span> -&gt; <span class="ty">headers</span><span class="p">;</span>
+  <span class="fn">consume</span><span class="p">:</span>          <span class="kw">func</span><span class="p">()</span> -&gt; <span class="ty">result</span><span class="p">&lt;</span><span class="ty">incoming-body</span><span class="p">&gt;;</span>
+<span class="p">}</span></pre>
+            </div>
+
+            <!-- Methods -->
+            <div>
+              <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Methods</div>
+              <div class="item-list">
+                <a href="#" class="item-row">
+                  <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">f</span>
+                  <div><span class="name">method() → method</span>
+                    <div class="desc">The HTTP method of this request.</div></div>
+                  <span class="meta">getter</span>
+                </a>
+                <a href="#" class="item-row">
+                  <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">f</span>
+                  <div><span class="name">path-with-query() → option&lt;string&gt;</span>
+                    <div class="desc">The request target path and query string, if any.</div></div>
+                  <span class="meta">getter</span>
+                </a>
+                <a href="#" class="item-row">
+                  <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">f</span>
+                  <div><span class="name">scheme() → option&lt;scheme&gt;</span>
+                    <div class="desc">The URI scheme — http, https, or other.</div></div>
+                  <span class="meta">getter</span>
+                </a>
+                <a href="#" class="item-row">
+                  <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">f</span>
+                  <div><span class="name">headers() → headers</span>
+                    <div class="desc">An immutable view over the request headers. Returns a child resource.</div></div>
+                  <span class="meta">getter</span>
+                </a>
+                <a href="#" class="item-row">
+                  <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-greenInk);">f</span>
+                  <div><span class="name">consume() → result&lt;incoming-body&gt;</span>
+                    <div class="desc">Take ownership of the body stream. Can only be called once per request.</div></div>
+                  <span class="meta">consuming</span>
+                </a>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <!-- ── ENUM: method ───────────────────────── -->
+        <section id="enum-method">
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">§ 08</div>
+          <article class="mt-2 space-y-5">
+            <header>
+              <div class="id-title-head">
+                <h2>
+                  <span class="mono">variant method</span>
+                  <a href="#enum-method" class="id-anchor">§</a>
+                </h2>
+                <div class="id-aux">
+                  <span class="id-since-tag">since 0.2.0</span>
+                  <a href="#" class="id-src-link">source</a>
+                </div>
+              </div>
+              <p class="id-page-tagline">
+                The HTTP method of a request. Standard methods are spelled out
+                as nullary cases; non-standard verbs are carried in the
+                <span class="mono text-[13px]">other</span> case as a string.
+              </p>
+            </header>
+
+            <div class="id-header">
+              <span class="id-kind id-kind-variant">VARIANT</span>
+              <span class="id-path">
+                <span class="pkg">types</span><span class="sl">.</span><span class="ty">method</span>
+              </span>
+              <span class="id-stable-tag">Stable</span>
+            </div>
+
+            <div>
+              <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Definition</div>
+<pre class="id-code"><span class="kw">variant</span> <span class="enum">method</span> <span class="p">{</span>
+  <span class="field">get</span><span class="p">,</span>
+  <span class="field">head</span><span class="p">,</span>
+  <span class="field">post</span><span class="p">,</span>
+  <span class="field">put</span><span class="p">,</span>
+  <span class="field">delete</span><span class="p">,</span>
+  <span class="field">connect</span><span class="p">,</span>
+  <span class="field">options</span><span class="p">,</span>
+  <span class="field">trace</span><span class="p">,</span>
+  <span class="field">patch</span><span class="p">,</span>
+  <span class="field">other</span><span class="p">(</span><span class="ty">string</span><span class="p">),</span>
+<span class="p">}</span></pre>
+            </div>
+
+            <!-- Cases -->
+            <div>
+              <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Cases</div>
+              <ul class="text-[13px] divide-y divide-lineSoft border-t-[1.5px] border-lineSoft">
+                <li class="grid grid-cols-[120px_1fr] gap-3 py-3"><span class="mono">get</span><span class="text-ink-700">Idempotent retrieval. No body.</span></li>
+                <li class="grid grid-cols-[120px_1fr] gap-3 py-3"><span class="mono">head</span><span class="text-ink-700">Same as GET, headers only.</span></li>
+                <li class="grid grid-cols-[120px_1fr] gap-3 py-3"><span class="mono">post</span><span class="text-ink-700">Submit data. Not necessarily idempotent.</span></li>
+                <li class="grid grid-cols-[120px_1fr] gap-3 py-3"><span class="mono">put</span><span class="text-ink-700">Replace a resource at the target URI.</span></li>
+                <li class="grid grid-cols-[120px_1fr] gap-3 py-3"><span class="mono">delete</span><span class="text-ink-700">Remove the target resource.</span></li>
+                <li class="grid grid-cols-[120px_1fr] gap-3 py-3"><span class="mono">patch</span><span class="text-ink-700">Apply a partial modification.</span></li>
+                <li class="grid grid-cols-[120px_1fr] gap-3 py-3 items-baseline">
+                  <span class="mono">other(string)</span>
+                  <span class="text-ink-700">Any non-standard method. The string must be a valid token per RFC 7230.</span>
+                </li>
+              </ul>
+            </div>
+          </article>
+        </section>
+
+        <!-- ── VARIANT: error-code ────────────────── -->
+        <section id="variant-error-code">
+          <div class="text-[12px] mono uppercase tracking-wider text-ink-500">§ 09</div>
+          <article class="mt-2 space-y-5">
+            <header>
+              <div class="id-title-head">
+                <h2>
+                  <span class="mono">variant error-code</span>
+                  <a href="#variant-error-code" class="id-anchor">§</a>
+                </h2>
+                <div class="id-aux">
+                  <span class="id-experimental-tag">Experimental</span>
+                  <a href="#" class="id-src-link">source</a>
+                </div>
+              </div>
+              <p class="id-page-tagline">
+                Structured error returned by handler operations. Cases mirror the
+                shape of network failures rather than HTTP status codes —
+                application-level errors should still be reported as a normal
+                response with the appropriate status.
+              </p>
+            </header>
+
+            <div class="id-header">
+              <span class="id-kind id-kind-variant">VARIANT</span>
+              <span class="id-path">
+                <span class="pkg">types</span><span class="sl">.</span><span class="ty">error-code</span>
+              </span>
+              <span class="id-experimental-tag">Experimental</span>
+            </div>
+
+            <div>
+              <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">Selected cases</div>
+              <ul class="text-[13px] divide-y divide-lineSoft border-t-[1.5px] border-lineSoft">
+                <li class="grid grid-cols-[200px_1fr] gap-3 py-3 items-baseline">
+                  <span class="mono">DNS-error(<span class="text-ink-500">dns-error-payload</span>)</span>
+                  <span class="text-ink-700">Name resolution failed. Carries the underlying rcode.</span>
+                </li>
+                <li class="grid grid-cols-[200px_1fr] gap-3 py-3 items-baseline">
+                  <span class="mono">connection-refused</span>
+                  <span class="text-ink-700">Peer actively refused the connection.</span>
+                </li>
+                <li class="grid grid-cols-[200px_1fr] gap-3 py-3 items-baseline">
+                  <span class="mono">connection-timeout</span>
+                  <span class="text-ink-700">Connect deadline elapsed without a TCP handshake.</span>
+                </li>
+                <li class="grid grid-cols-[200px_1fr] gap-3 py-3 items-baseline">
+                  <span class="mono">TLS-protocol-error</span>
+                  <span class="text-ink-700">The TLS handshake failed for protocol reasons.</span>
+                </li>
+                <li class="grid grid-cols-[200px_1fr] gap-3 py-3 items-baseline">
+                  <span class="mono">HTTP-request-denied</span>
+                  <span class="text-ink-700">Host policy refused to issue the request (sandbox / capability).</span>
+                </li>
+                <li class="grid grid-cols-[200px_1fr] gap-3 py-3 items-baseline">
+                  <span class="mono">internal-error(<span class="text-ink-500">option&lt;string&gt;</span>)</span>
+                  <span class="text-ink-700">Catch-all. Implementations should prefer a more specific case.</span>
+                </li>
+              </ul>
+            </div>
+
+            <p class="text-[12px] text-ink-500">
+              Twenty-one cases total. See <a href="#" class="underline decoration-line decoration-1 underline-offset-[3px] text-ink-700 hover:text-ink-900">the full reference</a>
+              for the complete list.
+            </p>
+          </article>
+        </section>
+
+      </article>
+
+      <!-- ============================ -->
+      <!-- C02 — ON THIS PAGE            -->
+      <!-- ============================ -->
+      <aside class="docs-aside hidden xl:block">
+        <div class="mono uppercase tracking-wider text-[10px] text-ink-500 mb-2 px-2.5">On this page</div>
+        <nav class="space-y-px">
+          <a href="#overview" class="toc-link">Overview</a>
+          <a href="#worlds" class="toc-link">Worlds</a>
+          <a href="#interfaces" class="toc-link">Interfaces</a>
+          <a href="#world-proxy" class="toc-link">world proxy</a>
+          <a href="#iface-incoming-handler" class="toc-link">interface incoming-handler</a>
+          <a href="#fn-handle" class="toc-link indent active">handle</a>
+          <a href="#res-incoming-request" class="toc-link">resource incoming-request</a>
+          <a href="#enum-method" class="toc-link">variant method</a>
+          <a href="#variant-error-code" class="toc-link">variant error-code</a>
+        </nav>
+        <div class="px-2.5 mt-4">
+          <a href="#" class="inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[11px] mono text-ink-500 hover:bg-surfaceMuted hover:text-ink-900 transition-colors">
+            <svg class="h-3 w-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="m3 7.5 3-3 3 3"/></svg>
+            Back to top
+          </a>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      var btn = document.getElementById("theme-toggle");
+      if (!btn) return;
+      var root = document.documentElement;
+      var mq = window.matchMedia("(prefers-color-scheme: dark)");
+      function currentMode() {
+        var t = root.getAttribute("data-theme");
+        if (t === "dark" || t === "light") return t;
+        return mq.matches ? "dark" : "light";
+      }
+      btn.addEventListener("click", function () {
+        var next = currentMode() === "dark" ? "light" : "dark";
+        root.setAttribute("data-theme", next);
+        try { localStorage.setItem("ds-theme", next); } catch (e) { }
+      });
+    })();
+  </script>
+</body>
+
+</html>

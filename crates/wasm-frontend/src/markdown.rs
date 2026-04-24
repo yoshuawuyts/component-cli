@@ -20,7 +20,8 @@ pub(crate) fn render(input: &str) -> String {
 }
 
 /// Standard CSS class for rendered doc comment blocks.
-pub(crate) const DOC_CLASS: &str = "text-base text-fg-muted leading-relaxed prose-doc";
+#[allow(dead_code)]
+pub(crate) const DOC_CLASS: &str = "text-base text-ink-500 leading-relaxed prose-doc";
 
 /// Render markdown and wrap in a styled `<div>`.
 ///
@@ -38,17 +39,15 @@ pub(crate) fn render_block(input: &str, class: &str) -> String {
 /// list items, and other inline contexts.
 #[must_use]
 pub(crate) fn render_inline(input: &str) -> String {
-    let mut html = render(input);
-    // Strip a single wrapping <p>...</p>\n
-    if html.starts_with("<p>") && html.trim_end().ends_with("</p>") {
-        let trimmed = html.trim_end();
-        if trimmed.matches("<p>").count() == 1 {
-            html = trimmed
-                .strip_prefix("<p>")
-                .and_then(|s| s.strip_suffix("</p>"))
-                .unwrap_or(trimmed)
-                .to_owned();
+    let html = render(input);
+    // Extract content from the first <p>...</p> only, stripping any
+    // subsequent paragraphs that would break inline contexts.
+    if let Some(start) = html.find("<p>") {
+        let content_start = start + 3;
+        if let Some(end) = html[content_start..].find("</p>") {
+            return html[content_start..content_start + end].to_owned();
         }
     }
+    // Fallback: return as-is if no <p> found
     html
 }
