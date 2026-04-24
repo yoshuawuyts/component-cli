@@ -137,6 +137,10 @@ mod tests {
                     kicker: "Community",
                     links: COMMUNITY,
                 },
+                FooterColumn {
+                    kicker: "Legal",
+                    links: LEGAL,
+                },
             ],
         });
         insta::assert_snapshot!(crate::components::ds::pretty_html(&html));
