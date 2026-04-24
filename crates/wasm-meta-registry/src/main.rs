@@ -35,12 +35,22 @@ struct Cli {
     /// This can significantly delay readiness on large caches.
     #[arg(long, default_value_t = false)]
     reindex_wit_on_startup: bool,
+
+    /// Force re-fetch all package versions from the registry,
+    /// bypassing the pull cooldown.
+    #[arg(long, default_value_t = false)]
+    refetch: bool,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Initialize tracing
-    tracing_subscriber::fmt::init();
+    // Initialize tracing — default to `info` level when RUST_LOG is not set.
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
 
     let cli = Cli::parse();
 
@@ -83,6 +93,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Start background indexer on a dedicated thread (Manager is !Sync)
     let indexer_config = config.clone();
+    let cli_refetch = cli.refetch;
     let indexer_handle = std::thread::spawn(move || {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -97,7 +108,7 @@ async fn main() -> anyhow::Result<()> {
                     return;
                 }
             };
-            let indexer = Indexer::new(indexer_config, manager);
+            let indexer = Indexer::new(indexer_config, manager).with_refetch(cli_refetch);
             indexer.run().await;
         });
     });

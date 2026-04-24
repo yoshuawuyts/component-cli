@@ -43,6 +43,9 @@ enum Xtask {
         /// Re-index WIT packages on startup
         #[arg(long)]
         reindex: bool,
+        /// Force re-fetch all package versions from the registry
+        #[arg(long)]
+        refetch: bool,
     },
     /// Database schema and migration management
     Sql {
@@ -108,7 +111,7 @@ fn main() -> Result<()> {
             run_command("cargo", &cargo_args)?;
         }
         Xtask::Demo => run_demo()?,
-        Xtask::Serve { reindex } => serve::run_serve(reindex)?,
+        Xtask::Serve { reindex, refetch } => serve::run_serve(reindex, refetch)?,
         Xtask::Sql { command } => match command {
             SqlCommand::Migrate { name } => sql::migrate(&name)?,
             SqlCommand::Check => sql::check()?,

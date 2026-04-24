@@ -849,9 +849,42 @@ impl Manager {
         wit_name: Option<&str>,
         kind: Option<PackageKind>,
     ) -> anyhow::Result<KnownPackage> {
+        self.index_package_inner(reference, wit_namespace, wit_name, kind, false)
+            .await
+    }
+
+    /// Index a package, optionally bypassing the pull cooldown.
+    ///
+    /// When `skip_cooldown` is `true`, every version tag is re-pulled
+    /// from the registry regardless of when it was last fetched.
+    pub async fn index_package_refetch(
+        &self,
+        reference: &Reference,
+        wit_namespace: Option<&str>,
+        wit_name: Option<&str>,
+        kind: Option<PackageKind>,
+    ) -> anyhow::Result<KnownPackage> {
+        self.index_package_inner(reference, wit_namespace, wit_name, kind, true)
+            .await
+    }
+
+    async fn index_package_inner(
+        &self,
+        reference: &Reference,
+        wit_namespace: Option<&str>,
+        wit_name: Option<&str>,
+        kind: Option<PackageKind>,
+        skip_cooldown: bool,
+    ) -> anyhow::Result<KnownPackage> {
         if self.offline {
             return Err(ManagerError::OfflineIndex.into());
         }
+
+        tracing::info!(
+            registry = %reference.registry(),
+            repository = %reference.repository(),
+            "Indexing package"
+        );
 
         // Discover available tags first — the reference may not carry a valid
         // tag (e.g. the default "latest" might not exist).
@@ -906,9 +939,29 @@ impl Manager {
         // worlds, components and dependency metadata are all available in the
         // local database.  Non-semver tags (e.g. `latest`, hash-based
         // signatures) are skipped — they typically duplicate a semver tag.
+        //
+        // Tags that were already pulled recently (within 1 hour) are skipped
+        // to avoid redundant network traffic on server restarts.
         // r[impl server.index.dependencies]
+        const PULL_COOLDOWN_SECS: u64 = 3600; // 1 hour
         for tag in &tags {
             if tag == "latest" || tag.starts_with("sha256-") {
+                continue;
+            }
+            if !skip_cooldown
+                && self.store.is_tag_fresh(
+                    reference.registry(),
+                    reference.repository(),
+                    tag,
+                    PULL_COOLDOWN_SECS,
+                )
+            {
+                tracing::debug!(
+                    registry = %reference.registry(),
+                    repository = %reference.repository(),
+                    tag = %tag,
+                    "Skipping pull — already fresh"
+                );
                 continue;
             }
             tracing::info!(

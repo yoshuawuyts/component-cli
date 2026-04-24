@@ -42,6 +42,9 @@ use crate::config::Config;
 pub struct Indexer {
     config: Config,
     manager: Manager,
+    /// When `true`, bypass the per-tag pull cooldown and re-fetch every
+    /// version from the registry.
+    refetch: bool,
 }
 
 impl Indexer {
@@ -67,7 +70,19 @@ impl Indexer {
     /// ```
     #[must_use]
     pub fn new(config: Config, manager: Manager) -> Self {
-        Self { config, manager }
+        Self {
+            config,
+            manager,
+            refetch: false,
+        }
+    }
+
+    /// Enable refetch mode: bypass pull cooldowns and re-download every
+    /// version tag from the registry.
+    #[must_use]
+    pub fn with_refetch(mut self, refetch: bool) -> Self {
+        self.refetch = refetch;
+        self
     }
 
     /// Run a single sync cycle, indexing all configured packages.
@@ -95,16 +110,26 @@ impl Indexer {
                 }
             };
 
-            match self
-                .manager
-                .index_package(
-                    &reference,
-                    Some(&source.namespace),
-                    Some(&source.name),
-                    Some(source.kind),
-                )
-                .await
-            {
+            let result = if self.refetch {
+                self.manager
+                    .index_package_refetch(
+                        &reference,
+                        Some(&source.namespace),
+                        Some(&source.name),
+                        Some(source.kind),
+                    )
+                    .await
+            } else {
+                self.manager
+                    .index_package(
+                        &reference,
+                        Some(&source.namespace),
+                        Some(&source.name),
+                        Some(source.kind),
+                    )
+                    .await
+            };
+            match result {
                 Ok(pkg) => {
                     info!(
                         registry = %pkg.registry,

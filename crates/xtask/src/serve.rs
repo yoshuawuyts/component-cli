@@ -21,7 +21,7 @@ use notify::{RecursiveMode, Watcher};
 use crate::workspace_root;
 
 /// Run the full frontend development stack.
-pub(crate) fn run_serve(reindex: bool) -> Result<()> {
+pub(crate) fn run_serve(reindex: bool, refetch: bool) -> Result<()> {
     let root = workspace_root()?;
 
     let wasm_path = root
@@ -40,7 +40,7 @@ pub(crate) fn run_serve(reindex: bool) -> Result<()> {
     build_frontend(&root)?;
 
     // Start servers.
-    let mut registry_child = start_registry(&registry_dir, reindex)?;
+    let mut registry_child = start_registry(&registry_dir, reindex, refetch)?;
     let mut wasmtime_child = start_wasmtime(&wasm_path)?;
 
     // Install a Ctrl-C handler that flags shutdown.
@@ -154,7 +154,7 @@ fn build_frontend(root: &std::path::Path) -> Result<()> {
 }
 
 /// Start the meta-registry server.
-fn start_registry(registry_dir: &str, reindex: bool) -> Result<Child> {
+fn start_registry(registry_dir: &str, reindex: bool, refetch: bool) -> Result<Child> {
     eprintln!(":: Starting meta-registry on 127.0.0.1:8081…");
     let mut args = vec![
         "run",
@@ -167,6 +167,9 @@ fn start_registry(registry_dir: &str, reindex: bool) -> Result<Child> {
     ];
     if reindex {
         args.push("--reindex-wit-on-startup");
+    }
+    if refetch {
+        args.push("--refetch");
     }
     Command::new("cargo")
         .args(&args)

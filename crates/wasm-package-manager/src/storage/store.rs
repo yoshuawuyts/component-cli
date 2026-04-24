@@ -869,6 +869,48 @@ impl Store {
         RawKnownPackage::upsert_with_params(&self.conn, params)
     }
 
+    /// Check whether a tag was already fully pulled (has a manifest with
+    /// layers) and the pull is still "fresh" — i.e. the tag's `updated_at`
+    /// timestamp is within `max_age_secs` seconds of now.
+    ///
+    /// Returns `true` when the pull can be skipped; `false` when the tag
+    /// should be (re-)pulled.
+    pub(crate) fn is_tag_fresh(
+        &self,
+        registry: &str,
+        repository: &str,
+        tag: &str,
+        max_age_secs: u64,
+    ) -> bool {
+        let max_age = i64::try_from(max_age_secs).unwrap_or(i64::MAX);
+        let fresh: Option<bool> = self
+            .conn
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1
+                       FROM oci_tag t
+                       JOIN oci_repository r ON r.id = t.oci_repository_id
+                       JOIN oci_layer l
+                            ON l.oci_manifest_id = (
+                                SELECT m.id FROM oci_manifest m
+                                 WHERE m.oci_repository_id = r.id
+                                   AND m.digest = t.manifest_digest
+                                 LIMIT 1
+                            )
+                      WHERE r.registry = ?1
+                        AND r.repository = ?2
+                        AND t.tag = ?3
+                        AND t.updated_at >= datetime('now', '-' || ?4 || ' seconds')
+                      LIMIT 1
+                 )",
+                rusqlite::params![registry, repository, tag, max_age],
+                |row| row.get(0),
+            )
+            .ok();
+
+        fresh.unwrap_or(false)
+    }
+
     /// Get all WIT packages.
     #[allow(dead_code)]
     pub(crate) fn list_wit_packages(&self) -> anyhow::Result<Vec<RawWitPackage>> {
