@@ -148,8 +148,7 @@ impl Client {
             .await;
 
         // The Referrers API requires a digest-based reference — build one
-        // from the original reference so the registry URL contains the digest
-        // rather than a tag.
+        // from the original reference with the digest instead of a tag.
         let digest_ref = Reference::with_digest(
             reference.registry().to_owned(),
             reference.repository().to_owned(),
