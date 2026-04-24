@@ -24,6 +24,18 @@ pub use logic::{
 };
 pub use models::{InstallResult, PullResult, SyncPolicy, SyncResult};
 
+/// Outcome of [`Manager::process_next_task`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskOutcome {
+    /// A task ran to completion.
+    Succeeded,
+    /// A task was dequeued but its execution failed; the failure has
+    /// been recorded in the queue.
+    Failed,
+    /// The queue was empty; no work was performed.
+    Empty,
+}
+
 /// How long (in seconds) to skip re-pulling a tag during background indexing
 /// when its layers are already present in the local store.  Set to one hour
 /// so server restarts don't trigger a full re-fetch of every known version.
@@ -1042,11 +1054,14 @@ impl Manager {
 
     /// Process the next pending task from the fetch queue.
     ///
-    /// Returns `Ok(true)` when a task was processed, `Ok(false)` when the
-    /// queue is empty.
-    pub async fn process_next_task(&self) -> anyhow::Result<bool> {
+    /// Returns [`TaskOutcome::Empty`] when there are no pending tasks,
+    /// [`TaskOutcome::Succeeded`] when a task ran to completion, and
+    /// [`TaskOutcome::Failed`] when the task itself failed (the failure
+    /// is recorded in the queue).  Errors are reserved for failures that
+    /// prevent us from interacting with the queue at all.
+    pub async fn process_next_task(&self) -> anyhow::Result<TaskOutcome> {
         let Some(task) = self.store.dequeue_next()? else {
-            return Ok(false);
+            return Ok(TaskOutcome::Empty);
         };
 
         tracing::info!(
@@ -1066,7 +1081,7 @@ impl Manager {
         match result {
             Ok(()) => {
                 self.store.complete_task(task.id)?;
-                Ok(true)
+                Ok(TaskOutcome::Succeeded)
             }
             Err(e) => {
                 tracing::warn!(
@@ -1077,7 +1092,7 @@ impl Manager {
                     "Fetch task failed"
                 );
                 self.store.fail_task(task.id, &e.to_string())?;
-                Ok(true)
+                Ok(TaskOutcome::Failed)
             }
         }
     }

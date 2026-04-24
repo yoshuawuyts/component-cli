@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use tracing::{error, info, warn};
 use wasm_package_manager::Reference;
-use wasm_package_manager::manager::Manager;
+use wasm_package_manager::manager::{Manager, TaskOutcome};
 
 use crate::config::Config;
 
@@ -169,14 +169,24 @@ impl Indexer {
         let mut consecutive_errors = 0u64;
         loop {
             match self.manager.process_next_task().await {
-                Ok(true) => {
+                Ok(TaskOutcome::Succeeded) => {
                     processed += 1;
                     consecutive_errors = 0;
                     // Brief pause between tasks to be a good citizen to
                     // upstream registries and let the HTTP server breathe.
                     tokio::time::sleep(Duration::from_millis(250)).await;
                 }
-                Ok(false) => break, // queue is empty
+                Ok(TaskOutcome::Failed) => {
+                    processed += 1;
+                    consecutive_errors += 1;
+                    if consecutive_errors >= 5 {
+                        error!("Too many consecutive task failures, pausing until next cycle");
+                        break;
+                    }
+                    // Back off before processing the next task after a failure.
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                }
+                Ok(TaskOutcome::Empty) => break, // queue is empty
                 Err(e) => {
                     consecutive_errors += 1;
                     error!(error = %e, "Error processing fetch queue");

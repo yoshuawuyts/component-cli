@@ -1048,10 +1048,7 @@ impl Store {
               WHERE t.tag != 'latest'
                 AND t.tag NOT LIKE 'sha256-%'
               GROUP BY r.registry, r.repository, t.tag
-             ON CONFLICT(registry, repository, tag, task) DO UPDATE SET
-                 created_at = excluded.created_at,
-                 updated_at = excluded.updated_at
-              WHERE fetch_queue.status = 'completed'",
+             ON CONFLICT(registry, repository, tag, task) DO NOTHING",
             [],
         )?;
         Ok(u64::try_from(count).unwrap_or(0))
@@ -1116,9 +1113,15 @@ impl Store {
     }
 
     /// Mark a task as successfully completed.
+    ///
+    /// Clears any `last_error` from previous failed attempts so the
+    /// status page reflects the successful outcome.
     pub(crate) fn complete_task(&self, task_id: i64) -> anyhow::Result<()> {
         self.conn.execute(
-            "UPDATE fetch_queue SET status = 'completed' WHERE id = ?1",
+            "UPDATE fetch_queue
+                SET status = 'completed',
+                    last_error = NULL
+              WHERE id = ?1",
             [task_id],
         )?;
         Ok(())
