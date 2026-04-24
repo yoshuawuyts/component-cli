@@ -160,7 +160,8 @@ impl Client {
             // Registry may not support the Referrers API — log and skip.
             Err(e) => {
                 tracing::debug!(
-                    "Failed to pull referrers for {} (treating as no referrers): {}",
+                    "Failed to pull referrers for {} (resolved from {}, treating as no referrers): {}",
+                    digest_ref,
                     reference,
                     e
                 );
