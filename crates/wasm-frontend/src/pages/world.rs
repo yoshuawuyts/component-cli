@@ -116,7 +116,7 @@ fn render_item_section(
             } => {
                 let name_no_ver = strip_version(name);
                 let ver_suffix = extract_version(name)
-                    .map(|v| v.to_owned())
+                    .map(ToOwned::to_owned)
                     .unwrap_or_default();
                 let desc = docs.clone().or_else(|| api_docs.get(name_no_ver).cloned());
                 WitItem {
