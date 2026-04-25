@@ -13,7 +13,7 @@ jobs:
         with:
           components: llvm-tools-preview
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@38b7fbf28e5ac5a0270267314a8a97cd448b8292 # cargo-llvm-cov
+        uses: taiki-e/install-action@cdb5db82caaf296e516e982ea0c48a66123f5ea4 # cargo-llvm-cov
         with:
           tool: cargo-llvm-cov
       - name: Install sqlite3def
@@ -41,13 +41,13 @@ jobs:
       - name: Check coverage threshold
         run: cargo llvm-cov report --fail-under-lines 60
       - name: Upload HTML coverage report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report-html
           path: target/llvm-cov/html/
           retention-days: 14
       - name: Upload lcov coverage report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report-lcov
           path: lcov.info

@@ -33,7 +33,7 @@ jobs:
             archive: zip
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -65,7 +65,7 @@ jobs:
           Compress-Archive -Path target/release/wasm.exe -DestinationPath wasm-${{ matrix.target }}.zip
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wasm-${{ matrix.target }}
           path: wasm-${{ matrix.target }}.${{ matrix.archive }}
@@ -78,10 +78,10 @@ jobs:
       contents: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download all binary artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
@@ -95,7 +95,7 @@ jobs:
           ls -la release-assets/
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: "${{ inputs.version }}"
           generate_release_notes: true
