@@ -9,7 +9,7 @@
 use std::fmt;
 
 use crate::KnownPackage;
-use wasm_meta_registry_types::{PackageDetail, PackageVersion};
+use wasm_meta_registry_types::{PackageDetail, PackageVersion, QueueStatus};
 
 /// Default API base URL when no environment variable is set.
 const DEFAULT_API_BASE_URL: &str = "http://localhost:8081";
@@ -274,6 +274,17 @@ impl RegistryClient {
         let encoded = percent_encode_query_component(interface);
         let url = format!("{}/v1/search/by-export?interface={encoded}", self.base_url);
         self.fetch_packages_from(&url).await
+    }
+
+    /// Fetch the current fetch queue status.
+    pub async fn fetch_queue_status(&self) -> Result<QueueStatus, ApiError> {
+        let url = format!("{}/v1/queue", self.base_url);
+        let bytes = self.get(&url).await?;
+        serde_json::from_slice(&bytes).map_err(|e| {
+            ApiError::new(format!(
+                "received an unexpected response from the registry: {e}"
+            ))
+        })
     }
 
     /// Fetch and deserialize a list of packages from the given URL.

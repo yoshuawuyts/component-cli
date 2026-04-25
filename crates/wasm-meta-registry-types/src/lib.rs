@@ -863,3 +863,89 @@ mod tests {
         assert_eq!(parsed.referrers.len(), 1);
     }
 }
+
+// ============================================================
+// Queue status
+// ============================================================
+
+/// Summary of the fetch queue, returned by `/v1/queue`.
+///
+/// # Example
+///
+/// ```rust
+/// use wasm_meta_registry_types::QueueStatus;
+///
+/// let status = QueueStatus {
+///     pending: 5,
+///     in_progress: 1,
+///     completed: 42,
+///     failed: 2,
+///     active: vec![],
+///     history: vec![],
+/// };
+/// let json = serde_json::to_string(&status).unwrap();
+/// assert!(json.contains("\"pending\":5"));
+/// ```
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct QueueStatus {
+    /// Number of tasks waiting to be processed.
+    pub pending: u64,
+    /// Number of tasks currently being processed.
+    pub in_progress: u64,
+    /// Number of successfully completed tasks.
+    pub completed: u64,
+    /// Number of tasks that exhausted their retry budget.
+    pub failed: u64,
+    /// Currently active tasks (pending + in_progress), ordered by priority.
+    pub active: Vec<QueueTask>,
+    /// Recent history (completed + failed), most recent first.
+    pub history: Vec<QueueTask>,
+}
+
+/// A single task in the fetch queue.
+///
+/// # Example
+///
+/// ```rust
+/// use wasm_meta_registry_types::QueueTask;
+///
+/// let task = QueueTask {
+///     registry: "ghcr.io/webassembly".into(),
+///     repository: "wasi/http".into(),
+///     tag: "0.2.11".into(),
+///     task: "pull".into(),
+///     status: "pending".into(),
+///     priority: 0,
+///     attempts: 0,
+///     max_attempts: 3,
+///     last_error: None,
+///     created_at: "2026-04-24 12:00:00".into(),
+///     updated_at: "2026-04-24 12:00:00".into(),
+/// };
+/// assert_eq!(task.tag, "0.2.11");
+/// ```
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct QueueTask {
+    /// OCI registry hostname.
+    pub registry: String,
+    /// OCI repository path.
+    pub repository: String,
+    /// Version tag.
+    pub tag: String,
+    /// Task type: "pull" or "reindex".
+    pub task: String,
+    /// Current status: "pending", "in_progress", "completed", or "failed".
+    pub status: String,
+    /// Priority (lower = higher).
+    pub priority: i32,
+    /// Number of attempts so far.
+    pub attempts: i32,
+    /// Maximum allowed attempts.
+    pub max_attempts: i32,
+    /// Error from the last failed attempt, if any.
+    pub last_error: Option<String>,
+    /// ISO 8601 timestamp of when this task was created.
+    pub created_at: String,
+    /// ISO 8601 timestamp of the last modification.
+    pub updated_at: String,
+}

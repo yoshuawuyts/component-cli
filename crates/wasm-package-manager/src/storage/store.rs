@@ -18,6 +18,41 @@ use crate::types::{
 };
 use futures_concurrency::prelude::*;
 use oci_client::{Reference, client::ImageData, manifest::OciImageManifest};
+
+/// The kind of work a [`FetchTask`] represents.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FetchTaskKind {
+    /// Download from the OCI registry and extract metadata.
+    Pull,
+    /// Re-derive WIT metadata from already-cached layers.
+    Reindex,
+}
+
+impl From<String> for FetchTaskKind {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "reindex" => Self::Reindex,
+            _ => Self::Pull,
+        }
+    }
+}
+
+/// A single unit of work dequeued from the fetch queue.
+#[derive(Debug)]
+pub struct FetchTask {
+    /// Row id in the `fetch_queue` table.
+    pub id: i64,
+    /// OCI registry hostname.
+    pub registry: String,
+    /// OCI repository path.
+    pub repository: String,
+    /// Version tag.
+    pub tag: String,
+    /// What to do with this tag.
+    pub kind: FetchTaskKind,
+    /// How many times this task has been attempted so far.
+    pub attempts: i64,
+}
 use rusqlite::{Connection, OptionalExtension};
 
 /// Calculate the total size of a directory recursively
@@ -909,6 +944,393 @@ impl Store {
             .ok();
 
         fresh.unwrap_or(false)
+    }
+
+    // ── Fetch queue ─────────────────────────────────────────────
+
+    /// Enqueue a pull task for a specific tag.
+    ///
+    /// If a pending/in-progress pull for this exact (registry, repo, tag)
+    /// already exists, this is a no-op.  Completed or failed entries are
+    /// left as-is; use [`enqueue_refetch`] to force a re-pull.
+    pub(crate) fn enqueue_pull(
+        &self,
+        registry: &str,
+        repository: &str,
+        tag: &str,
+        priority: i32,
+    ) -> anyhow::Result<()> {
+        self.conn.execute(
+            "INSERT INTO fetch_queue (registry, repository, tag, task, priority)
+             VALUES (?1, ?2, ?3, 'pull', ?4)
+             ON CONFLICT(registry, repository, tag, task) DO NOTHING",
+            rusqlite::params![registry, repository, tag, priority],
+        )?;
+        Ok(())
+    }
+
+    /// Record a tag as already completed without actually pulling it.
+    ///
+    /// Used for tags that were pulled before the queue existed, so they
+    /// appear in the history for visibility.  No-op if a queue entry
+    /// already exists for this tag.
+    pub(crate) fn record_completed(
+        &self,
+        registry: &str,
+        repository: &str,
+        tag: &str,
+    ) -> anyhow::Result<()> {
+        self.conn.execute(
+            "INSERT INTO fetch_queue (registry, repository, tag, task, status)
+             VALUES (?1, ?2, ?3, 'pull', 'completed')
+             ON CONFLICT(registry, repository, tag, task) DO NOTHING",
+            rusqlite::params![registry, repository, tag],
+        )?;
+        Ok(())
+    }
+
+    /// Enqueue a reindex task for a specific tag.
+    ///
+    /// Re-derives WIT metadata from already-cached layers.  No-op if a
+    /// pending reindex for this tag already exists.
+    #[allow(dead_code)] // public API for targeted reindexing
+    pub(crate) fn enqueue_reindex(
+        &self,
+        registry: &str,
+        repository: &str,
+        tag: &str,
+    ) -> anyhow::Result<()> {
+        self.conn.execute(
+            "INSERT INTO fetch_queue (registry, repository, tag, task)
+             VALUES (?1, ?2, ?3, 'reindex')
+             ON CONFLICT(registry, repository, tag, task) DO NOTHING",
+            rusqlite::params![registry, repository, tag],
+        )?;
+        Ok(())
+    }
+
+    /// Enqueue reindex tasks for all tags that have cached layers.
+    ///
+    /// Returns the number of tasks enqueued.
+    pub(crate) fn enqueue_reindex_all(&self) -> anyhow::Result<u64> {
+        let count = self.conn.execute(
+            "INSERT INTO fetch_queue (registry, repository, tag, task)
+             SELECT r.registry, r.repository, t.tag, 'reindex'
+               FROM oci_tag t
+               JOIN oci_repository r ON r.id = t.oci_repository_id
+               JOIN oci_manifest m ON m.oci_repository_id = r.id
+                                  AND m.digest = t.manifest_digest
+               JOIN oci_layer l ON l.oci_manifest_id = m.id
+              GROUP BY r.registry, r.repository, t.tag
+             ON CONFLICT(registry, repository, tag, task) DO NOTHING",
+            [],
+        )?;
+        Ok(u64::try_from(count).unwrap_or(0))
+    }
+
+    /// Seed the fetch queue with completed entries for all tags that
+    /// already have cached layers.
+    ///
+    /// This back-fills the queue history so that previously-pulled tags
+    /// appear in the status page even if they were fetched before the
+    /// queue was introduced.  No-op for tags that already have a queue
+    /// entry.  Returns the number of entries created.
+    pub(crate) fn seed_completed_from_tags(&self) -> anyhow::Result<u64> {
+        let count = self.conn.execute(
+            "INSERT INTO fetch_queue (registry, repository, tag, task, status, created_at, updated_at)
+             SELECT r.registry, r.repository, t.tag, 'pull', 'completed',
+                    t.created_at, t.updated_at
+               FROM oci_tag t
+               JOIN oci_repository r ON r.id = t.oci_repository_id
+               JOIN oci_manifest m ON m.oci_repository_id = r.id
+                                  AND m.digest = t.manifest_digest
+               JOIN oci_layer l ON l.oci_manifest_id = m.id
+              WHERE t.tag != 'latest'
+                AND t.tag NOT LIKE 'sha256-%'
+              GROUP BY r.registry, r.repository, t.tag
+             ON CONFLICT(registry, repository, tag, task) DO NOTHING",
+            [],
+        )?;
+        Ok(u64::try_from(count).unwrap_or(0))
+    }
+
+    /// Force a re-pull of a specific tag, even if it was already completed.
+    ///
+    /// Resets the status to 'pending' and clears the attempt counter.
+    pub(crate) fn enqueue_refetch(
+        &self,
+        registry: &str,
+        repository: &str,
+        tag: &str,
+        priority: i32,
+    ) -> anyhow::Result<()> {
+        self.conn.execute(
+            "INSERT INTO fetch_queue (registry, repository, tag, task, priority)
+             VALUES (?1, ?2, ?3, 'pull', ?4)
+             ON CONFLICT(registry, repository, tag, task) DO UPDATE SET
+                 status = 'pending',
+                 priority = excluded.priority,
+                 attempts = 0,
+                 last_error = NULL",
+            rusqlite::params![registry, repository, tag, priority],
+        )?;
+        Ok(())
+    }
+
+    /// Dequeue the next pending task, marking it as in-progress.
+    ///
+    /// Returns `None` when the queue is empty.  Tasks are ordered by
+    /// priority (ascending) then creation time.
+    pub(crate) fn dequeue_next(&self) -> anyhow::Result<Option<FetchTask>> {
+        // Single UPDATE ... RETURNING to atomically claim the next item.
+        let result = self.conn.query_row(
+            "UPDATE fetch_queue
+                SET status = 'in_progress'
+              WHERE id = (
+                  SELECT id FROM fetch_queue
+                   WHERE status = 'pending'
+                   ORDER BY priority ASC, created_at ASC
+                   LIMIT 1
+              )
+              RETURNING id, registry, repository, tag, task, attempts",
+            [],
+            |row| {
+                Ok(FetchTask {
+                    id: row.get(0)?,
+                    registry: row.get(1)?,
+                    repository: row.get(2)?,
+                    tag: row.get(3)?,
+                    kind: row.get::<_, String>(4)?.into(),
+                    attempts: row.get(5)?,
+                })
+            },
+        );
+        match result {
+            Ok(task) => Ok(Some(task)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Mark a task as successfully completed.
+    ///
+    /// Clears any `last_error` from previous failed attempts so the
+    /// status page reflects the successful outcome.
+    pub(crate) fn complete_task(&self, task_id: i64) -> anyhow::Result<()> {
+        self.conn.execute(
+            "UPDATE fetch_queue
+                SET status = 'completed',
+                    last_error = NULL
+              WHERE id = ?1",
+            [task_id],
+        )?;
+        Ok(())
+    }
+
+    /// Record a failed attempt.
+    ///
+    /// If the task has not exhausted its retry budget, it returns to
+    /// 'pending' for another attempt.  Otherwise it is marked 'failed'.
+    pub(crate) fn fail_task(&self, task_id: i64, error: &str) -> anyhow::Result<()> {
+        self.conn.execute(
+            "UPDATE fetch_queue
+                SET attempts = attempts + 1,
+                    last_error = ?2,
+                    status = CASE
+                        WHEN attempts + 1 >= max_attempts THEN 'failed'
+                        ELSE 'pending'
+                    END
+              WHERE id = ?1",
+            rusqlite::params![task_id, error],
+        )?;
+        Ok(())
+    }
+
+    /// Return the number of pending tasks in the queue.
+    pub(crate) fn pending_count(&self) -> anyhow::Result<u64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM fetch_queue WHERE status = 'pending'",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(u64::try_from(count).unwrap_or(0))
+    }
+
+    /// Return an overview of the fetch queue with per-status counts and
+    /// recent/active tasks.
+    pub(crate) fn get_queue_status(&self) -> anyhow::Result<wasm_meta_registry_types::QueueStatus> {
+        use wasm_meta_registry_types::{QueueStatus, QueueTask};
+
+        // Counts per status.
+        let mut pending = 0u64;
+        let mut in_progress = 0u64;
+        let mut completed = 0u64;
+        let mut failed = 0u64;
+
+        let mut stmt = self
+            .conn
+            .prepare("SELECT status, COUNT(*) FROM fetch_queue GROUP BY status")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })?;
+        for row in rows {
+            let (status, count) = row?;
+            let count = u64::try_from(count).unwrap_or(0);
+            match status.as_str() {
+                "pending" => pending = count,
+                "in_progress" => in_progress = count,
+                "completed" => completed = count,
+                "failed" => failed = count,
+                _ => {}
+            }
+        }
+
+        // Active tasks: pending + in_progress, ordered by priority then age.
+        let mut active_stmt = self.conn.prepare(
+            "SELECT registry, repository, tag, task, status,
+                    priority, attempts, max_attempts, last_error,
+                    created_at, updated_at
+               FROM fetch_queue
+              WHERE status IN ('pending', 'in_progress')
+              ORDER BY
+                  CASE status WHEN 'in_progress' THEN 0 ELSE 1 END,
+                  priority ASC,
+                  created_at ASC",
+        )?;
+        let active: Vec<QueueTask> = active_stmt
+            .query_map([], |row| {
+                Ok(QueueTask {
+                    registry: row.get(0)?,
+                    repository: row.get(1)?,
+                    tag: row.get(2)?,
+                    task: row.get(3)?,
+                    status: row.get(4)?,
+                    priority: row.get(5)?,
+                    attempts: row.get(6)?,
+                    max_attempts: row.get(7)?,
+                    last_error: row.get(8)?,
+                    created_at: row.get(9)?,
+                    updated_at: row.get(10)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // History: completed + failed, most recent first, capped at 50.
+        let mut history_stmt = self.conn.prepare(
+            "SELECT registry, repository, tag, task, status,
+                    priority, attempts, max_attempts, last_error,
+                    created_at, updated_at
+               FROM fetch_queue
+              WHERE status IN ('completed', 'failed')
+              ORDER BY updated_at DESC, repository ASC, tag DESC
+              LIMIT 50",
+        )?;
+        let history: Vec<QueueTask> = history_stmt
+            .query_map([], |row| {
+                Ok(QueueTask {
+                    registry: row.get(0)?,
+                    repository: row.get(1)?,
+                    tag: row.get(2)?,
+                    task: row.get(3)?,
+                    status: row.get(4)?,
+                    priority: row.get(5)?,
+                    attempts: row.get(6)?,
+                    max_attempts: row.get(7)?,
+                    last_error: row.get(8)?,
+                    created_at: row.get(9)?,
+                    updated_at: row.get(10)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(QueueStatus {
+            pending,
+            in_progress,
+            completed,
+            failed,
+            active,
+            history,
+        })
+    }
+
+    /// Re-derive WIT metadata for a single tag from cached layers.
+    ///
+    /// Finds the manifest for the given tag, then deletes and re-extracts
+    /// the WIT package and wasm component data from the cached layer bytes.
+    pub(crate) async fn reindex_tag(
+        &self,
+        registry: &str,
+        repository: &str,
+        tag: &str,
+    ) -> anyhow::Result<()> {
+        // Find the manifest id for this tag.
+        let manifest_id: Option<i64> = self
+            .conn
+            .query_row(
+                "SELECT m.id
+                   FROM oci_tag t
+                   JOIN oci_repository r ON r.id = t.oci_repository_id
+                   JOIN oci_manifest m ON m.oci_repository_id = r.id
+                                      AND m.digest = t.manifest_digest
+                  WHERE r.registry = ?1
+                    AND r.repository = ?2
+                    AND t.tag = ?3
+                  LIMIT 1",
+                rusqlite::params![registry, repository, tag],
+                |row| row.get(0),
+            )
+            .ok();
+
+        let Some(manifest_id) = manifest_id else {
+            anyhow::bail!("no manifest found for {registry}/{repository}:{tag}");
+        };
+
+        // Find the first wasm layer for this manifest.
+        let layer: Option<(i64, String)> = self
+            .conn
+            .query_row(
+                "SELECT id, digest FROM oci_layer
+                  WHERE oci_manifest_id = ?1
+                  ORDER BY position ASC LIMIT 1",
+                [manifest_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .ok();
+
+        let Some((layer_id, digest)) = layer else {
+            anyhow::bail!("no layers found for manifest of {registry}/{repository}:{tag}");
+        };
+
+        // Read bytes from cacache.
+        let store_dir = self.state_info.store_dir().to_path_buf();
+        let bytes = cacache::read(&store_dir, &digest).await?;
+
+        // Delete old data and re-extract.
+        self.conn.execute_batch("SAVEPOINT reindex_tag")?;
+
+        let ok = self
+            .conn
+            .execute(
+                "DELETE FROM wit_package WHERE oci_manifest_id = ?1",
+                [manifest_id],
+            )
+            .and_then(|_| {
+                self.conn.execute(
+                    "DELETE FROM wasm_component WHERE oci_manifest_id = ?1",
+                    [manifest_id],
+                )
+            })
+            .is_ok_and(|_| self.try_extract_wit_package(manifest_id, Some(layer_id), &bytes));
+
+        if ok {
+            self.conn.execute_batch("RELEASE SAVEPOINT reindex_tag")?;
+        } else {
+            self.conn.execute_batch(
+                "ROLLBACK TO SAVEPOINT reindex_tag; RELEASE SAVEPOINT reindex_tag",
+            )?;
+            anyhow::bail!("failed to re-extract WIT for {registry}/{repository}:{tag}");
+        }
+        Ok(())
     }
 
     /// Get all WIT packages.

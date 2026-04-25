@@ -13,7 +13,7 @@ mod models;
 use crate::config::Config;
 use crate::oci::{Client, ImageEntry, InsertResult};
 use crate::progress::ProgressEvent;
-use crate::storage::{KnownPackage, KnownPackageParams, StateInfo, Store};
+use crate::storage::{FetchTaskKind, KnownPackage, KnownPackageParams, StateInfo, Store};
 use crate::types::WitPackage;
 use wasm_meta_registry_types::PackageKind;
 
@@ -23,6 +23,18 @@ pub use logic::{
     sanitize_to_wit_identifier, should_sync, vendor_filename,
 };
 pub use models::{InstallResult, PullResult, SyncPolicy, SyncResult};
+
+/// Outcome of [`Manager::process_next_task`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskOutcome {
+    /// A task ran to completion.
+    Succeeded,
+    /// A task was dequeued but its execution failed; the failure has
+    /// been recorded in the queue.
+    Failed,
+    /// The queue was empty; no work was performed.
+    Empty,
+}
 
 /// How long (in seconds) to skip re-pulling a tag during background indexing
 /// when its layers are already present in the local store.  Set to one hour
@@ -836,6 +848,24 @@ impl Manager {
         self.store.reindex_wit_packages().await
     }
 
+    /// Enqueue reindex tasks for all known tags that have cached layers.
+    ///
+    /// Returns the number of tasks enqueued.
+    pub fn enqueue_reindex_all(&self) -> anyhow::Result<u64> {
+        self.store.enqueue_reindex_all()
+    }
+
+    /// Seed the fetch queue with completed entries for tags that were
+    /// pulled before the queue existed.
+    pub fn seed_completed_from_tags(&self) -> anyhow::Result<u64> {
+        self.store.seed_completed_from_tags()
+    }
+
+    /// Return the current fetch queue status.
+    pub fn get_queue_status(&self) -> anyhow::Result<wasm_meta_registry_types::QueueStatus> {
+        self.store.get_queue_status()
+    }
+
     /// Fetches the manifest and config to extract metadata (description from
     /// OCI annotations), lists all tags, and upserts into the known packages
     /// table. Also pulls the wasm layer for the most recent tag to extract
@@ -887,10 +917,10 @@ impl Manager {
             return Err(ManagerError::OfflineIndex.into());
         }
 
-        tracing::info!(
+        tracing::debug!(
             registry = %reference.registry(),
             repository = %reference.repository(),
-            "Indexing package"
+            "Discovering package tags"
         );
 
         // Discover available tags first — the reference may not carry a valid
@@ -942,23 +972,19 @@ impl Manager {
                 })?;
         }
 
-        // Pull every semver-tagged version so that per-version WIT text,
-        // worlds, components and dependency metadata are all available in the
-        // local database.  Tags that are not valid semver (e.g. `latest`,
-        // hash-based signatures like `sha256-...`, or arbitrary strings such
-        // as `dev`/`nightly`) are skipped — they typically duplicate a semver
-        // tag and cannot be reasoned about by the resolver.
+        // Enqueue every semver-tagged version for pulling.  Tags that are
+        // not valid semver (e.g. `latest`, hash-based signatures like
+        // `sha256-...`, or arbitrary strings such as `dev`/`nightly`) are
+        // skipped — they typically duplicate a semver tag and cannot be
+        // reasoned about by the resolver.
         //
         // The semver tags are sorted in ascending order so that the highest
-        // stable version is pulled last.  Because `get_package_dependencies`
-        // selects the dependencies of the most recently inserted manifest
-        // (`ORDER BY om.id DESC`), this keeps that query reflecting the
-        // latest stable version.  Pre-release tags are pulled before stable
-        // ones so a stable manifest always wins when both exist.
+        // stable version is enqueued last (and thus processed last), keeping
+        // the most recent stable version's dependencies at the top of the
+        // `get_package_dependencies` query.
         //
         // Tags that were already pulled recently (within `PULL_COOLDOWN_SECS`
-        // seconds) are skipped to avoid redundant network traffic on server
-        // restarts.
+        // seconds) are skipped unless `skip_cooldown` is set (--refetch).
         // r[impl server.index.dependencies]
         let mut semver_tags: Vec<(&String, semver::Version)> = Vec::with_capacity(tags.len());
         for tag in &tags {
@@ -969,59 +995,51 @@ impl Manager {
                         registry = %reference.registry(),
                         repository = %reference.repository(),
                         tag = %tag,
-                        "Skipping pull — tag is not a valid semver version"
+                        "Skipping enqueue — tag is not a valid semver version"
                     );
                 }
             }
         }
         // Sort ascending: pre-releases first, then stable versions in order.
-        // The `cmp` impl on `semver::Version` already orders pre-releases
-        // before their corresponding stable release.
         semver_tags.sort_by(|(_, a), (_, b)| a.cmp(b));
 
         for (tag, _version) in &semver_tags {
-            if !skip_cooldown
-                && self.store.is_tag_fresh(
+            if skip_cooldown {
+                self.store.enqueue_refetch(
                     reference.registry(),
                     reference.repository(),
                     tag,
-                    PULL_COOLDOWN_SECS,
-                )
-            {
-                tracing::debug!(
-                    registry = %reference.registry(),
-                    repository = %reference.repository(),
-                    tag = %tag,
-                    "Skipping pull — already fresh"
-                );
-                continue;
+                    -1, // high priority for explicit refetch
+                )?;
+            } else if !self.store.is_tag_fresh(
+                reference.registry(),
+                reference.repository(),
+                tag,
+                PULL_COOLDOWN_SECS,
+            ) {
+                self.store.enqueue_pull(
+                    reference.registry(),
+                    reference.repository(),
+                    tag,
+                    0, // normal priority
+                )?;
+            } else {
+                // Tag is fresh — record it as completed so it appears
+                // in the queue history for visibility.
+                self.store
+                    .record_completed(reference.registry(), reference.repository(), tag)?;
             }
+        }
+
+        if let Ok(pending) = self.store.pending_count()
+            && pending > 0
+        {
             tracing::info!(
                 registry = %reference.registry(),
                 repository = %reference.repository(),
-                tag = %tag,
-                "Pulling version for indexing"
+                pending,
+                "Enqueued versions for pulling"
             );
-            let tag_ref: Reference = match format!(
-                "{}/{}:{}",
-                reference.registry(),
-                reference.repository(),
-                tag
-            )
-            .parse()
-            {
-                Ok(r) => r,
-                Err(_) => continue,
-            };
-            if let Err(e) = self.pull(tag_ref).await {
-                tracing::debug!(
-                    registry = %reference.registry(),
-                    repository = %reference.repository(),
-                    tag = %tag,
-                    error = %e,
-                    "Could not pull wasm layer during index"
-                );
-            }
         }
 
         // Return the indexed package with its now-populated dependencies.
@@ -1034,6 +1052,67 @@ impl Manager {
             .store
             .get_package_dependencies(reference.registry(), reference.repository())?;
         Ok(pkg)
+    }
+
+    /// Process the next pending task from the fetch queue.
+    ///
+    /// Returns [`TaskOutcome::Empty`] when there are no pending tasks,
+    /// [`TaskOutcome::Succeeded`] when a task ran to completion, and
+    /// [`TaskOutcome::Failed`] when the task itself failed (the failure
+    /// is recorded in the queue).  Errors are reserved for failures that
+    /// prevent us from interacting with the queue at all.
+    pub async fn process_next_task(&self) -> anyhow::Result<TaskOutcome> {
+        let Some(task) = self.store.dequeue_next()? else {
+            return Ok(TaskOutcome::Empty);
+        };
+
+        tracing::info!(
+            registry = %task.registry,
+            repository = %task.repository,
+            tag = %task.tag,
+            kind = ?task.kind,
+            attempt = task.attempts + 1,
+            "Processing fetch task"
+        );
+
+        let result = match task.kind {
+            FetchTaskKind::Pull => self.execute_pull_task(&task).await,
+            FetchTaskKind::Reindex => self.execute_reindex_task(&task).await,
+        };
+
+        match result {
+            Ok(()) => {
+                self.store.complete_task(task.id)?;
+                Ok(TaskOutcome::Succeeded)
+            }
+            Err(e) => {
+                tracing::warn!(
+                    registry = %task.registry,
+                    repository = %task.repository,
+                    tag = %task.tag,
+                    error = %e,
+                    "Fetch task failed"
+                );
+                self.store.fail_task(task.id, &e.to_string())?;
+                Ok(TaskOutcome::Failed)
+            }
+        }
+    }
+
+    /// Execute a pull task: download the OCI image for a specific tag.
+    async fn execute_pull_task(&self, task: &crate::storage::FetchTask) -> anyhow::Result<()> {
+        let tag_ref: Reference = format!("{}/{}:{}", task.registry, task.repository, task.tag)
+            .parse()
+            .map_err(|e| anyhow::anyhow!("invalid reference: {e}"))?;
+        self.pull(tag_ref).await?;
+        Ok(())
+    }
+
+    /// Execute a reindex task: re-derive WIT from cached layers for a tag.
+    async fn execute_reindex_task(&self, task: &crate::storage::FetchTask) -> anyhow::Result<()> {
+        self.store
+            .reindex_tag(&task.registry, &task.repository, &task.tag)
+            .await
     }
 
     /// Get all WIT interfaces with their associated component references.

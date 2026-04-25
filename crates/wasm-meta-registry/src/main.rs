@@ -76,14 +76,21 @@ async fn main() -> anyhow::Result<()> {
     // Open the Manager for the HTTP server with its own data directory
     let server_manager = Manager::open_at(&data_dir).await?;
 
+    // Back-fill the queue history with tags that were pulled before the
+    // queue was introduced, so the status page shows them immediately.
+    match server_manager.seed_completed_from_tags() {
+        Ok(n) if n > 0 => info!(count = n, "Seeded queue history from existing tags"),
+        Ok(_) => {}
+        Err(e) => warn!(error = %e, "Failed to seed queue history (non-fatal)"),
+    }
+
     if cli.reindex_wit_on_startup {
-        // Re-derive WIT metadata from cached OCI layers so that existing
-        // packages pick up any improvements to the extraction logic (e.g.
-        // switching from the lossy hand-rolled formatter to WitPrinter).
-        match server_manager.reindex_wit().await {
-            Ok(n) if n > 0 => info!(count = n, "Re-indexed WIT packages"),
+        // Enqueue reindex tasks for all cached packages.  The background
+        // indexer will process them during its first cycle.
+        match server_manager.enqueue_reindex_all() {
+            Ok(n) if n > 0 => info!(count = n, "Enqueued WIT reindex tasks"),
             Ok(_) => {}
-            Err(e) => warn!(error = %e, "WIT re-index failed (non-fatal)"),
+            Err(e) => warn!(error = %e, "Failed to enqueue WIT reindex tasks (non-fatal)"),
         }
     } else {
         info!("Skipping WIT re-index at startup (use --reindex-wit-on-startup to enable)");

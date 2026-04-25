@@ -13,5 +13,6 @@ pub(crate) mod item;
 pub(crate) mod namespace;
 pub(crate) mod not_found;
 pub(crate) mod package;
+pub(crate) mod queue;
 pub(crate) mod search;
 pub(crate) mod world;
