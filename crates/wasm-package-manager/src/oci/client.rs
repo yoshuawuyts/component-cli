@@ -131,23 +131,37 @@ impl Client {
 
     /// Fetches referrers (signatures, SBOMs, attestations) for a given reference.
     ///
+    /// The OCI Referrers API requires a digest-based reference, so this method
+    /// builds a digest-pinned [`Reference`] internally while using the original
+    /// reference for authentication.
+    ///
     /// Returns the OCI image index listing all referrer manifests. If the
     /// registry does not support the Referrers API, returns `Ok(None)`.
     pub(crate) async fn pull_referrers(
         &self,
         reference: &Reference,
+        digest: &str,
     ) -> anyhow::Result<Option<OciImageIndex>> {
         let auth = resolve_auth(reference, &self.config)?;
         self.inner
             .store_auth_if_needed(reference.resolve_registry(), &auth)
             .await;
 
-        match self.inner.pull_referrers(reference, None).await {
+        // The Referrers API requires a digest-based reference — build one
+        // from the original reference with the digest instead of a tag.
+        let digest_ref = Reference::with_digest(
+            reference.registry().to_owned(),
+            reference.repository().to_owned(),
+            digest.to_owned(),
+        );
+
+        match self.inner.pull_referrers(&digest_ref, None).await {
             Ok(index) => Ok(Some(index)),
             // Registry may not support the Referrers API — log and skip.
             Err(e) => {
-                tracing::warn!(
-                    "Failed to pull referrers for {} (treating as no referrers): {}",
+                tracing::debug!(
+                    "Failed to pull referrers for {} (resolved from {}, treating as no referrers): {}",
+                    digest_ref,
                     reference,
                     e
                 );
@@ -198,5 +212,35 @@ fn resolve_auth(reference: &Reference, config: &Config) -> anyhow::Result<Regist
             tracing::debug!(registry, "no credentials found, using anonymous access");
             Ok(RegistryAuth::Anonymous)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use oci_client::Reference;
+
+    /// Verify that a digest-pinned reference built from a tag-based reference
+    /// has `digest().is_some()` and `tag().is_none()`, matching the
+    /// requirements of the OCI Referrers API.
+    #[test]
+    fn digest_reference_has_digest_and_no_tag() {
+        let tag_ref: Reference = "ghcr.io/microsoft/fetch-rs:v0.1.0"
+            .parse()
+            .expect("valid tag reference");
+        assert!(tag_ref.tag().is_some());
+        assert!(tag_ref.digest().is_none());
+
+        let digest = "sha256:abc123def456";
+        let digest_ref = Reference::with_digest(
+            tag_ref.registry().to_owned(),
+            tag_ref.repository().to_owned(),
+            digest.to_owned(),
+        );
+
+        assert!(digest_ref.digest().is_some());
+        assert!(digest_ref.tag().is_none());
+        assert_eq!(digest_ref.digest().unwrap(), digest);
+        assert_eq!(digest_ref.registry(), tag_ref.registry());
+        assert_eq!(digest_ref.repository(), tag_ref.repository());
     }
 }

@@ -175,8 +175,9 @@ impl Manager {
         self.store_related_tags(&reference).await?;
 
         // Best-effort: discover and store referrers (signatures, SBOMs, etc.)
-        if let Some(manifest_id) = manifest_id {
-            self.try_store_referrers(&reference, manifest_id).await;
+        if let (Some(manifest_id), Some(digest)) = (manifest_id, &digest) {
+            self.try_store_referrers(&reference, digest, manifest_id)
+                .await;
         }
 
         Ok(PullResult {
@@ -333,7 +334,8 @@ impl Manager {
 
         // Best-effort: discover and store referrers (signatures, SBOMs, etc.)
         if let Some(manifest_id) = image_id {
-            self.try_store_referrers(&reference, manifest_id).await;
+            self.try_store_referrers(&reference, &digest, manifest_id)
+                .await;
         }
 
         Ok(PullResult {
@@ -1337,8 +1339,8 @@ impl Manager {
     /// Best-effort: fetch and store referrers (signatures, SBOMs, attestations)
     /// for a manifest. Silently skips if the registry doesn't support the
     /// Referrers API or if any error occurs, but logs unexpected errors.
-    async fn try_store_referrers(&self, reference: &Reference, manifest_id: i64) {
-        let index = match self.client.pull_referrers(reference).await {
+    async fn try_store_referrers(&self, reference: &Reference, digest: &str, manifest_id: i64) {
+        let index = match self.client.pull_referrers(reference, digest).await {
             Ok(Some(index)) => index,
             Ok(None) => return,
             Err(e) => {
