@@ -1013,7 +1013,7 @@ impl Manager {
                 reference.registry(),
                 reference.repository(),
                 tag,
-                3600, // 1 hour cooldown
+                PULL_COOLDOWN_SECS,
             ) {
                 self.store.enqueue_pull(
                     reference.registry(),
