@@ -166,10 +166,10 @@ fn render_wit_content_with_doc(
                 .first()
                 .is_some_and(|w| w.is_synthetic && doc.worlds.len() == 1);
         if inline_root {
-            // SAFETY: inline_root is only true when doc.worlds is non-empty
-            let Some(world) = doc.worlds.first() else {
-                unreachable!("inline_root ensures at least one world exists")
-            };
+            let world = doc
+                .worlds
+                .first()
+                .expect("inline_root ensures doc.worlds is non-empty");
             let api_docs = super::world::build_api_doc_lookup(Some(detail), &world.name);
             if !world.exports.is_empty() {
                 toc.push(("#exports".to_owned(), "Exports".to_owned(), false));
