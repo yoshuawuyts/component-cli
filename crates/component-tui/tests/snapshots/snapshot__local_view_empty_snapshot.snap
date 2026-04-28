@@ -1,0 +1,7 @@
+---
+source: crates/component-tui/tests/snapshot.rs
+expression: output
+---
+                No local WASM files detected.
+
+                    Press 'r' to refresh.

@@ -1,0 +1,20 @@
+---
+source: crates/component-cli/tests/test.rs
+expression: output
+---
+Remove the lockfile and vendored dependencies
+
+Usage: component local clean [OPTIONS] [PATH]
+
+Arguments:
+  [PATH]  Directory to clean (defaults to current directory) [default: .]
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
+
+Global Options:
+      --color <WHEN>  When to use colored output [default: auto] [possible values: auto, always, never]
+      --offline       Run in offline mode
+  -v, --verbose...    Increase logging verbosity
+  -q, --quiet...      Decrease logging verbosity

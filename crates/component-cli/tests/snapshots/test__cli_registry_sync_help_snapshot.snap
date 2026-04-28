@@ -1,0 +1,17 @@
+---
+source: crates/component-cli/tests/test.rs
+expression: output
+---
+Force-sync the package index from the configured meta-registry
+
+Usage: component registry sync [OPTIONS]
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
+
+Global Options:
+      --color <WHEN>  When to use colored output [default: auto] [possible values: auto, always, never]
+      --offline       Run in offline mode
+  -v, --verbose...    Increase logging verbosity
+  -q, --quiet...      Decrease logging verbosity

@@ -32,7 +32,7 @@ changes meet the project's quality standards.
 ### Database Schema & Migrations
 
 The database schema is defined in a single source-of-truth file:
-`crates/wasm-package-manager/src/storage/schema.sql`.
+`crates/component-package-manager/src/storage/schema.sql`.
 
 When changing the database schema, edit `schema.sql` then run:
 
@@ -126,9 +126,9 @@ Go to **Actions → Release Bump → Run workflow**, then select the bump type
 After the PR is reviewed and merged, the **Publish** workflow automatically:
 
 - Authenticates with crates.io using OIDC (via the `crates-io-publish` environment)
-- Publishes all 6 public crates in dependency order (`wasm-detector`,
-  `wasm-manifest`, `wasm-meta-registry-client`, `wasm-package-manager`,
-  `wasm-meta-registry`, `wasm`)
+- Publishes all 6 public crates in dependency order (`component-detector`,
+  `component-manifest`, `component-meta-registry-client`, `component-package-manager`,
+  `component-meta-registry`, `component`)
 - Creates and pushes the git tag (`v<version>`)
 - Creates a GitHub Release with auto-generated notes
 
@@ -142,10 +142,10 @@ This project uses the [`insta`](https://crates.io/crates/insta) crate for snapsh
 
 ```sh
 # Run all tests including snapshot tests
-$ cargo test --package wasm
+$ cargo test --package component
 
 # Run only snapshot tests
-$ cargo test --package wasm snapshot
+$ cargo test --package component snapshot
 ```
 
 ### Updating Snapshots
@@ -167,11 +167,11 @@ Alternatively, you can update snapshots directly during test runs:
 
 ```sh
 # Accept all new/changed snapshots automatically
-$ INSTA_UPDATE=always cargo test --package wasm
+$ INSTA_UPDATE=always cargo test --package component
 ```
 
 ### Best Practices for Snapshot Tests
 
 1. **Review changes carefully**: Always review snapshot changes before accepting them to ensure they match your expected output.
-2. **Keep snapshots readable**: Snapshot files are stored in `crates/wasm-cli/tests/snapshots/` and are version-controlled. Keep the rendered output clean and readable.
+2. **Keep snapshots readable**: Snapshot files are stored in `crates/component-cli/tests/snapshots/` and are version-controlled. Keep the rendered output clean and readable.
 3. **Test different states**: Include tests for empty states, populated states, and interactive states (e.g., filter active, search active).

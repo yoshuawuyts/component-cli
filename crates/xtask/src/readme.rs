@@ -10,14 +10,14 @@ use anyhow::{Context, Result};
 const COMMANDS_START: &str = "<!-- commands-start -->";
 const COMMANDS_END: &str = "<!-- commands-end -->";
 
-/// Build the wasm binary and return the path to it.
+/// Build the component binary and return the path to it.
 ///
 /// If the binary already exists at the expected location it is returned
 /// immediately so that, when called from `cargo xtask test`, the binary that
 /// was already compiled by `cargo test --all` is re-used rather than
 /// triggering a new build with potentially different `RUSTFLAGS`.
 fn build_wasm_bin(workspace_root: &Path) -> Result<std::path::PathBuf> {
-    let bin_name = format!("wasm{}", std::env::consts::EXE_SUFFIX);
+    let bin_name = format!("component{}", std::env::consts::EXE_SUFFIX);
     let bin_path = workspace_root.join("target").join("debug").join(&bin_name);
 
     if bin_path.exists() {
@@ -28,20 +28,20 @@ fn build_wasm_bin(workspace_root: &Path) -> Result<std::path::PathBuf> {
     // this build to fail with platform-specific warnings unrelated to the
     // README check itself.  Warnings are already checked by `cargo clippy`.
     let status = Command::new("cargo")
-        .args(["build", "-p", "wasm"])
+        .args(["build", "-p", "component"])
         .current_dir(workspace_root)
         .env_remove("RUSTFLAGS")
         .status()
-        .context("failed to run `cargo build -p wasm`")?;
+        .context("failed to run `cargo build -p component`")?;
 
     if !status.success() {
-        anyhow::bail!("`cargo build -p wasm` failed");
+        anyhow::bail!("`cargo build -p component` failed");
     }
 
     Ok(bin_path)
 }
 
-/// Run `wasm --help` and return the output, normalized for cross-platform use.
+/// Run `component --help` and return the output, normalized for cross-platform use.
 fn wasm_help(workspace_root: &Path) -> Result<String> {
     let bin = build_wasm_bin(workspace_root)?;
     let output = Command::new(&bin)
@@ -61,7 +61,7 @@ fn wasm_help(workspace_root: &Path) -> Result<String> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         anyhow::bail!(
-            "`wasm --help` exited with {}\nstderr: {}",
+            "`component --help` exited with {}\nstderr: {}",
             output.status,
             stderr.trim()
         );
@@ -70,7 +70,7 @@ fn wasm_help(workspace_root: &Path) -> Result<String> {
     if output.stdout.is_empty() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         anyhow::bail!(
-            "`wasm --help` produced no stdout output\nstderr: {}",
+            "`component --help` produced no stdout output\nstderr: {}",
             stderr.trim()
         );
     }
@@ -86,9 +86,9 @@ fn wasm_help(workspace_root: &Path) -> Result<String> {
         .collect::<Vec<_>>()
         .join("\n")
         + if help.ends_with('\n') { "\n" } else { "" };
-    // On Windows the binary is named "wasm.exe", which clap uses in the usage
-    // line. Normalize to "wasm" so the README is platform-independent.
-    Ok(help.replace("wasm.exe", "wasm"))
+    // On Windows the binary is named "component.exe", which clap uses in the usage
+    // line. Normalize to "component" so the README is platform-independent.
+    Ok(help.replace("component.exe", "component"))
 }
 
 /// Format the help output as the markdown section content (between markers).
@@ -123,7 +123,7 @@ fn replace_section(readme: &str, help: &str) -> Result<String> {
     Ok(format!("{}{}{}", before, format_section(help), after))
 }
 
-/// Update the README commands section from the current `wasm --help` output.
+/// Update the README commands section from the current `component --help` output.
 pub(crate) fn update(workspace_root: &Path) -> Result<()> {
     let help = wasm_help(workspace_root)?;
     let readme_path = workspace_root.join("README.md");
@@ -136,9 +136,9 @@ pub(crate) fn update(workspace_root: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Check that the README commands section matches `wasm --help`.
+/// Check that the README commands section matches `component --help`.
 ///
-/// This is run as part of `cargo xtask test`. It requires the wasm binary to
+/// This is run as part of `cargo xtask test`. It requires the component binary to
 /// already be built (e.g. via a prior `cargo test` or `cargo build` invocation).
 pub(crate) fn check(workspace_root: &Path) -> Result<()> {
     let help = wasm_help(workspace_root)?;

@@ -1,0 +1,7 @@
+---
+source: crates/component-tui/tests/snapshot.rs
+expression: output
+---
+                              No log entries found.
+
+                     Run `component self log` to view logs.

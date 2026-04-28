@@ -1,0 +1,9 @@
+---
+source: crates/component-cli/tests/test.rs
+expression: stderr
+---
+Error: component::run::core_module
+
+  × only Wasm Components can be executed; this appears to be a core module
+  help: use a tool like `wasm-tools component new` to wrap the module as a
+        component

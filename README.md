@@ -1,4 +1,4 @@
-<h1 align="center">wasm-cli</h1>
+<h1 align="center">component-cli</h1>
 <div align="center">
   <strong>
     Unified developer tools for WebAssembly
@@ -7,17 +7,17 @@
 
 ## Introduction
 
-`wasm-cli` is a _package manager_ for WebAssembly Components and WebAssembly
+`component-cli` is a _package manager_ for WebAssembly Components and WebAssembly
 Interface Types (WIT). It can search, fetch, and publish WebAssembly to registries
 like GitHub Packages and Docker Hub. It also automatically resolves dependencies, tracks releases, and generates lockfiles to ensure deterministic builds.
 
-`wasm-cli` is intended to be used together with language-specific wasm
+`component-cli` is intended to be used together with language-specific wasm
 toolchains. The idea is that you can use a language-specific compiler to compile
-source code to `.wasm` binaries. And then use `wasm-cli` to handle everything
+source code to `.wasm` binaries. And then use `component-cli` to handle everything
 else, including: executing, publishing, linking, and debugging.
 
-`wasm-cli` can either be used directly from the command line, or embedded into
-other applications via the `wasm-package-manager` Rust crate. This makes it
+`component-cli` can either be used directly from the command line, or embedded into
+other applications via the `component-package-manager` Rust crate. This makes it
 possible for other Wasm tools to search and install Wasm Components without ever
 leaving the application. Coupled with the "search-by-interface" functionality, this makes it possible to filter the search down only compatible components.
 
@@ -28,9 +28,9 @@ leaving the application. Coupled with the "search-by-interface" functionality, t
 ## Quick start
 
 ```bash
-$ wasm init                              # Create a `wasm.toml` and `wasm.toml.lock` locally
-$ wasm install ba:sample-wasi-http-rust  # Install a `wasi:http` server as a dependency
-$ wasm run ba:sample-wasi-http-rust      # Run the `wasi:http` server
+$ component init                              # Create a `wasm.toml` and `wasm.lock.toml` locally
+$ component install ba:sample-wasi-http-rust  # Install a `wasi:http` server as a dependency
+$ component run ba:sample-wasi-http-rust      # Run the `wasi:http` server
 $ curl localhost:8080                    # Send a request to the `wasi:http` server
 ```
 
@@ -40,7 +40,7 @@ $ curl localhost:8080                    # Send a request to the `wasi:http` ser
 ```
 Unified WebAssembly developer tools
 
-Usage: wasm [OPTIONS] [COMMAND]
+Usage: component [OPTIONS] [COMMAND]
 
 Commands:
   run       Execute a Wasm Component
@@ -49,7 +49,7 @@ Commands:
   compose   Compose Wasm components from WAC scripts
   local     Detect and manage local WASM files
   registry  Manage Wasm Components and WIT interfaces in OCI registries
-  self      Configure the `wasm(1)` tool, generate completions, & manage state
+  self      Configure the `component(1)` tool, generate completions, & manage state
   help      Print this message or the help of the given subcommand(s)
 
 Options:
@@ -69,19 +69,19 @@ Global Options:
 ### Bash (Linux / macOS)
 
 ```sh
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/yoshuawuyts/wasm-cli/releases/latest/download/install.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/yoshuawuyts/component-cli/releases/latest/download/install.sh | sh
 ```
 
 ### PowerShell (Windows)
 
 ```powershell
-irm https://github.com/yoshuawuyts/wasm-cli/releases/latest/download/install.ps1 | iex
+irm https://github.com/yoshuawuyts/component-cli/releases/latest/download/install.ps1 | iex
 ```
 
 ### Cargo (Rust)
 
 ```sh
-cargo install wasm
+cargo install component
 ```
 
 ## Local development
@@ -111,11 +111,11 @@ This project is composed of several crates:
 
 | Crate                                                 | Description                                                                                          |
 | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| [`wasm`](crates/wasm-cli)                             | The `wasm(1)` command-line interface providing unified WebAssembly developer tools                   |
-| [`wasm-package-manager`](crates/wasm-package-manager) | A stateful library to interact with OCI registries storing WebAssembly Components                    |
-| [`wasm-detector`](crates/wasm-detector)               | A library to detect local `.wasm` files in a repository                                              |
-| [`wasm-manifest`](crates/wasm-manifest)               | Manifest and lockfile format types for WebAssembly packages                                          |
-| [`wasm-meta-registry`](crates/wasm-meta-registry)     | An HTTP server that indexes OCI registries for WebAssembly package metadata and exposes a search API |
+| [`component`](crates/component-cli)                             | The `component(1)` command-line interface providing unified WebAssembly developer tools                   |
+| [`component-package-manager`](crates/component-package-manager) | A stateful library to interact with OCI registries storing WebAssembly Components                    |
+| [`component-detector`](crates/component-detector)               | A library to detect local `.wasm` files in a repository                                              |
+| [`component-manifest`](crates/component-manifest)               | Manifest and lockfile format types for WebAssembly packages                                          |
+| [`component-meta-registry`](crates/component-meta-registry)     | An HTTP server that indexes OCI registries for WebAssembly package metadata and exposes a search API |
 | [`xtask`](crates/xtask)                               | Internal development automation tasks (formatting, linting, testing, migrations)                     |
 
 ## Contributing
