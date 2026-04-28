@@ -37,6 +37,7 @@ fn app() -> Router {
         .route("/search", get(search))
         .route("/about", get(about))
         .route("/docs", get(docs))
+        .route("/docs/{page}", get(docs_page))
         .route("/design-system", get(design_system))
         .route("/downloads", get(downloads))
         .route("/status", get(queue_status))
@@ -157,6 +158,14 @@ async fn about() -> Response {
 async fn docs() -> Response {
     let html = pages::docs::render();
     with_cache_control(html, "public, max-age=3600")
+}
+
+/// Individual documentation sub-page (`/docs/<slug>`).
+async fn docs_page(Path(page): Path<String>) -> Response {
+    match pages::docs::render_page(&page) {
+        Some(html) => with_cache_control(html, "public, max-age=3600"),
+        None => not_found_response(),
+    }
 }
 
 /// Design system reference page.

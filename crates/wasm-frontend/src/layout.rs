@@ -433,6 +433,33 @@ fn render_document(title: &str, body_class: &str, body_children: &str) -> String
       transform-origin: center center;
     }}
     /* Prose styling for rendered markdown documentation */
+    .prose-doc h1 {{
+      font-size: 28px;
+      line-height: 1.15;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 1rem;
+    }}
+    .prose-doc h2 {{
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-top: 2rem;
+      margin-bottom: 0.75rem;
+    }}
+    .prose-doc h3 {{
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-top: 1.5rem;
+      margin-bottom: 0.5rem;
+    }}
+    .prose-doc h4 {{
+      font-size: 16px;
+      font-weight: 600;
+      margin-top: 1.25rem;
+      margin-bottom: 0.5rem;
+    }}
     .prose-doc p {{
       margin-bottom: 0.75em;
     }}
