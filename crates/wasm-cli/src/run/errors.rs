@@ -83,6 +83,16 @@ pub(crate) enum RunError {
         /// The underlying OS error message.
         reason: String,
     },
+
+    /// The component requested with `--global` is not present in the local cache.
+    #[diagnostic(
+        code(wasm::run::not_in_global_cache),
+        help("run `wasm install {name}` to fetch '{name}' into the cache first")
+    )]
+    NotInGlobalCache {
+        /// The manifest key that was looked up.
+        name: String,
+    },
 }
 
 impl std::fmt::Display for RunError {
@@ -111,6 +121,9 @@ impl std::fmt::Display for RunError {
             }
             RunError::HttpAcceptFailed { reason } => {
                 write!(f, "failed to accept incoming HTTP connection: {reason}")
+            }
+            RunError::NotInGlobalCache { name } => {
+                write!(f, "component '{name}' is not present in the global cache")
             }
         }
     }

@@ -54,6 +54,13 @@ pub(crate) struct Opts {
     /// component.
     #[arg(long, value_name = "ADDR", default_value = "127.0.0.1:8080")]
     listen: SocketAddr,
+
+    /// Run the component directly from the global cache, bypassing the
+    /// requirement that it be installed in the local project.
+    ///
+    /// Only meaningful when INPUT is a manifest key (`scope:component`).
+    #[arg(long, short = 'g')]
+    global: bool,
 }
 
 impl Opts {
@@ -73,19 +80,31 @@ impl Opts {
 
         // Block OCI fallthrough for inputs that look like manifest keys
         // (scope:component) but aren't installed in the local project.
-        if !is_local && manifest_path.is_none() && looks_like_manifest_key(&self.input) {
-            return Err(not_installed_error(&self.input).await);
-        }
+        // With `--global`, fall back to the global cache instead of failing.
+        let global_bytes = if !is_local
+            && manifest_path.is_none()
+            && looks_like_manifest_key(&self.input)
+        {
+            if self.global {
+                Some(load_from_global_cache(&self.input, offline).await?)
+            } else {
+                return Err(not_installed_error(&self.input).await);
+            }
+        } else {
+            None
+        };
 
         // Only try OCI when the input is not a local file and not a manifest key.
-        let reference = if is_local || manifest_path.is_some() {
+        let reference = if is_local || manifest_path.is_some() || global_bytes.is_some() {
             None
         } else {
             crate::util::parse_reference(&self.input).ok()
         };
 
         // 2. Get Wasm bytes.
-        let bytes = if let Some(ref vendored) = manifest_path {
+        let bytes = if let Some(bytes) = global_bytes {
+            bytes
+        } else if let Some(ref vendored) = manifest_path {
             tokio::fs::read(vendored)
                 .await
                 .into_diagnostic()
@@ -231,6 +250,131 @@ fn resolve_manifest_key(input: &str) -> miette::Result<Option<PathBuf>> {
     }
 
     Ok(Some(vendored_path))
+}
+
+/// Load component bytes from the global cache for a `scope:component` key.
+///
+/// When online, resolves the manifest key through the known-package index
+/// and pulls the latest version from the remote registry first, ensuring
+/// the cache is up to date before running. When offline, falls back to
+/// whatever copy is already present in the local cache.
+async fn load_from_global_cache(input: &str, offline: bool) -> miette::Result<Vec<u8>> {
+    let manager = if offline {
+        Manager::open_offline().await
+    } else {
+        Manager::open().await
+    }
+    .map_err(crate::util::into_miette)?;
+
+    // Refresh the known-package index so WIT-style name resolution can find
+    // packages that haven't been installed locally yet. Failures here are
+    // non-fatal — fall through to the local cache lookup below.
+    if !offline {
+        let _ = manager
+            .sync_from_meta_registry(
+                Manager::DEFAULT_REGISTRY_URL,
+                Manager::DEFAULT_SYNC_INTERVAL,
+                wasm_package_manager::manager::SyncPolicy::IfStale,
+            )
+            .await;
+    }
+
+    // Try resolving through the known-package index and pulling the latest
+    // version from the remote registry. Falls back to fuzzy search when no
+    // exact WIT-name match exists, then to the local cache as a last resort.
+    if !offline && wasm_package_manager::manager::install::looks_like_wit_name(input) {
+        if let Ok(reference) =
+            wasm_package_manager::manager::install::resolve_wit_name(input, &manager)
+        {
+            return fetch_oci_bytes(&reference, offline).await;
+        }
+        if let Some(reference) = fuzzy_resolve_from_registry(&manager, input)? {
+            return fetch_oci_bytes(&reference, offline).await;
+        }
+    }
+
+    let pattern = input.replace(':', "/");
+    let suffix = format!("/{pattern}");
+
+    let entries = manager.list_all().map_err(crate::util::into_miette)?;
+    let entry = entries
+        .iter()
+        .find(|e| e.ref_repository == pattern || e.ref_repository.ends_with(&suffix))
+        .ok_or_else(|| RunError::NotInGlobalCache {
+            name: input.to_string(),
+        })?;
+
+    let wasm_layers = wasm_package_manager::oci::filter_wasm_layers(&entry.manifest.layers);
+    let layer = wasm_layers.first().ok_or(RunError::NoWasmLayer)?;
+    manager
+        .get(&layer.digest)
+        .await
+        .into_diagnostic()
+        .wrap_err_with(|| format!("failed to read cached component for {}", layer.digest))
+}
+
+/// Search the known-package index for entries matching `input` and, if a
+/// unique component matches, return its OCI reference. When multiple
+/// candidates match, returns an error listing the alternatives so the user
+/// can pick the right one.
+fn fuzzy_resolve_from_registry(
+    manager: &Manager,
+    input: &str,
+) -> miette::Result<Option<wasm_package_manager::Reference>> {
+    // Split `scope:name-prefix` so we can search by the name fragment and
+    // filter by the namespace separately. The known-package index stores
+    // `wit_namespace` (e.g. `ba`) and `wit_name` (e.g. `sample-wasi-http-rust`)
+    // as distinct columns, so a `scope/name` substring search would never
+    // match.
+    let Some((scope, name_prefix)) = input.split_once(':') else {
+        return Ok(None);
+    };
+
+    let matches = manager
+        .search_packages(name_prefix, 0, 64)
+        .map_err(crate::util::into_miette)?;
+
+    let candidates: Vec<&wasm_package_manager::storage::KnownPackage> = matches
+        .iter()
+        .filter(|p| {
+            let Some(ns) = p.wit_namespace.as_deref() else {
+                return false;
+            };
+            let Some(name) = p.wit_name.as_deref() else {
+                return false;
+            };
+            ns == scope && (name == name_prefix || name.starts_with(&format!("{name_prefix}-")))
+        })
+        .collect();
+
+    match candidates.as_slice() {
+        [] => Ok(None),
+        [pkg] => {
+            let reference_str = format!("{}/{}", pkg.registry, pkg.repository);
+            let reference =
+                wasm_package_manager::parse_reference(&reference_str).map_err(|e| {
+                    miette::miette!("failed to build OCI reference for '{reference_str}': {e}")
+                })?;
+            Ok(Some(reference))
+        }
+        many => {
+            let names: Vec<String> = many
+                .iter()
+                .filter_map(|p| {
+                    let ns = p.wit_namespace.as_deref()?;
+                    let name = p.wit_name.as_deref()?;
+                    Some(format!("{ns}:{name}"))
+                })
+                .collect();
+            Err(miette::miette!(
+                help = format!(
+                    "multiple packages match '{input}': {}. Specify the full name.",
+                    names.join(", ")
+                ),
+                "ambiguous package name '{input}'"
+            ))
+        }
+    }
 }
 
 /// Fetch component bytes from an OCI registry.
