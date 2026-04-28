@@ -567,12 +567,12 @@ impl Converter<'_> {
             imports: world
                 .imports
                 .iter()
-                .map(|(key, item)| self.convert_world_item(key, item))
+                .map(|(key, item)| self.convert_world_item(key, item, name))
                 .collect(),
             exports: world
                 .exports
                 .iter()
-                .map(|(key, item)| self.convert_world_item(key, item))
+                .map(|(key, item)| self.convert_world_item(key, item, name))
                 .collect(),
             stability: convert_stability(&world.stability),
             url,
@@ -580,7 +580,12 @@ impl Converter<'_> {
     }
 
     /// Convert a world import/export item.
-    fn convert_world_item(&self, key: &WorldKey, item: &WorldItem) -> WorldItemDoc {
+    fn convert_world_item(
+        &self,
+        _key: &WorldKey,
+        item: &WorldItem,
+        world_name: &str,
+    ) -> WorldItemDoc {
         match item {
             WorldItem::Interface { id, stability, .. } => {
                 let iface = self
@@ -601,11 +606,12 @@ impl Converter<'_> {
                 }
             }
             WorldItem::Function(func) => {
-                let iface_name = match key {
-                    WorldKey::Name(n) => n.as_str(),
-                    WorldKey::Interface(_) => "world",
-                };
-                WorldItemDoc::Function(self.convert_function(func, iface_name))
+                // Freestanding world functions live directly under their
+                // world page rather than an interface; route them as
+                // `/world/{world_name}/function/{func_name}`.
+                let mut doc = self.convert_function(func, world_name);
+                doc.url = format!("{}/world/{world_name}/function/{}", self.url_base, doc.name);
+                WorldItemDoc::Function(doc)
             }
             WorldItem::Type { id: type_id, .. } => {
                 let type_def = self

@@ -110,17 +110,21 @@ pub(crate) fn render_type(
 }
 
 /// Render the item detail page for a freestanding function.
+///
+/// `owner_label` is the breadcrumb/sidebar label of the parent (interface
+/// or world) and `owner_url` is the URL of its detail page.
 #[must_use]
 pub(crate) fn render_function(
     pkg: &KnownPackage,
     version: &str,
     version_detail: Option<&PackageVersion>,
-    iface_name: &str,
+    owner_label: &str,
+    owner_url: &str,
     func: &FunctionDoc,
     doc: &WitDocument,
 ) -> String {
     let display_name = crate::components::page_shell::display_name_for(pkg);
-    let title = format!("{display_name} \u{2014} {iface_name}::{}", func.name);
+    let title = format!("{display_name} \u{2014} {owner_label}::{}", func.name);
 
     // Code block
     let code_block = render_function_definition(func).to_string();
@@ -139,14 +143,10 @@ pub(crate) fn render_function(
 
     let content = String::new();
 
-    let iface_url = format!(
-        "/{}/{version}/interface/{iface_name}",
-        display_name.replace(':', "/")
-    );
     let extra = [
         crate::components::ds::breadcrumb::Crumb {
-            label: iface_name.to_owned(),
-            href: Some(iface_url),
+            label: owner_label.to_owned(),
+            href: Some(owner_url.to_owned()),
         },
         crate::components::ds::breadcrumb::Crumb {
             label: func.name.clone(),
@@ -161,7 +161,7 @@ pub(crate) fn render_function(
         title: &title,
         header_html: &header,
         body_html: &content,
-        sidebar_active: SidebarActive::Item(iface_name, &func.name),
+        sidebar_active: SidebarActive::Item(owner_label, &func.name),
         extra_crumbs: &extra,
         toc_html: None,
         importers: &[],
