@@ -41,6 +41,7 @@ tracing-appender = { workspace = true }
 tracing-subscriber = { workspace = true }
 wasm-detector = { workspace = true }
 wasm-manifest = { workspace = true }
+wasm-meta-registry-types = { workspace = true }
 wasm-metadata = { workspace = true }
 wasm-package-manager = { workspace = true, features = ["http-sync", "compose"] }
 wasm-cli-internal-run = { workspace = true }

@@ -18,6 +18,9 @@ The CLI MUST provide `--help` output for the `registry search` command.
 r[cli.registry-sync.help]
 The CLI MUST provide `--help` output for the `registry sync` command.
 
+r[cli.registry-notify.help]
+The CLI MUST provide `--help` output for the `registry notify` command.
+
 r[cli.registry-delete.help]
 The CLI MUST provide `--help` output for the `registry delete` command.
 

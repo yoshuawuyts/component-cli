@@ -1,0 +1,24 @@
+---
+source: crates/wasm-cli/tests/test.rs
+expression: output
+---
+Notify a meta-registry that a new version of a package is available
+
+Usage: wasm registry notify [OPTIONS] <REFERENCE>
+
+Arguments:
+  <REFERENCE>  The reference of the newly-published version (e.g., `ghcr.io/example/component:1.2.3`)
+
+Options:
+      --registry-url <REGISTRY_URL>
+          URL of the meta-registry to notify [default: http://localhost:8080]
+  -h, --help
+          Print help
+  -V, --version
+          Print version
+
+Global Options:
+      --color <WHEN>  When to use colored output [default: auto] [possible values: auto, always, never]
+      --offline       Run in offline mode
+  -v, --verbose...    Increase logging verbosity
+  -q, --quiet...      Decrease logging verbosity

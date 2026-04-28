@@ -281,6 +281,13 @@ fn test_cli_registry_sync_help_snapshot() {
     assert_snapshot!(output);
 }
 
+// r[verify cli.registry-notify.help]
+#[test]
+fn test_cli_registry_notify_help_snapshot() {
+    let output = run_cli(&["registry", "notify", "--help"]);
+    assert_snapshot!(output);
+}
+
 // r[verify cli.registry-delete.help]
 #[test]
 fn test_cli_registry_delete_help_snapshot() {

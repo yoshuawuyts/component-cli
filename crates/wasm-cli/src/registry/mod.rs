@@ -8,6 +8,7 @@ use wasm_package_manager::{Reference, format_size};
 
 mod errors;
 mod inspect;
+mod notify;
 mod search;
 mod sync;
 
@@ -25,6 +26,8 @@ pub(crate) enum Opts {
     Search(search::SearchOpts),
     /// Force-sync the package index from the configured meta-registry
     Sync(sync::SyncOpts),
+    /// Notify a meta-registry that a new version of a package is available
+    Notify(notify::NotifyOpts),
     /// Delete a package from the local store
     Delete(DeleteOpts),
     /// List all installed packages
@@ -140,6 +143,7 @@ impl Opts {
             }
             Opts::Search(opts) => opts.run(offline).await,
             Opts::Sync(opts) => opts.run().await,
+            Opts::Notify(opts) => opts.run(offline).await,
             Opts::Delete(opts) => {
                 let deleted = store.delete(opts.reference.clone()).await?;
                 if deleted {
