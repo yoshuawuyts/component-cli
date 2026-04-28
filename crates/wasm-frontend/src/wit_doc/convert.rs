@@ -658,7 +658,10 @@ impl Converter<'_> {
             // Check if this is an interface in our own package.
             if self.own_interfaces.contains(&id) {
                 let iface_url = format!("{}/interface/{iface_name}", self.url_base);
-                return (display, Some(iface_url));
+                // Native interfaces drop the package prefix so they read as
+                // first-class members of this document (e.g. `convert`
+                // instead of `yoshuawuyts:wordmark/convert`).
+                return (iface_name.to_owned(), Some(iface_url));
             }
 
             // Check dep_urls for external packages.

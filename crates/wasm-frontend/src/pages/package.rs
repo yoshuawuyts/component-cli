@@ -204,7 +204,10 @@ fn render_wit_content_with_doc(
                     .push(render_world_overview(doc, &display_name))
             });
         }
-        if !doc.interfaces.is_empty() {
+        // When inlining the synthetic root world, the world's exports already
+        // surface every native interface — listing them again under
+        // "Interfaces" would duplicate `convert` etc.
+        if !inline_root && !doc.interfaces.is_empty() {
             toc.push(("#interfaces".to_owned(), "Interfaces".to_owned(), false));
             for iface in &doc.interfaces {
                 let id = format!("iface-{}", iface.name);
