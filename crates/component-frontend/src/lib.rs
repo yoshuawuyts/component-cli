@@ -25,7 +25,6 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, Uri, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Json, Router, routing::get};
 use serde::Deserialize;
-use std::hash::{DefaultHasher, Hasher};
 
 use component_meta_registry_client::{KnownPackage, RegistryClient};
 
@@ -687,8 +686,8 @@ fn with_cache_control(
     cache_control: &'static str,
 ) -> Response {
     let etag = compute_etag(html.as_bytes());
-    let etag_value =
-        HeaderValue::from_str(&etag).expect("etag is composed of ascii hex digits and quotes");
+    let etag_value = HeaderValue::from_str(&etag)
+        .expect("etag is composed of ASCII hex digits and quotes (always a valid HeaderValue)");
     let cache_value = HeaderValue::from_static(cache_control);
 
     if if_none_match_matches(req_headers, &etag) {
@@ -710,13 +709,23 @@ fn with_cache_control(
 }
 
 /// Compute a strong `ETag` value (a quoted hex string) from the response
-/// body bytes. Uses [`DefaultHasher`] (SipHash) which is sufficient for
-/// detecting content changes across publishes; collisions are not a
-/// security concern here.
+/// body bytes using the FNV-1a 64-bit hash. FNV-1a is deterministic and
+/// stable across Rust toolchain versions, platforms, and process restarts,
+/// which is what we need so that a given page produces the same ETag every
+/// time it is served. Collisions are not a security concern here — an
+/// occasional false `If-None-Match` match would only cause a stale page to
+/// be served until the `Cache-Control` TTL expires, which is the existing
+/// worst-case behavior anyway.
 fn compute_etag(bytes: &[u8]) -> String {
-    let mut hasher = DefaultHasher::new();
-    hasher.write(bytes);
-    format!("\"{:016x}\"", hasher.finish())
+    // FNV-1a 64-bit, per http://www.isthe.com/chongo/tech/comp/fnv/
+    const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+    const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+    let mut hash = FNV_OFFSET;
+    for &byte in bytes {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(FNV_PRIME);
+    }
+    format!("\"{hash:016x}\"")
 }
 
 /// Returns `true` when the request's `If-None-Match` header lists `etag` or
@@ -876,6 +885,16 @@ mod tests {
             "different bodies should produce different etags so fresh content is picked up"
         );
         assert_eq!(a, compute_etag(b"<p>Hello</p>"));
+    }
+
+    // r[verify frontend.caching.etag]
+    #[test]
+    fn compute_etag_is_stable_across_invocations() {
+        // Pin the FNV-1a 64 output so that an accidental change to the hash
+        // (e.g. switching to a randomized hasher) breaks this test rather
+        // than silently invalidating every client's cached ETag.
+        assert_eq!(compute_etag(b""), "\"cbf29ce484222325\"");
+        assert_eq!(compute_etag(b"foobar"), "\"85944171f73967e8\"");
     }
 
     // r[verify frontend.caching.etag]
