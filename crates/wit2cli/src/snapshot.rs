@@ -32,10 +32,9 @@ pub fn render_wit_text(bytes: &[u8]) -> Result<String, LibraryExtractError> {
     let (resolve, package_id) = match &decoded {
         DecodedWasm::WitPackage(resolve, package_id) => (resolve, *package_id),
         DecodedWasm::Component(resolve, world_id) => {
-            let world = resolve
-                .worlds
-                .get(*world_id)
-                .ok_or_else(|| LibraryExtractError::Decode("world id not in resolve".to_string()))?;
+            let world = resolve.worlds.get(*world_id).ok_or_else(|| {
+                LibraryExtractError::Decode("world id not in resolve".to_string())
+            })?;
             let pkg = world.package.ok_or_else(|| {
                 LibraryExtractError::Decode("component world has no package".to_string())
             })?;
