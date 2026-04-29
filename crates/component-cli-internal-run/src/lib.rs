@@ -5,28 +5,34 @@
 //! This crate is **not** intended for third-party consumption — it is an
 //! implementation detail of `component-cli`. The API may change without notice.
 //!
-//! It provides two entry points:
+//! It provides three entry points:
 //!
 //! - [`validate_component`] — checks that a byte slice is a Wasm Component
 //!   (not a core module or WIT-only package).
 //! - [`execute_cli_component`] — builds the Wasmtime runtime, wires WASI
 //!   permissions, instantiates the component, and invokes
 //!   `wasi:cli/run@0.2.0#run`.
+//! - [`execute_library_function`] — invokes an arbitrary exported
+//!   function on a "library-style" component using wasmtime's untyped
+//!   `Func::call` API.
 
 mod errors;
 
 use miette::Context;
 use wasmparser::{Encoding, Parser, Payload};
-use wasmtime::component::Component;
+use wasmtime::component::{Component, Linker, Val};
 use wasmtime::{Engine, Store};
 use wasmtime_wasi::p2::bindings::sync::Command;
 use wasmtime_wasi::{DirPerms, FilePerms, ResourceTable, WasiCtxBuilder, WasiCtxView, WasiView};
+use wasmtime_wasi_http::WasiHttpCtx;
+use wasmtime_wasi_http::p2::{WasiHttpCtxView, WasiHttpView};
 
 pub use errors::RunError;
 
 /// Host state wired into `Store<WasiState>`.
 struct WasiState {
     ctx: wasmtime_wasi::WasiCtx,
+    http: WasiHttpCtx,
     table: ResourceTable,
 }
 
@@ -35,6 +41,16 @@ impl WasiView for WasiState {
         WasiCtxView {
             ctx: &mut self.ctx,
             table: &mut self.table,
+        }
+    }
+}
+
+impl WasiHttpView for WasiState {
+    fn http(&mut self) -> WasiHttpCtxView<'_> {
+        WasiHttpCtxView {
+            ctx: &mut self.http,
+            table: &mut self.table,
+            hooks: Default::default(),
         }
     }
 }
@@ -67,26 +83,12 @@ pub fn validate_component(bytes: &[u8]) -> miette::Result<()> {
     Err(RunError::NoVersionHeader.into())
 }
 
-/// Build the Wasmtime runtime, instantiate the component, and invoke
-/// `wasi:cli/run@0.2.0#run`.
-///
-/// Returns `Ok(Ok(()))` on success, `Ok(Err(()))` when the guest returns a
-/// non-zero exit code, or a [`miette::Report`] on runtime failures.
-///
-/// # Errors
-///
-/// Returns a [`miette::Report`] when compilation, instantiation, or WASI
-/// context setup fails.
-pub fn execute_cli_component(
-    bytes: &[u8],
+/// Build a [`WasiState`] from the resolved CLI permissions, plus
+/// optional `argv` to forward to the guest's `wasi:cli/environment#get-arguments`.
+fn build_wasi_state(
     permissions: &component_manifest::ResolvedPermissions,
-) -> miette::Result<Result<(), ()>> {
-    let engine = Engine::default();
-    let component = Component::new(&engine, bytes)
-        .map_err(into_miette)
-        .wrap_err("failed to compile Wasm Component")?;
-
-    // Build WASI context from resolved permissions.
+    argv: &[String],
+) -> miette::Result<WasiState> {
     let mut builder = WasiCtxBuilder::new();
 
     if permissions.inherit_stdio {
@@ -120,15 +122,44 @@ pub fn execute_cli_component(
     if permissions.inherit_network {
         builder.inherit_network();
     }
+    if !argv.is_empty() {
+        builder.args(argv);
+    }
 
     let wasi_ctx = builder.build();
-    let state = WasiState {
+    Ok(WasiState {
         ctx: wasi_ctx,
+        http: WasiHttpCtx::new(),
         table: ResourceTable::new(),
-    };
+    })
+}
+
+/// Build the Wasmtime runtime, instantiate the component, and invoke
+/// `wasi:cli/run@0.2.0#run`.
+///
+/// `argv` is forwarded to the guest as `wasi:cli/environment#get-arguments`.
+///
+/// Returns `Ok(Ok(()))` on success, `Ok(Err(()))` when the guest returns a
+/// non-zero exit code, or a [`miette::Report`] on runtime failures.
+///
+/// # Errors
+///
+/// Returns a [`miette::Report`] when compilation, instantiation, or WASI
+/// context setup fails.
+pub fn execute_cli_component(
+    bytes: &[u8],
+    permissions: &component_manifest::ResolvedPermissions,
+    argv: &[String],
+) -> miette::Result<Result<(), ()>> {
+    let engine = Engine::default();
+    let component = Component::new(&engine, bytes)
+        .map_err(into_miette)
+        .wrap_err("failed to compile Wasm Component")?;
+
+    let state = build_wasi_state(permissions, argv)?;
     let mut store = Store::new(&engine, state);
 
-    let mut linker = wasmtime::component::Linker::new(&engine);
+    let mut linker = Linker::new(&engine);
     wasmtime_wasi::p2::add_to_linker_sync(&mut linker).map_err(into_miette)?;
 
     let command = Command::instantiate(&mut store, &component, &linker)
@@ -146,6 +177,97 @@ pub fn execute_cli_component(
             eprintln!("Error: {e:#}");
             Ok(Err(()))
         }
+    }
+}
+
+/// Invoke an arbitrary exported function on a "library-style"
+/// component using wasmtime's untyped `Func::call` API.
+///
+/// `interface` selects an exported interface (e.g. `"math"`); pass
+/// `None` for free world-level exports. `func` is the function name.
+///
+/// # Errors
+///
+/// Returns a [`miette::Report`] on compilation, instantiation, lookup,
+/// or invocation failures.
+// r[impl run.library-detection]
+// r[impl run.library-dispatch]
+pub fn execute_library_function(
+    bytes: &[u8],
+    permissions: &component_manifest::ResolvedPermissions,
+    interface: Option<&str>,
+    func: &str,
+    args: &[Val],
+) -> miette::Result<Vec<Val>> {
+    let engine = Engine::default();
+    let component = Component::new(&engine, bytes)
+        .map_err(into_miette)
+        .wrap_err("failed to compile Wasm Component")?;
+
+    let state = build_wasi_state(permissions, &[])?;
+    let mut store = Store::new(&engine, state);
+
+    let mut linker: Linker<WasiState> = Linker::new(&engine);
+    wasmtime_wasi::p2::add_to_linker_sync(&mut linker).map_err(into_miette)?;
+    // Make wasi:http/outgoing-handler available so library functions
+    // can opportunistically perform outbound HTTP. Use the
+    // http-only variant to avoid colliding with `wasi:io/error` etc.
+    // already provided by `wasmtime_wasi::p2::add_to_linker_sync`.
+    wasmtime_wasi_http::p2::add_only_http_to_linker_sync(&mut linker).map_err(into_miette)?;
+
+    let instance = linker.instantiate(&mut store, &component).map_err(|e| {
+        RunError::LibraryInstantiationFailed {
+            cause: format!("{e:#}"),
+        }
+    })?;
+
+    // Look up the function. Two-phase via `Component::get_export_index`
+    // for interface-nested functions; direct `instance.get_func` for
+    // free world-level functions.
+    let target =
+        match interface {
+            None => instance.get_func(&mut store, func).ok_or_else(|| {
+                RunError::LibraryExportMissing {
+                    path: func.to_string(),
+                }
+            })?,
+            Some(iface) => {
+                let iface_idx = component.get_export_index(None, iface).ok_or_else(|| {
+                    RunError::LibraryExportMissing {
+                        path: iface.to_string(),
+                    }
+                })?;
+                let func_idx = component
+                    .get_export_index(Some(&iface_idx), func)
+                    .ok_or_else(|| RunError::LibraryExportMissing {
+                        path: format!("{iface}#{func}"),
+                    })?;
+                instance.get_func(&mut store, func_idx).ok_or_else(|| {
+                    RunError::LibraryExportMissing {
+                        path: format!("{iface}#{func}"),
+                    }
+                })?
+            }
+        };
+
+    // Pre-size the results buffer using `Func::ty(&store).results().len()`.
+    // Initial values are ignored — wasmtime overwrites them.
+    let result_count = target.ty(&store).results().len();
+    let mut results = vec![Val::Bool(false); result_count];
+
+    target
+        .call(&mut store, args, &mut results)
+        .map_err(into_miette)
+        .wrap_err_with(|| format!("invoking {}", display_path(interface, func)))?;
+    // CRITICAL: do NOT call `Func::post_return` — automatic in wasmtime 43+.
+
+    Ok(results)
+}
+
+fn display_path(interface: Option<&str>, func: &str) -> String {
+    match interface {
+        Some(iface) => format!("{iface}#{func}"),
+        None => func.to_string(),
     }
 }
 

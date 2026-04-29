@@ -1,0 +1,24 @@
+[package]
+name = "library-kitchen-sink"
+version = "0.0.0"
+edition = "2024"
+publish = false
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen-rt = { version = "0.44.0", features = ["bitflags"] }
+
+[package.metadata.component]
+package = "test:kitchen-sink"
+
+[package.metadata.component.target]
+path = "wit"
+world = "kitchen-sink"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true

@@ -848,6 +848,248 @@ fn test_run_missing_file() {
     assert_snapshot!(stderr);
 }
 
+// =============================================================================
+// Library-style component tests
+// =============================================================================
+
+/// Path to a `tests/fixtures/library_*.wasm` artifact.
+fn library_fixture(name: &str) -> String {
+    format!("{}/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"))
+}
+
+/// Run the binary and return raw stdout bytes (NOT String, so we can
+/// assert on byte-faithful output for `list<u8>` results).
+fn run_cli_raw(args: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_component"))
+        .args(args)
+        .output()
+        .expect("Failed to execute command")
+}
+
+/// **Headline test**: `to-word "# hi"` must produce byte-exact
+/// `DOCX:# hi` on stdout, with no trailing framing or newline.
+// r[verify run.library-output-bytes]
+#[test]
+fn test_library_wordmark_bytes_faithful() {
+    let fixture = library_fixture("library_wordmark.wasm");
+    let out = run_cli_raw(&["run", &fixture, "to-word", "# hi"]);
+    assert!(
+        out.status.success(),
+        "wordmark to-word failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(out.stdout, b"DOCX:# hi");
+    assert!(out.stderr.is_empty(), "unexpected stderr: {:?}", out.stderr);
+}
+
+/// Trailing redirect: capturing the bytes through the test harness
+/// and writing to a tempfile must produce a byte-faithful copy.
+// r[verify run.library-output-bytes]
+#[test]
+fn test_library_wordmark_redirect_to_file() {
+    let fixture = library_fixture("library_wordmark.wasm");
+    let out = run_cli_raw(&["run", &fixture, "to-word", "# hi"]);
+    assert!(out.status.success());
+
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().join("out.bin");
+    std::fs::write(&path, &out.stdout).expect("write");
+    let read_back = std::fs::read(&path).expect("read back");
+    assert_eq!(read_back, b"DOCX:# hi");
+}
+
+// r[verify run.library-args]
+#[test]
+fn test_library_kitchen_sink_string_arg() {
+    let fixture = library_fixture("library_kitchen_sink.wasm");
+    let out = run_cli_raw(&["run", &fixture, "shout", "hello"]);
+    assert!(
+        out.status.success(),
+        "shout failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(out.stdout, b"HELLO");
+}
+
+// r[verify run.library-dispatch]
+#[test]
+fn test_library_kitchen_sink_interface_add() {
+    let fixture = library_fixture("library_kitchen_sink.wasm");
+    let out = run_cli_raw(&["run", &fixture, "math", "add", "2", "3"]);
+    assert!(
+        out.status.success(),
+        "math add failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(String::from_utf8(out.stdout).unwrap(), "5\n");
+}
+
+// r[verify run.library-args]
+#[test]
+fn test_library_kitchen_sink_interface_sum_list() {
+    let fixture = library_fixture("library_kitchen_sink.wasm");
+    let out = run_cli_raw(&["run", &fixture, "math", "sum", "1", "2", "3", "4"]);
+    assert!(out.status.success());
+    assert_eq!(String::from_utf8(out.stdout).unwrap(), "10\n");
+}
+
+// r[verify run.library-args]
+#[test]
+fn test_library_kitchen_sink_record_field_order() {
+    // CLI flag order is intentionally swapped from WIT declaration
+    // order to verify we re-emit fields in declared order.
+    let fixture = library_fixture("library_kitchen_sink.wasm");
+    let out = run_cli_raw(&["run", &fixture, "greet", "--age", "37", "--name", "Ada"]);
+    assert!(
+        out.status.success(),
+        "greet failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let s = String::from_utf8(out.stdout).unwrap();
+    assert!(s.contains("Ada"), "expected name in output: {s:?}");
+    assert!(s.contains("37"), "expected age in output: {s:?}");
+}
+
+// r[verify run.library-args]
+#[test]
+fn test_library_kitchen_sink_variant_with_payload() {
+    let fixture = library_fixture("library_kitchen_sink.wasm");
+    let out = run_cli_raw(&["run", &fixture, "pick", "blue=indigo"]);
+    assert!(out.status.success());
+    assert_eq!(String::from_utf8(out.stdout).unwrap(), "blue:indigo");
+}
+
+// r[verify run.library-result-err]
+#[test]
+fn test_library_result_err_maps_to_stderr_and_exit_one() {
+    let fixture = library_fixture("library_kitchen_sink.wasm");
+    let out = run_cli_raw(&["run", &fixture, "fail", "boom"]);
+    assert!(!out.status.success(), "expected non-zero exit");
+    assert_eq!(out.status.code(), Some(1));
+    assert!(out.stdout.is_empty(), "stdout should be empty for err");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("boom"),
+        "expected 'boom' in stderr: {stderr}"
+    );
+}
+
+// r[verify run.library-resources-rejected]
+#[test]
+fn test_library_resources_fixture_is_rejected() {
+    let fixture = library_fixture("library_resources.wasm");
+    let out = run_cli_raw(&["run", &fixture]);
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("resource") || stderr.contains("Resource"),
+        "expected 'resource' in stderr: {stderr}"
+    );
+}
+
+// r[verify run.library-help.dynamic]
+#[test]
+fn test_library_dynamic_help_on_root() {
+    // `--help` after <INPUT> must render the dynamic sub-CLI's
+    // help, listing every WIT-exported function as a sub-command.
+    let fixture = library_fixture("library_kitchen_sink.wasm");
+    let out = run_cli_raw(&["run", &fixture, "--help"]);
+    assert!(out.status.success(), "exit code: {:?}", out.status.code());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    for expected in &["shout", "greet", "pick", "fail", "math"] {
+        assert!(
+            stdout.contains(expected),
+            "expected `{expected}` in dynamic help, got:\n{stdout}"
+        );
+    }
+}
+
+// r[verify run.library-help.dynamic]
+#[test]
+fn test_library_dynamic_help_on_interface() {
+    // `<interface> --help` must render help for the interface's
+    // functions only.
+    let fixture = library_fixture("library_kitchen_sink.wasm");
+    let out = run_cli_raw(&["run", &fixture, "math", "--help"]);
+    assert!(out.status.success(), "exit code: {:?}", out.status.code());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    for expected in &["add", "sum"] {
+        assert!(
+            stdout.contains(expected),
+            "expected `{expected}` in interface help, got:\n{stdout}"
+        );
+    }
+    // Top-level exports (not in the math interface) must NOT appear
+    // in the interface help.
+    assert!(
+        !stdout.contains("shout"),
+        "interface help leaked top-level exports:\n{stdout}"
+    );
+}
+
+// r[verify run.library-help]
+#[test]
+fn test_library_no_args_shows_dynamic_help() {
+    // With no further arguments, clap's `arg_required_else_help`
+    // renders the dynamic CLI's help (to stderr, exit 2).
+    let fixture = library_fixture("library_wordmark.wasm");
+    let out = run_cli_raw(&["run", &fixture]);
+    assert_eq!(out.status.code(), Some(2), "expected clap usage exit");
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        combined.contains("to-word"),
+        "expected `to-word` in help output, got:\n{combined}"
+    );
+}
+
+// r[verify run.host-flags-before-input]
+#[test]
+fn test_host_flag_before_input_works() {
+    let fixture = library_fixture("library_wordmark.wasm");
+    let out = run_cli_raw(&["run", "--inherit-env", &fixture, "to-word", "x"]);
+    assert!(out.status.success(), "exit code: {:?}", out.status.code());
+    assert_eq!(out.stdout, b"DOCX:x");
+}
+
+// r[verify run.host-flags-before-input]
+#[test]
+fn test_host_flag_after_input_is_forwarded_to_guest() {
+    // `--inherit-env` is a host flag; placed AFTER <INPUT> it must
+    // be forwarded to the dynamic sub-CLI (which doesn't know it).
+    let fixture = library_fixture("library_wordmark.wasm");
+    let out = run_cli_raw(&["run", &fixture, "--inherit-env", "to-word", "x"]);
+    assert!(
+        !out.status.success(),
+        "expected dynamic CLI to reject the flag"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("--inherit-env") || stderr.contains("unexpected"),
+        "expected dynamic CLI usage error mentioning the flag, got:\n{stderr}"
+    );
+}
+
+/// A library-style component that imports a custom WIT package the
+/// runner does not provide must surface as
+/// `component::run::library_instantiation_failed`.
+#[test]
+fn test_library_instantiation_failure_for_unsupported_imports() {
+    let fixture = library_fixture("library_needs_import.wasm");
+    let out = run_cli_raw(&["run", &fixture, "forward", "hello"]);
+    assert!(!out.status.success(), "expected non-zero exit");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("library_instantiation_failed")
+            || stderr.contains("instantiate")
+            || stderr.contains("unsupported import"),
+        "expected instantiation-failure diagnostic, got:\n{stderr}"
+    );
+}
+
 #[test]
 fn test_init_prints_success_message() {
     let dir = TempDir::new().expect("Failed to create temp dir");

@@ -7,6 +7,7 @@
 // the primary way it communicates progress.
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
+mod fixtures;
 mod readme;
 mod serve;
 mod sql;
@@ -57,6 +58,12 @@ enum Xtask {
         #[command(subcommand)]
         command: ReadmeCommand,
     },
+    /// Build and verify the `.wasm` test fixtures used by
+    /// `component-cli`'s integration tests.
+    Fixtures {
+        #[command(subcommand)]
+        command: FixturesCommand,
+    },
 }
 
 /// Subcommands for `cargo xtask readme`.
@@ -81,6 +88,17 @@ enum SqlCommand {
     Check,
     /// Install sqlite3def for the current platform
     Install,
+}
+
+/// Subcommands for `cargo xtask fixtures`.
+#[derive(Subcommand)]
+enum FixturesCommand {
+    /// Rebuild every fixture from its source crate and overwrite the
+    /// committed `.wasm` files.
+    Rebuild,
+    /// Verify each committed fixture's WIT matches what its source
+    /// crate produces today.
+    Check,
 }
 
 fn main() -> Result<()> {
@@ -124,6 +142,10 @@ fn main() -> Result<()> {
                 ReadmeCommand::Check => readme::check(&root)?,
             }
         }
+        Xtask::Fixtures { command } => match command {
+            FixturesCommand::Rebuild => fixtures::rebuild()?,
+            FixturesCommand::Check => fixtures::check()?,
+        },
     }
 
     Ok(())

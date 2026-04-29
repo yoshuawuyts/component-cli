@@ -1,0 +1,18 @@
+package test:needs-import;
+
+/// Defines a custom imported interface that wasmtime-wasi does not
+/// provide; the test for this fixture asserts that
+/// `component run` surfaces the import failure cleanly.
+interface custom-host {
+    /// A host function the runner is expected to provide.
+    do-thing: func(input: string) -> string;
+}
+
+world needs-import {
+    import custom-host;
+
+    /// Forwards to the imported host function. Calling this requires
+    /// the host to provide `test:needs-import/custom-host` — which our
+    /// runner does not.
+    export forward: func(s: string) -> string;
+}

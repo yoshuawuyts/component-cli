@@ -65,6 +65,44 @@ This downloads the correct `sqlite3def` binary for your platform from
 [GitHub releases](https://github.com/sqldef/sqldef/releases) and places it in
 `target/tools/`.
 
+### Test fixtures (`cargo-component`)
+
+The integration tests for `component run` use prebuilt `.wasm`
+fixtures committed under
+`crates/component-cli/tests/fixtures/library_*.wasm`. The sources
+live in `tests/fixtures/sources/library-*` and are excluded from
+the workspace, so a regular `cargo test` does **not** rebuild them.
+
+If you change a fixture's WIT or implementation, install
+[`cargo-component`](https://github.com/bytecodealliance/cargo-component)
+and run:
+
+```sh
+cargo xtask fixtures rebuild
+```
+
+To verify that the committed `.wasm` files still match their
+sources (compares printed WIT, not raw bytes):
+
+```sh
+cargo xtask fixtures check
+```
+
+Both commands skip silently with a warning if `cargo-component` is
+not on `PATH`.
+
+The same fixtures are also referenced from `crates/wit2cli/tests/fixtures/`
+via symlinks. On a fresh checkout, ensure `git config core.symlinks
+true` is set (the default on macOS / Linux).
+
+### `wit2cli` snapshots are the WIT → CLI mapping spec
+
+The insta snapshots committed under
+`crates/wit2cli/tests/snapshots/` are the canonical, end-user-facing
+spec for how `wit2cli` translates WIT exports into a `clap` sub-CLI.
+Updating the mapping rules requires reviewing the snapshot diff
+(`cargo insta review`) and accepting the new output deliberately.
+
 ## Code of Conduct
 The project has a [Code of Conduct](./CODE_OF_CONDUCT.md) that *all*
 contributors are expected to follow. This code describes the *minimum* behavior

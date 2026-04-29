@@ -1,0 +1,24 @@
+[package]
+name = "library-needs-import"
+version = "0.0.0"
+edition = "2024"
+publish = false
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen-rt = { version = "0.44.0", features = ["bitflags"] }
+
+[package.metadata.component]
+package = "test:needs-import"
+
+[package.metadata.component.target]
+path = "wit"
+world = "needs-import"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true

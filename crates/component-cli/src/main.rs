@@ -145,8 +145,91 @@ async fn main() -> miette::Result<()> {
     // Load .env file if present; variables already set in the environment
     // take precedence (system environment is not overridden).
     dotenvy::dotenv().ok();
-    let cli = Cli::parse();
+
+    // Pre-process argv for `run`: tokens after the first positional
+    // are quarantined behind `--` so clap doesn't try to interpret
+    // them as host flags. This makes `component run X --help` route
+    // `--help` into the dynamic sub-CLI built from X's WIT, while
+    // `component run --help` (before any positional) still triggers
+    // host help.
+    // r[impl run.library-help.dynamic]
+    // r[impl run.host-flags-before-input]
+    let argv = quarantine_run_trailing_args(std::env::args().collect());
+    let cli = Cli::parse_from(argv);
     let _tracing_guard = init_tracing(cli.verbosity.tracing_level_filter())?;
     cli.run().await?;
     Ok(())
+}
+
+/// Insert `--` after the first positional argument of the `run`
+/// subcommand so that everything after it is treated as guest args
+/// by clap (`trailing_var_arg = true`).
+///
+/// Identifies host flags as `--inherit-env`, `--inherit-network`,
+/// `--no-stdio`, `--global`/`-g`, plus value-taking flags `--env`,
+/// `--dir`, `--listen` (each followed by its value). A leading
+/// `-h`/`--help` before any positional triggers host help via clap
+/// in the usual way.
+fn quarantine_run_trailing_args(args: Vec<String>) -> Vec<String> {
+    /// Host flags that take no value.
+    const VALUELESS: &[&str] = &[
+        "--inherit-env",
+        "--inherit-network",
+        "--no-stdio",
+        "--global",
+        "-g",
+        "-h",
+        "--help",
+    ];
+    /// Host flags that consume the next argument as a value.
+    const VALUED: &[&str] = &["--env", "--dir", "--listen"];
+
+    let Some(run_idx) = args.iter().position(|a| a == "run") else {
+        return args;
+    };
+
+    let mut out = Vec::with_capacity(args.len() + 1);
+    out.extend(args.iter().take(run_idx + 1).cloned());
+
+    let mut i = run_idx + 1;
+    while let Some(token) = args.get(i) {
+        if VALUELESS.iter().any(|f| f == token) {
+            out.push(token.clone());
+            i += 1;
+            continue;
+        }
+        if VALUED.iter().any(|f| token == f) {
+            out.push(token.clone());
+            i += 1;
+            if let Some(value) = args.get(i) {
+                out.push(value.clone());
+                i += 1;
+            }
+            continue;
+        }
+        if let Some(rest) = token.strip_prefix("--")
+            && VALUED.iter().any(|f| {
+                rest.split_once('=')
+                    .is_some_and(|(name, _)| format!("--{name}") == **f)
+            })
+        {
+            // `--env=KEY=VAL` form: still a host flag, no quarantine yet.
+            out.push(token.clone());
+            i += 1;
+            continue;
+        }
+        // First non-host token: this is the positional INPUT.
+        out.push(token.clone());
+        i += 1;
+        // Quarantine the rest after `--` so clap forwards it through
+        // `trailing_var_arg`.
+        if i < args.len() {
+            out.push("--".to_string());
+            if let Some(rest) = args.get(i..) {
+                out.extend(rest.iter().cloned());
+            }
+        }
+        return out;
+    }
+    out
 }

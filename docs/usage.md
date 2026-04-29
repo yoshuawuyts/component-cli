@@ -237,6 +237,84 @@ This operation:
 2. Remove unused packages manually or with future commands
 3. Run `component self clean` to reclaim space
 
+## Running Library-style Components
+
+`component run` can execute three kinds of WebAssembly components:
+
+- **HTTP components** (export `wasi:http/incoming-handler`) are
+  served on a local TCP port — use `--listen` to set the address.
+- **CLI components** (export `wasi:cli/run`) are executed as
+  programs; trailing arguments after `<INPUT>` become the guest's
+  `argv`.
+- **Library-style components** — anything that exports plain
+  functions or interfaces but does not target either of the worlds
+  above. The component's WIT exports are translated into a `clap`
+  sub-CLI on the fly.
+
+The WIT → CLI mapping is implemented by the
+[`wit2cli`](../crates/wit2cli) crate. Its
+[`tests/snapshots/`](../crates/wit2cli/tests/snapshots) directory
+contains the canonical, end-user-facing spec for how each WIT type
+translates into a CLI argument — one snapshot per shipped fixture.
+
+### A worked example
+
+Given a component with this WIT:
+
+```wit
+package yoshuawuyts:wordmark;
+
+world wordmark {
+    /// Convert a markdown document to a Word (.docx) document.
+    export to-word: func(markdown: string) -> result<list<u8>, string>;
+}
+```
+
+You can invoke it directly:
+
+```bash
+component run yoshuawuyts:wordmark to-word "# hello" > file.docx
+```
+
+This dispatches to the `to-word` export, passes `"# hello"` as the
+single string parameter, and writes the resulting bytes verbatim to
+stdout (or, with redirection, to `file.docx`).
+
+### Argument mapping
+
+| WIT type | CLI shape |
+|----------|-----------|
+| Primitives, `string`, `char`, `enum`, `variant` | Positional argument |
+| `record` | Group of `--field-name VALUE` flags. With multiple record params, fields are prefixed: `--<param>-<field>` |
+| `list<T>` | Repeated `--name V --name W`, or positional variadic when last |
+| `option<T>` | Same as `T`, but optional |
+| `variant V(payload)` | `name=value` for cases with a payload, `name` otherwise |
+
+Resources and futures/streams are not supported.
+
+### Output rules
+
+- `list<u8>` results are written to stdout as raw bytes (this is
+  what makes `> file.docx` work).
+- `string` results are written verbatim with no trailing newline.
+- Numeric / boolean / `char` results are rendered with `Display` and
+  a trailing newline.
+- Records, variants, enums, flags, tuples, and lists of non-`u8`
+  are rendered as JSON.
+- A `result::Err(e)` causes `component run` to print `e` to stderr
+  and exit with code 1.
+
+### Host flags vs. guest arguments
+
+All host-side flags (`--global`, `--env`, `--dir`, `--inherit-env`,
+`--inherit-network`, `--no-stdio`, `--listen`) must come **before**
+the `<INPUT>` argument; everything after `<INPUT>` is forwarded to
+the guest:
+
+```bash
+component run --inherit-env yoshuawuyts:wordmark to-word "# hi"
+```
+
 ## Package Reference Format
 
 Packages are referenced using OCI-style references:

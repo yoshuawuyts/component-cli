@@ -1,0 +1,271 @@
+---
+source: crates/wit2cli/tests/snapshots.rs
+expression: rendered
+---
+=== WIT package ===
+package root:component;
+
+world root {
+  import wasi:cli/environment@0.2.3;
+  import wasi:cli/exit@0.2.3;
+  import wasi:io/error@0.2.3;
+  import wasi:io/streams@0.2.3;
+  import wasi:cli/stdin@0.2.3;
+  import wasi:cli/stdout@0.2.3;
+  import wasi:cli/stderr@0.2.3;
+  import wasi:clocks/wall-clock@0.2.3;
+  import wasi:filesystem/types@0.2.3;
+  import wasi:filesystem/preopens@0.2.3;
+
+  record person {
+    name: string,
+    age: u32,
+  }
+
+  variant color {
+    red,
+    green,
+    blue(string),
+  }
+
+  export shout: func(s: string) -> string;
+  export greet: func(person: person) -> string;
+  export pick: func(c: color) -> string;
+  export fail: func(reason: string) -> result<string, string>;
+  export test:kitchen-sink/math;
+}
+package wasi:io@0.2.3 {
+  interface error {
+    resource error;
+  }
+  interface streams {
+    use error.{error};
+
+    resource output-stream {
+      check-write: func() -> result<u64, stream-error>;
+      write: func(contents: list<u8>) -> result<_, stream-error>;
+      blocking-write-and-flush: func(contents: list<u8>) -> result<_, stream-error>;
+      blocking-flush: func() -> result<_, stream-error>;
+    }
+
+    variant stream-error {
+      last-operation-failed(error),
+      closed,
+    }
+
+    resource input-stream;
+  }
+}
+
+
+package wasi:cli@0.2.3 {
+  interface environment {
+    get-environment: func() -> list<tuple<string, string>>;
+  }
+  interface exit {
+    exit: func(status: result);
+  }
+  interface stdin {
+    use wasi:io/streams@0.2.3.{input-stream};
+
+    get-stdin: func() -> input-stream;
+  }
+  interface stdout {
+    use wasi:io/streams@0.2.3.{output-stream};
+
+    get-stdout: func() -> output-stream;
+  }
+  interface stderr {
+    use wasi:io/streams@0.2.3.{output-stream};
+
+    get-stderr: func() -> output-stream;
+  }
+}
+
+
+package wasi:clocks@0.2.3 {
+  interface wall-clock {
+    record datetime {
+      seconds: u64,
+      nanoseconds: u32,
+    }
+  }
+}
+
+
+package wasi:filesystem@0.2.3 {
+  interface types {
+    use wasi:io/streams@0.2.3.{output-stream};
+    use wasi:clocks/wall-clock@0.2.3.{datetime};
+    use wasi:io/streams@0.2.3.{error};
+
+    resource descriptor {
+      write-via-stream: func(offset: filesize) -> result<output-stream, error-code>;
+      append-via-stream: func() -> result<output-stream, error-code>;
+      get-type: func() -> result<descriptor-type, error-code>;
+      stat: func() -> result<descriptor-stat, error-code>;
+    }
+
+    type filesize = u64;
+
+    enum error-code {
+      access,
+      would-block,
+      already,
+      bad-descriptor,
+      busy,
+      deadlock,
+      quota,
+      exist,
+      file-too-large,
+      illegal-byte-sequence,
+      in-progress,
+      interrupted,
+      invalid,
+      io,
+      is-directory,
+      loop,
+      too-many-links,
+      message-size,
+      name-too-long,
+      no-device,
+      no-entry,
+      no-lock,
+      insufficient-memory,
+      insufficient-space,
+      not-directory,
+      not-empty,
+      not-recoverable,
+      unsupported,
+      no-tty,
+      no-such-device,
+      overflow,
+      not-permitted,
+      pipe,
+      read-only,
+      invalid-seek,
+      text-file-busy,
+      cross-device,
+    }
+
+    enum descriptor-type {
+      unknown,
+      block-device,
+      character-device,
+      directory,
+      fifo,
+      symbolic-link,
+      regular-file,
+      socket,
+    }
+
+    type link-count = u64;
+
+    record descriptor-stat {
+      %type: descriptor-type,
+      link-count: link-count,
+      size: filesize,
+      data-access-timestamp: option<datetime>,
+      data-modification-timestamp: option<datetime>,
+      status-change-timestamp: option<datetime>,
+    }
+
+    filesystem-error-code: func(err: borrow<error>) -> option<error-code>;
+  }
+  interface preopens {
+    use types.{descriptor};
+
+    get-directories: func() -> list<tuple<descriptor, string>>;
+  }
+}
+
+
+package test:kitchen-sink {
+  interface math {
+    add: func(a: s32, b: s32) -> s32;
+
+    sum: func(xs: list<s32>) -> s32;
+  }
+}
+
+=== Generated CLI ===
+$ <program> --help
+Dynamically dispatch to a library-style component.
+
+Usage: <program> <COMMAND>
+
+Commands:
+  shout  
+  greet  
+  pick   
+  fail   
+  math   
+  help   Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+
+$ <program> shout --help
+Usage: shout <s>
+
+Arguments:
+  <s>  parameter `s`
+
+Options:
+  -h, --help  Print help
+
+$ <program> greet --help
+Usage: greet --name <name> --age <age>
+
+Options:
+      --name <name>  field `name` of `person`
+      --age <age>    field `age` of `person`
+  -h, --help         Print help
+
+$ <program> pick --help
+Usage: pick <c>
+
+Arguments:
+  <c>  parameter `c` [possible values: red, green, blue]
+
+Options:
+  -h, --help  Print help
+
+$ <program> fail --help
+Usage: fail <reason>
+
+Arguments:
+  <reason>  parameter `reason`
+
+Options:
+  -h, --help  Print help
+
+$ <program> math --help
+Usage: math <COMMAND>
+
+Commands:
+  add   
+  sum   
+  help  Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+
+$ <program> math add --help
+Usage: add <a> <b>
+
+Arguments:
+  <a>  parameter `a`
+  <b>  parameter `b`
+
+Options:
+  -h, --help  Print help
+
+$ <program> math sum --help
+Usage: sum [xs]...
+
+Arguments:
+  [xs]...  list parameter `xs`
+
+Options:
+  -h, --help  Print help

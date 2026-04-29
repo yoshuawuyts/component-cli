@@ -11,7 +11,7 @@ Arguments:
 
 Options:
       --registry-url <REGISTRY_URL>
-          URL of the meta-registry to notify [default: http://localhost:8080]
+          URL of the meta-registry to notify [default: http://localhost:8081]
   -h, --help
           Print help
   -V, --version

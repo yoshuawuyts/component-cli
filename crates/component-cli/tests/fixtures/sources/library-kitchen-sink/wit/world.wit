@@ -1,0 +1,37 @@
+package test:kitchen-sink;
+
+/// A library-style fixture exercising the full supported type set.
+interface math {
+    /// Add two integers.
+    add: func(a: s32, b: s32) -> s32;
+    /// Sum a list of integers.
+    sum: func(xs: list<s32>) -> s32;
+}
+
+world kitchen-sink {
+    /// Math helpers in a nested interface.
+    export math;
+
+    /// Echo a string back uppercased.
+    export shout: func(s: string) -> string;
+
+    /// Greet someone described by a record value.
+    export greet: func(person: person) -> string;
+
+    /// Pick a color from a variant, returning a stringified form.
+    export pick: func(c: color) -> string;
+
+    /// Always fails — used to exercise `result::Err` rendering.
+    export fail: func(reason: string) -> result<string, string>;
+
+    record person {
+        name: string,
+        age: u32,
+    }
+
+    variant color {
+        red,
+        green,
+        blue(string),
+    }
+}

@@ -1,0 +1,6 @@
+# cargo-component build outputs and generated bindings.
+# The committed `.wasm` fixtures in the parent dir are the source of
+# truth for tests; rebuild with `cargo xtask fixtures rebuild`.
+*/target/
+*/Cargo.lock
+*/src/bindings.rs

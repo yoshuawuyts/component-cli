@@ -68,7 +68,7 @@ pub struct Manager {
 
 impl Manager {
     /// Default meta-registry URL used for syncing the known-package index.
-    pub const DEFAULT_REGISTRY_URL: &str = "http://localhost:8080";
+    pub const DEFAULT_REGISTRY_URL: &str = "http://localhost:8081";
 
     /// Default sync interval in seconds (1 hour).
     ///

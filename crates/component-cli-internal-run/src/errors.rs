@@ -32,6 +32,30 @@ pub enum RunError {
         help("ensure the file is a valid WebAssembly binary")
     )]
     NoVersionHeader,
+
+    /// The component does not export the requested function.
+    #[diagnostic(
+        code(component::run::library_export_missing),
+        help("the component does not export `{path}`; check the component's WIT")
+    )]
+    LibraryExportMissing {
+        /// The export path that was looked up (`func` or `iface#func`).
+        path: String,
+    },
+
+    /// The component imports a WIT package the runner does not
+    /// provide (e.g. a custom interface unknown to wasmtime-wasi).
+    #[diagnostic(
+        code(component::run::library_instantiation_failed),
+        help(
+            "{cause}; the component imports a WIT package the runner does not provide; \
+             check the component's WIT for unsupported imports"
+        )
+    )]
+    LibraryInstantiationFailed {
+        /// The underlying wasmtime error message.
+        cause: String,
+    },
 }
 
 impl std::fmt::Display for RunError {
@@ -48,6 +72,15 @@ impl std::fmt::Display for RunError {
             }
             RunError::NoVersionHeader => {
                 write!(f, "invalid Wasm binary: no version header found")
+            }
+            RunError::LibraryExportMissing { path } => {
+                write!(f, "component has no export named `{path}`")
+            }
+            RunError::LibraryInstantiationFailed { cause } => {
+                write!(
+                    f,
+                    "failed to instantiate component (missing or unsupported import): {cause}"
+                )
             }
         }
     }
@@ -69,12 +102,20 @@ mod tests {
                 reason: "test".to_string(),
             }),
             Box::new(RunError::NoVersionHeader),
+            Box::new(RunError::LibraryExportMissing {
+                path: "foo".to_string(),
+            }),
+            Box::new(RunError::LibraryInstantiationFailed {
+                cause: "missing import".to_string(),
+            }),
         ];
 
         let expected_codes = [
             "component::run::core_module",
             "component::run::invalid_binary",
             "component::run::no_version_header",
+            "component::run::library_export_missing",
+            "component::run::library_instantiation_failed",
         ];
 
         for (variant, expected_code) in variants.iter().zip(expected_codes.iter()) {

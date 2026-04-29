@@ -1,0 +1,39 @@
+---
+source: crates/wit2cli/tests/snapshots.rs
+expression: rendered
+---
+=== WIT package ===
+package root:component;
+
+world root {
+  import test:needs-import/custom-host;
+
+  export forward: func(s: string) -> string;
+}
+package test:needs-import {
+  interface custom-host {
+    do-thing: func(input: string) -> string;
+  }
+}
+
+=== Generated CLI ===
+$ <program> --help
+Dynamically dispatch to a library-style component.
+
+Usage: <program> <COMMAND>
+
+Commands:
+  forward  
+  help     Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+
+$ <program> forward --help
+Usage: forward <s>
+
+Arguments:
+  <s>  parameter `s`
+
+Options:
+  -h, --help  Print help

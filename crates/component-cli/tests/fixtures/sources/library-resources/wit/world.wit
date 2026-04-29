@@ -1,0 +1,15 @@
+package test:resources;
+
+/// Fixture verifying that `wasm run` rejects components with resource
+/// exports.
+interface counters {
+    resource counter {
+        constructor();
+        increment: func();
+        value: func() -> u32;
+    }
+}
+
+world resources {
+    export counters;
+}

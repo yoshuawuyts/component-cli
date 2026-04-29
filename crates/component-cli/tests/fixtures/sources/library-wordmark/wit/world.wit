@@ -1,0 +1,15 @@
+package test:wordmark;
+
+/// A tiny library-style component used as a `wasm run` test fixture.
+///
+/// This world is intentionally trivial: the headline test asserts that
+/// the bytes returned by `to-word` are written to stdout byte-for-byte,
+/// so the fixture's "Word document" is just the input prefixed with a
+/// magic marker.
+world wordmark {
+    /// Convert a markdown document into a (mock) Word document.
+    ///
+    /// Returns the input prefixed with the marker `DOCX:`. Returns an
+    /// error if the input is empty.
+    export to-word: func(markdown: string) -> result<list<u8>, string>;
+}

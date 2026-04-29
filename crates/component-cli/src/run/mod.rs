@@ -21,6 +21,11 @@ use miette::{Context, IntoDiagnostic};
 
 use component_manifest::RunPermissions;
 use component_package_manager::manager::Manager;
+use wasmparser::{Parser, Payload};
+
+use wit2cli::{
+    LibraryExtractError, build_clap, extract_library_surface, parse_invocation, print_results,
+};
 
 /// Options for the `component run` command.
 #[derive(clap::Parser)]
@@ -59,48 +64,68 @@ pub(crate) struct Opts {
     /// Run from the global cache, bypassing local installation.
     #[arg(long, short = 'g')]
     global: bool,
+
+    /// Trailing arguments forwarded to the guest. For
+    /// `wasi:cli/command` components these become `argv`; for
+    /// library-style components they are parsed by a dynamically
+    /// generated sub-CLI built from the component's WIT exports.
+    ///
+    /// Note: host-side flags (such as `--global`, `--env`, `--dir`)
+    /// must be specified BEFORE the `<INPUT>` argument; everything
+    /// after `<INPUT>` is forwarded to the guest.
+    // r[impl run.host-flags-before-input]
+    #[arg(
+        last = false,
+        trailing_var_arg = true,
+        allow_hyphen_values = true,
+        num_args = 0..,
+        value_name = "GUEST_ARGS"
+    )]
+    extra: Vec<String>,
 }
 
 impl Opts {
     /// Execute the `run` command.
     pub(crate) async fn run(self, offline: bool) -> miette::Result<()> {
+        let input = self.input.as_str();
+
         // 1. Resolve input — local files take priority, then manifest keys,
         //    then OCI references.
-        let local_path = PathBuf::from(&self.input);
+        let local_path = PathBuf::from(input);
         let is_local = local_path.exists();
 
         // Try manifest key lookup (scope:component syntax).
         let mut manifest_path = if is_local {
             None
         } else {
-            resolve_manifest_key(&self.input)?
+            resolve_manifest_key(input)?
         };
 
         // For inputs that look like manifest keys (`scope:component`) but are
         // not yet installed in the local project, auto-install into a local
         // manifest + lockfile by default. The `--global` flag bypasses local
         // installation and runs from the global cache instead.
-        let global_bytes =
-            if !is_local && manifest_path.is_none() && looks_like_manifest_key(&self.input) {
-                if self.global {
-                    Some(load_from_global_cache(&self.input, offline).await?)
-                } else {
-                    auto_install(&self.input, offline).await?;
-                    // Re-resolve the manifest key now that the install has
-                    // populated `wasm.toml`, `wasm.lock.toml`, and the
-                    // vendored Wasm file.
-                    manifest_path = resolve_manifest_key(&self.input)?;
-                    None
-                }
+        let global_bytes = if !is_local && manifest_path.is_none() && looks_like_manifest_key(input)
+        {
+            if self.global {
+                Some(load_from_global_cache(input, offline).await?)
             } else {
+                auto_install(input, offline).await?;
+                // Re-resolve the manifest key now that the install has
+                // populated `wasm.toml`, `wasm.lock.toml`, and the
+                // vendored Wasm file.
+                manifest_path = resolve_manifest_key(input)?;
                 None
-            };
+            }
+        } else {
+            None
+        };
 
         // Only try OCI when the input is not a local file and not a manifest key.
         let reference = if is_local || manifest_path.is_some() || global_bytes.is_some() {
             None
         } else {
-            crate::util::parse_reference(&self.input).ok()
+            crate::util::parse_reference(input).ok()
         };
 
         // 2. Get Wasm bytes.
@@ -130,11 +155,20 @@ impl Opts {
         // 5. Detect world and execute.
         if http::exports_http_incoming_handler(&bytes) {
             // wasi:http/proxy — start an HTTP server.
+            // r[impl run.host-flags-before-input]
+            if !self.extra.is_empty() {
+                return Err(miette::miette!(
+                    "trailing arguments are not allowed for HTTP-proxy components: {:?}",
+                    self.extra
+                ));
+            }
             http::serve(&bytes, &permissions, self.listen).await?;
-        } else {
-            // wasi:cli/command — run as a CLI program.
+        } else if exports_cli_run(&bytes) {
+            // wasi:cli/command — run as a CLI program, forwarding
+            // trailing args as guest argv.
+            let argv = self.extra.clone();
             let result = tokio::task::spawn_blocking(move || {
-                component_cli_internal_run::execute_cli_component(&bytes, &permissions)
+                component_cli_internal_run::execute_cli_component(&bytes, &permissions, &argv)
             })
             .await
             .into_diagnostic()
@@ -144,6 +178,11 @@ impl Opts {
             if let Err(()) = result {
                 std::process::exit(1);
             }
+        } else {
+            // Library-style component: build a clap CLI from the
+            // component's WIT and dynamically dispatch.
+            // r[impl run.library-detection]
+            return run_library_component(&bytes, &permissions, &self.extra).await;
         }
         Ok(())
     }
@@ -464,4 +503,120 @@ async fn auto_install(input: &str, offline: bool) -> miette::Result<()> {
     // `component install <input>` directly.
     let opts = crate::install::Opts::with_inputs(vec![input.to_string()]);
     opts.run(offline).await
+}
+
+/// Check whether a component exports `wasi:cli/run`, which is the
+/// canonical hint that it targets `wasi:cli/command`.
+///
+/// Mirrors [`http::exports_http_incoming_handler`]; only top-level
+/// component exports are considered.
+// r[impl run.library-detection]
+fn exports_cli_run(bytes: &[u8]) -> bool {
+    let parser = Parser::new(0);
+    let mut depth: u32 = 0;
+    for payload in parser.parse_all(bytes) {
+        let Ok(payload) = payload else { continue };
+        match payload {
+            Payload::Version { .. } => {
+                depth += 1;
+            }
+            Payload::End(_) => {
+                depth = depth.saturating_sub(1);
+            }
+            Payload::ComponentExportSection(reader) if depth == 1 => {
+                for export in reader.into_iter().flatten() {
+                    if export.name.0.starts_with("wasi:cli/run") {
+                        return true;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+/// Library-style dispatch: extract the component's WIT surface,
+/// build a dynamic clap CLI, parse the user's trailing args, invoke
+/// the matching function, and render the result.
+// r[impl run.library-dispatch]
+// r[impl run.library-help]
+async fn run_library_component(
+    bytes: &[u8],
+    permissions: &component_manifest::ResolvedPermissions,
+    extra: &[String],
+) -> miette::Result<()> {
+    // 1. Extract the dispatch surface.
+    let surface = match extract_library_surface(bytes) {
+        Ok(s) => s,
+        // r[impl run.library-resources-rejected]
+        Err(LibraryExtractError::Resource { name }) => {
+            return Err(miette::miette!(
+                help = "library-style invocation does not support resources; \
+                        use a CLI or HTTP component instead",
+                "component exports the resource `{name}`, which is not supported by `component run`"
+            ));
+        }
+        Err(e) => return Err(miette::miette!("{e}")),
+    };
+
+    // 2. Build the dynamic clap CLI and parse the user's args.
+    let cmd = build_clap(&surface, "component run").map_err(|e| miette::miette!("{e}"))?;
+    let cli_args: Vec<&str> = std::iter::once("component run")
+        .chain(extra.iter().map(String::as_str))
+        .collect();
+    let matches = match cmd.try_get_matches_from(cli_args) {
+        Ok(m) => m,
+        Err(e) => {
+            // Clap prints its own formatted help/error for usage errors.
+            // Use clap's exit-code mapping so missing-arg → 2 and
+            // --help → 0.
+            e.exit();
+        }
+    };
+    let invocation = parse_invocation(&matches, &surface).map_err(|e| miette::miette!("{e}"))?;
+
+    // 3. Invoke off-thread (sync wasmtime).
+    let bytes_owned = bytes.to_vec();
+    let permissions_owned = permissions.clone();
+    let interface = invocation.path.interface.clone();
+    let func = invocation.path.func.clone();
+    let func_args = invocation.args;
+    let expected_results = invocation.expected_results;
+    let results = tokio::task::spawn_blocking(move || {
+        component_cli_internal_run::execute_library_function(
+            &bytes_owned,
+            &permissions_owned,
+            interface.as_deref(),
+            &func,
+            &func_args,
+        )
+    })
+    .await
+    .into_diagnostic()
+    .wrap_err("runtime task panicked")??;
+
+    // Sanity-check that wasmtime returned the number of values the
+    // WIT signature declared. A mismatch would indicate either a
+    // wasmtime/wit-parser drift or a corrupt component.
+    if results.len() != expected_results.len() {
+        return Err(miette::miette!(
+            "result count mismatch: WIT declares {} value(s), runtime returned {}",
+            expected_results.len(),
+            results.len()
+        ));
+    }
+
+    // 4. Render results to stdout/stderr and propagate exit code.
+    let stdout = std::io::stdout();
+    let stderr = std::io::stderr();
+    let mut stdout_lock = stdout.lock();
+    let mut stderr_lock = stderr.lock();
+    let outcome = print_results(&results, &mut stdout_lock, &mut stderr_lock)
+        .into_diagnostic()
+        .wrap_err("rendering results")?;
+    if outcome.exit_code != 0 {
+        std::process::exit(outcome.exit_code);
+    }
+    Ok(())
 }

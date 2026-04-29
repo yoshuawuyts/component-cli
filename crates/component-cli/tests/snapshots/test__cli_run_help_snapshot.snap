@@ -4,24 +4,59 @@ expression: output
 ---
 Execute a Wasm Component
 
-Usage: component run [OPTIONS] <INPUT>
+Usage: component run [OPTIONS] <INPUT> [GUEST_ARGS]...
 
 Arguments:
-  <INPUT>  Local file path, OCI reference, or manifest key (scope:component) for a Wasm Component
+  <INPUT>
+          Local file path, OCI reference, or manifest key (scope:component) for a Wasm Component
+
+  [GUEST_ARGS]...
+          Trailing arguments forwarded to the guest. For `wasi:cli/command` components these become `argv`; for library-style components they are parsed by a dynamically generated sub-CLI built from the component's WIT exports.
+          
+          Note: host-side flags (such as `--global`, `--env`, `--dir`) must be specified BEFORE the `<INPUT>` argument; everything after `<INPUT>` is forwarded to the guest.
 
 Options:
-      --env <KEY=VAL>    Pass an environment variable to the guest (repeatable)
-      --dir <HOST_PATH>  Pre-open a host directory for the guest (repeatable)
-      --inherit-env      Inherit all host environment variables
-      --inherit-network  Allow the guest to access the network
-      --no-stdio         Suppress stdin/stdout/stderr inheritance
-      --listen <ADDR>    Address to bind the HTTP server to when running a `wasi:http/proxy` component [default: 127.0.0.1:8080]
-  -g, --global           Run from the global cache, bypassing local installation
-  -h, --help             Print help
-  -V, --version          Print version
+      --env <KEY=VAL>
+          Pass an environment variable to the guest (repeatable)
+
+      --dir <HOST_PATH>
+          Pre-open a host directory for the guest (repeatable)
+
+      --inherit-env
+          Inherit all host environment variables
+
+      --inherit-network
+          Allow the guest to access the network
+
+      --no-stdio
+          Suppress stdin/stdout/stderr inheritance
+
+      --listen <ADDR>
+          Address to bind the HTTP server to when running a `wasi:http/proxy` component
+          
+          [default: 127.0.0.1:8080]
+
+  -g, --global
+          Run from the global cache, bypassing local installation
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
 
 Global Options:
-      --color <WHEN>  When to use colored output [default: auto] [possible values: auto, always, never]
-      --offline       Run in offline mode
-  -v, --verbose...    Increase logging verbosity
-  -q, --quiet...      Decrease logging verbosity
+      --color <WHEN>
+          When to use colored output
+          
+          [default: auto]
+          [possible values: auto, always, never]
+
+      --offline
+          Run in offline mode
+
+  -v, --verbose...
+          Increase logging verbosity
+
+  -q, --quiet...
+          Decrease logging verbosity
