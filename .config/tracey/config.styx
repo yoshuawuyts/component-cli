@@ -2,8 +2,8 @@
 
 specs (
     {
-        name wasm-cli
-        source_url https://github.com/yoshuawuyts/wasm-cli
+        name component-cli
+        source_url https://github.com/yoshuawuyts/component-cli
         include (spec/**/*.md)
         impls (
             {
@@ -15,10 +15,10 @@ specs (
                     target/**
                 )
                 test_include (
-                    crates/wasm-cli/tests/**/*.rs
-                    crates/wasm-detector/tests/**/*.rs
-                    crates/wasm-frontend/tests/**/*.rs
-                    crates/wasm-tui/tests/**/*.rs
+                    crates/component-cli/tests/**/*.rs
+                    crates/component-detector/tests/**/*.rs
+                    crates/component-frontend/tests/**/*.rs
+                    crates/component-tui/tests/**/*.rs
                     crates/**/src/**/tests.rs
                 )
             }

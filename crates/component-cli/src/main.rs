@@ -1,0 +1,155 @@
+//! Component CLI command
+//!
+
+mod compose;
+mod init;
+mod install;
+mod local;
+mod registry;
+mod run;
+mod self_;
+mod util;
+
+use std::io::IsTerminal;
+
+use clap::{ColorChoice, CommandFactory, Parser};
+use clap_verbosity_flag::Verbosity;
+use miette::{Context, IntoDiagnostic};
+use util::into_miette;
+
+#[derive(Parser)]
+#[command(author, version, about, long_about = None, term_width = 80)]
+#[command(propagate_version = true)]
+pub(crate) struct Cli {
+    /// When to use colored output.
+    #[arg(
+        long,
+        value_name = "WHEN",
+        default_value = "auto",
+        global = true,
+        help_heading = "Global Options"
+    )]
+    color: ColorChoice,
+
+    /// Run in offline mode.
+    #[arg(long, global = true, help_heading = "Global Options")]
+    offline: bool,
+
+    /// Controls logging verbosity via `-v`/`--verbose` and `-q`/`--quiet`
+    /// flags.
+    #[command(flatten, next_help_heading = "Global Options")]
+    verbosity: Verbosity,
+
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+impl Cli {
+    async fn run(self) -> miette::Result<()> {
+        match self.command {
+            Some(Command::Run(opts)) => opts.run(self.offline).await?,
+            Some(Command::Local(opts)) => {
+                opts.run();
+            }
+            Some(Command::Registry(opts)) => opts.run(self.offline).await.map_err(into_miette)?,
+            Some(Command::Compose(opts)) => opts.run().map_err(into_miette)?,
+            Some(Command::Init(opts)) => opts.run().await?,
+            Some(Command::Install(opts)) => opts.run(self.offline).await?,
+            Some(Command::Self_(opts)) => opts.run().await.map_err(into_miette)?,
+            None if std::io::stdin().is_terminal() => {
+                component_tui::run(self.offline)
+                    .await
+                    .map_err(into_miette)?;
+            }
+            None => {
+                // Apply the parsed color choice when printing help
+                Cli::command()
+                    .color(self.color)
+                    .print_help()
+                    .into_diagnostic()?;
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(clap::Parser)]
+enum Command {
+    /// Execute a Wasm Component
+    Run(run::Opts),
+    /// Create a new wasm component in an existing directory
+    Init(init::Opts),
+    /// Install a dependency from an OCI registry
+    Install(install::Opts),
+    /// Compose Wasm components from WAC scripts
+    Compose(compose::Opts),
+    /// Detect and manage local WASM files
+    #[command(subcommand)]
+    Local(local::Opts),
+    /// Manage Wasm Components and WIT interfaces in OCI registries
+    #[command(subcommand)]
+    Registry(registry::Opts),
+    /// Configure the `component(1)` tool, generate completions, & manage state
+    #[clap(name = "self")]
+    #[command(subcommand)]
+    Self_(self_::Opts),
+}
+
+/// Compute the log directory for the application.
+///
+/// Uses the XDG state directory (`$XDG_STATE_HOME/wasm/logs`) on Linux,
+/// and falls back to the local data directory on other systems.
+pub(crate) fn log_dir() -> std::path::PathBuf {
+    component_package_manager::storage::StateInfo::default_log_dir()
+}
+
+/// Initialize the tracing subscriber with a file appender and a stderr layer.
+/// Logs are stored in an XDG-compliant directory.
+///
+/// The `level` parameter controls the verbosity of both the file and stderr
+/// log layers, and is typically derived from `--verbose` / `--quiet` CLI flags.
+///
+/// The returned `WorkerGuard` must be kept alive for the duration of the
+/// program to ensure all buffered log records are flushed.
+fn init_tracing(
+    level: tracing::level_filters::LevelFilter,
+) -> miette::Result<tracing_appender::non_blocking::WorkerGuard> {
+    use tracing_subscriber::Layer;
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+
+    let log_dir = log_dir();
+    std::fs::create_dir_all(&log_dir)
+        .into_diagnostic()
+        .wrap_err("failed to create log directory")?;
+
+    let file_appender = tracing_appender::rolling::never(&log_dir, "component.log");
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+
+    let file_layer = tracing_subscriber::fmt::layer()
+        .with_writer(non_blocking)
+        .with_ansi(false)
+        .with_filter(level);
+
+    let stderr_layer = tracing_subscriber::fmt::layer()
+        .with_writer(std::io::stderr)
+        .with_filter(level);
+
+    tracing_subscriber::registry()
+        .with(file_layer)
+        .with(stderr_layer)
+        .init();
+
+    Ok(guard)
+}
+
+#[tokio::main]
+async fn main() -> miette::Result<()> {
+    // Load .env file if present; variables already set in the environment
+    // take precedence (system environment is not overridden).
+    dotenvy::dotenv().ok();
+    let cli = Cli::parse();
+    let _tracing_guard = init_tracing(cli.verbosity.tracing_level_filter())?;
+    cli.run().await?;
+    Ok(())
+}

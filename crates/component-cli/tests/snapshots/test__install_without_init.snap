@@ -1,0 +1,10 @@
+---
+source: crates/component-cli/tests/test.rs
+expression: stderr
+---
+Error: component::install::no_manifest
+
+  × no local `wasm.toml` manifest found
+  help: call `component init` to create a `wasm.toml` manifest locally
+        call `component registry fetch <component>` to fetch the package
+        without affecting the local manifest

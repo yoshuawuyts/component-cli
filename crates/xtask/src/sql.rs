@@ -13,13 +13,13 @@ use rusqlite::Connection;
 use crate::workspace_root;
 
 /// Path from the workspace root to the migrations directory.
-const MIGRATIONS_DIR: &str = "crates/wasm-package-manager/src/storage/migrations";
+const MIGRATIONS_DIR: &str = "crates/component-package-manager/src/storage/migrations";
 
 /// Path from the workspace root to the schema file.
-const SCHEMA_PATH: &str = "crates/wasm-package-manager/src/storage/schema.sql";
+const SCHEMA_PATH: &str = "crates/component-package-manager/src/storage/schema.sql";
 
 /// Path from the workspace root to migration.rs.
-const MIGRATION_RS_PATH: &str = "crates/wasm-package-manager/src/storage/models/migration.rs";
+const MIGRATION_RS_PATH: &str = "crates/component-package-manager/src/storage/models/migration.rs";
 
 /// `cargo xtask sql install` — download sqlite3def for the current platform.
 pub(crate) fn install() -> Result<()> {

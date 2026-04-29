@@ -6,9 +6,9 @@ r[cli.install.help]
 The CLI MUST provide `--help` output for the `install` command.
 
 r[install.no-manifest]
-When `wasm install` is called and no local `wasm.toml` manifest exists,
+When `component install` is called and no local `wasm.toml` manifest exists,
 the CLI MUST abort with an error indicating that `wasm.toml` was not found,
-and provide hints to run `wasm init` or `wasm registry fetch <component>`.
+and provide hints to run `component init` or `component registry fetch <component>`.
 
 r[install.wit-deps]
 When installing a component, the CLI MUST extract its WIT dependencies

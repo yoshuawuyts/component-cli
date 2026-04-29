@@ -1,11 +1,11 @@
 //! `cargo xtask serve` — build and serve the frontend with a local meta-registry.
 //!
 //! Orchestrates three steps:
-//! 1. Build `wasm-frontend` for `wasm32-wasip2`.
-//! 2. Start `wasm-meta-registry` in the background.
+//! 1. Build `component-frontend` for `wasm32-wasip2`.
+//! 2. Start `component-meta-registry` in the background.
 //! 3. Start `wasmtime serve` for the frontend component.
 //!
-//! Watches `crates/wasm-frontend/src/` for changes and automatically rebuilds
+//! Watches `crates/component-frontend/src/` for changes and automatically rebuilds
 //! and restarts only the frontend (wasmtime) — the registry stays running.
 //! On Ctrl-C both child processes are killed so no ports are left open.
 
@@ -25,7 +25,7 @@ pub(crate) fn run_serve(reindex: bool, refetch: bool) -> Result<()> {
     let root = workspace_root()?;
 
     let wasm_path = root
-        .join("target/wasm32-wasip2/debug/wasm_frontend.wasm")
+        .join("target/wasm32-wasip2/debug/component_frontend.wasm")
         .to_str()
         .expect("workspace root path is valid UTF-8")
         .to_owned();
@@ -63,7 +63,7 @@ pub(crate) fn run_serve(reindex: bool, refetch: bool) -> Result<()> {
 
     // Watch frontend source for changes.
     let fs_reload = Arc::clone(&reload);
-    let watch_path = root.join("crates/wasm-frontend/src");
+    let watch_path = root.join("crates/component-frontend/src");
     let mut watcher =
         notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
             if let Ok(event) = res
@@ -77,7 +77,7 @@ pub(crate) fn run_serve(reindex: bool, refetch: bool) -> Result<()> {
         .watch(&watch_path, RecursiveMode::Recursive)
         .context("failed to watch frontend source directory")?;
 
-    eprintln!(":: Watching crates/wasm-frontend/src/ for changes.");
+    eprintln!(":: Watching crates/component-frontend/src/ for changes.");
     eprintln!(":: Press Enter to rebuild, Ctrl-C to quit.");
 
     // Debounce: wait a short period after a change before rebuilding.
@@ -134,19 +134,19 @@ pub(crate) fn run_serve(reindex: bool, refetch: bool) -> Result<()> {
 
 /// Build the frontend component for wasm32-wasip2.
 fn build_frontend(root: &std::path::Path) -> Result<()> {
-    eprintln!(":: Building wasm-frontend for wasm32-wasip2…");
+    eprintln!(":: Building component-frontend for wasm32-wasip2…");
     let status = Command::new("cargo")
         .env("API_BASE_URL", "http://127.0.0.1:8081")
         .current_dir(root)
         .args([
             "build",
             "--package",
-            "wasm-frontend",
+            "component-frontend",
             "--target",
             "wasm32-wasip2",
         ])
         .status()
-        .context("failed to build wasm-frontend")?;
+        .context("failed to build component-frontend")?;
     if !status.success() {
         anyhow::bail!("cargo build failed with exit code: {:?}", status.code());
     }
@@ -159,7 +159,7 @@ fn start_registry(registry_dir: &str, reindex: bool, refetch: bool) -> Result<Ch
     let mut args = vec![
         "run",
         "--package",
-        "wasm-meta-registry",
+        "component-meta-registry",
         "--",
         registry_dir,
         "--bind",
@@ -174,7 +174,7 @@ fn start_registry(registry_dir: &str, reindex: bool, refetch: bool) -> Result<Ch
     Command::new("cargo")
         .args(&args)
         .spawn()
-        .context("failed to start wasm-meta-registry")
+        .context("failed to start component-meta-registry")
 }
 
 /// Start wasmtime serve for the frontend.

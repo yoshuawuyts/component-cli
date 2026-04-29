@@ -1,0 +1,7 @@
+---
+source: crates/component-tui/tests/snapshot.rs
+expression: output
+---
+┌ Test App - loading... ───────────────────────────────────┐
+│ First [1] │ Second [2] │ Third [3]                       │
+└──────────────────────────────────────────────────────────┘

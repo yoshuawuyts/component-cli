@@ -1,11 +1,11 @@
 # Architecture
 
-This document describes the high-level architecture of `wasm(1)`. If you want to
+This document describes the high-level architecture of `component(1)`. If you want to
 familiarize yourself with the codebase, you are in the right place.
 
 ## Overview
 
-`wasm(1)` is a unified developer tool for WebAssembly. It can pull and install
+`component(1)` is a unified developer tool for WebAssembly. It can pull and install
 Wasm Components and WIT interfaces from OCI registries, run components via
 Wasmtime with sandboxed permissions, and manage local state through both a CLI
 and an interactive TUI.
@@ -14,38 +14,38 @@ The project is a Cargo workspace with six crates:
 
 ```
 crates/
-├── wasm-cli              # Binary — the `wasm(1)` command
-├── wasm-package-manager  # Library — OCI registry interaction, caching, metadata
-├── wasm-manifest         # Library — manifest and lockfile types
-├── wasm-detector         # Library — local .wasm file discovery
-├── wasm-meta-registry    # Binary + library — HTTP metadata server for package search
+├── component-cli              # Binary — the `component(1)` command
+├── component-package-manager  # Library — OCI registry interaction, caching, metadata
+├── component-manifest         # Library — manifest and lockfile types
+├── component-detector         # Library — local .wasm file discovery
+├── component-meta-registry    # Binary + library — HTTP metadata server for package search
 └── xtask                 # Internal — build automation (fmt, clippy, test, SQL migrations)
 ```
 
 ## Crate Dependency Graph
 
 ```
-wasm-cli ──────────┬──► wasm-package-manager ──► wasm-manifest
+component-cli ──────────┬──► component-package-manager ──► component-manifest
                    │
-                   ├──► wasm-manifest
+                   ├──► component-manifest
                    │
-                   └──► wasm-detector
+                   └──► component-detector
 
-wasm-meta-registry ───► wasm-package-manager ──► wasm-manifest
+component-meta-registry ───► component-package-manager ──► component-manifest
 ```
 
-`wasm-cli` is the main entry point. It depends on `wasm-package-manager` for all
-registry and storage operations, on `wasm-manifest` for reading project manifests
-and lockfiles, and on `wasm-detector` for finding local `.wasm` files.
+`component-cli` is the main entry point. It depends on `component-package-manager` for all
+registry and storage operations, on `component-manifest` for reading project manifests
+and lockfiles, and on `component-detector` for finding local `.wasm` files.
 
-`wasm-meta-registry` is an independent server binary that also uses
-`wasm-package-manager` to index OCI registries and expose a search API.
+`component-meta-registry` is an independent server binary that also uses
+`component-package-manager` to index OCI registries and expose a search API.
 
 `xtask` is a development-only crate and is not depended on by any other crate.
 
-## wasm-cli
+## component-cli
 
-The `wasm(1)` binary lives in `crates/wasm-cli`. It uses [clap] for argument
+The `component(1)` binary lives in `crates/component-cli`. It uses [clap] for argument
 parsing and dispatches to one of the following command modules:
 
 | Command      | Module          | Purpose |
@@ -64,7 +64,7 @@ parsing and dispatches to one of the following command modules:
 
 ### TUI
 
-The interactive UI is built with [ratatui] and lives in `crates/wasm-cli/src/tui/`.
+The interactive UI is built with [ratatui] and lives in `crates/component-cli/src/tui/`.
 
 ```
 tui/
@@ -90,7 +90,7 @@ is `!Send`.
 
 ### Run Command and Permissions
 
-`wasm run` executes a Wasm Component using Wasmtime's WASIp2 implementation.
+`component run` executes a Wasm Component using Wasmtime's WASIp2 implementation.
 Permissions are resolved through a four-layer merge:
 
 1. **Global config** — `$XDG_CONFIG_HOME/wasm/config.toml` defaults
@@ -98,12 +98,12 @@ Permissions are resolved through a four-layer merge:
 3. **Project manifest** — `wasm.toml` per-component permissions
 4. **CLI flags** — command-line overrides (highest precedence)
 
-The `RunPermissions` type is defined in `wasm-manifest` and controls environment
+The `RunPermissions` type is defined in `component-manifest` and controls environment
 variables, directory access, stdio inheritance, and network access.
 
-## wasm-package-manager
+## component-package-manager
 
-The core library lives in `crates/wasm-package-manager`. It handles all
+The core library lives in `crates/component-package-manager`. It handles all
 interaction with OCI registries, local caching, and metadata extraction.
 
 ```
@@ -134,15 +134,15 @@ src/
 │   ├── store.rs        # SQLite operations + cacache layer caching
 │   ├── config.rs       # StateInfo (cache dirs, database path, log dir)
 │   ├── models/         # RawKnownPackage, Migrations
-│   ├── known_package.rs # KnownPackage — re-exported from wasm-meta-registry-client
+│   ├── known_package.rs # KnownPackage — re-exported from component-meta-registry-client
 │   ├── schema.sql      # Canonical database schema (source of truth)
 │   └── migrations/     # Auto-generated SQL migration files
 ```
 
-### wasm-meta-registry-client
+### component-meta-registry-client
 
 A standalone crate that provides the HTTP client for fetching package metadata
-from a `wasm-meta-registry` instance. It contains:
+from a `component-meta-registry` instance. It contains:
 
 - `KnownPackage` — the shared wire type returned by the `/v1/packages` endpoint.
 - `RegistryClient` — HTTP client with ETag-based conditional fetches and
@@ -191,9 +191,9 @@ The SQLite schema (`schema.sql`) follows a three-layer design:
 To change the schema, edit `schema.sql` and run
 `cargo xtask sql migrate --name <description>`. Never hand-write migration files.
 
-## wasm-manifest
+## component-manifest
 
-A small serialization library in `crates/wasm-manifest`. It defines the types
+A small serialization library in `crates/component-manifest`. It defines the types
 for reading and writing project manifests (`wasm.toml`) and lockfiles
 (`wasm.lock.toml`).
 
@@ -206,25 +206,25 @@ Key types:
   optional `permissions`. Bare versions use Cargo-style semver (`"1.0.0"` → `^1.0.0`).
 - **`Lockfile`** — lists resolved packages with digests for reproducible builds.
 - **`RunPermissions`** / **`ResolvedPermissions`** — sandbox controls for the
-  `wasm run` command.
+  `component run` command.
 
-## wasm-detector
+## component-detector
 
-A small library in `crates/wasm-detector` that finds `.wasm` files in a
+A small library in `crates/component-detector` that finds `.wasm` files in a
 directory tree. It uses the [ignore] crate to respect `.gitignore` rules and
 also scans well-known directories (`target/wasm32-*`, `pkg/`, `dist/`) that
 may be git-ignored.
 
 [ignore]: https://docs.rs/ignore
 
-## wasm-meta-registry
+## component-meta-registry
 
-An HTTP server in `crates/wasm-meta-registry` that indexes OCI registries and
+An HTTP server in `crates/component-meta-registry` that indexes OCI registries and
 exposes a search API. It consists of:
 
 - **`config.rs`** — per-namespace TOML registry file parsing and configuration.
 - **`indexer.rs`** — background thread that periodically syncs package metadata
-  using `wasm-package-manager::Manager`.
+  using `component-package-manager::Manager`.
 - **`server.rs`** — [axum] HTTP router with search endpoints.
 
 [axum]: https://docs.rs/axum
@@ -239,7 +239,7 @@ the full CI suite:
 3. `cargo clippy` — lint check (with `-D warnings`)
 4. `cargo fmt --check` — formatting check
 5. `cargo xtask sql check` — verify migrations are in sync with `schema.sql`
-6. README freshness check — ensures `README.md` matches `wasm --help` output
+6. README freshness check — ensures `README.md` matches `component --help` output
 
 [cargo-nextest]: https://nexte.st
 

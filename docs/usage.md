@@ -7,13 +7,13 @@ This guide covers basic usage patterns for `wasm(1)`, a unified developer tool f
 ### Shell (Linux / macOS)
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/yoshuawuyts/wasm-cli/releases/latest/download/install.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/yoshuawuyts/component-cli/releases/latest/download/install.sh | sh
 ```
 
 ### PowerShell (Windows)
 
 ```powershell
-irm https://github.com/yoshuawuyts/wasm-cli/releases/latest/download/install.ps1 | iex
+irm https://github.com/yoshuawuyts/component-cli/releases/latest/download/install.ps1 | iex
 ```
 
 ### From crates.io
@@ -43,7 +43,7 @@ cargo add wasm
 Launch the interactive terminal user interface:
 
 ```bash
-wasm
+component
 ```
 
 The TUI provides:
@@ -62,23 +62,23 @@ Download a package from a registry:
 
 ```bash
 # Pull from GitHub Container Registry
-wasm package pull ghcr.io/example/my-component:latest
+component package pull ghcr.io/example/my-component:latest
 
 # Pull from Docker Hub
-wasm package pull myuser/my-component:v1.0.0
+component package pull myuser/my-component:v1.0.0
 
 # Pull from a custom registry
-wasm package pull registry.example.com/org/component:tag
+component package pull registry.example.com/org/component:tag
 ```
 
-The package is stored locally in content-addressable storage and can be listed with `wasm package list`.
+The package is stored locally in content-addressable storage and can be listed with `component package list`.
 
 ### Pushing Packages
 
 Push a local package to a registry:
 
 ```bash
-wasm package push ghcr.io/myuser/my-component:v1.0.0
+component package push ghcr.io/myuser/my-component:v1.0.0
 ```
 
 **Note**: You must be authenticated to push packages. See [Authentication](authentication.md) for details.
@@ -88,7 +88,7 @@ wasm package push ghcr.io/myuser/my-component:v1.0.0
 View all locally stored packages:
 
 ```bash
-wasm package list
+component package list
 ```
 
 This shows:
@@ -105,7 +105,7 @@ This shows:
 Detect Wasm files in the current directory:
 
 ```bash
-wasm local list
+component local list
 ```
 
 This recursively scans for `.wasm` files and displays:
@@ -122,7 +122,7 @@ The detector respects `.gitignore` rules and standard ignore patterns.
 Examine a Wasm component file:
 
 ```bash
-wasm inspect file.wasm
+component inspect file.wasm
 ```
 
 This displays:
@@ -146,7 +146,7 @@ For more detailed information, the inspect command shows:
 Check storage location and usage:
 
 ```bash
-wasm self state
+component self state
 ```
 
 Displays:
@@ -160,7 +160,7 @@ Displays:
 Clean up unused content and optimize storage:
 
 ```bash
-wasm self clean
+component self clean
 ```
 
 This operation:
@@ -174,25 +174,25 @@ This operation:
 
 1. Search for packages (coming soon) or use the TUI
 2. Pull interesting packages to inspect them
-3. Examine with `wasm inspect` or the TUI
+3. Examine with `component inspect` or the TUI
 
 ### Publishing a Package
 
 1. Build your Wasm component
 2. Authenticate with your registry (see [Authentication](authentication.md))
-3. Push with `wasm package push registry.example.com/myorg/component:v1.0.0`
+3. Push with `component package push registry.example.com/myorg/component:v1.0.0`
 
 ### Managing Local Development
 
-1. Use `wasm local list` to discover Wasm files in your project
-2. Inspect components with `wasm inspect`
+1. Use `component local list` to discover Wasm files in your project
+2. Inspect components with `component inspect`
 3. Test components locally before publishing
 
 ### Cleaning Up After Development
 
-1. Run `wasm self state` to check storage usage
+1. Run `component self state` to check storage usage
 2. Remove unused packages manually or with future commands
-3. Run `wasm self clean` to reclaim space
+3. Run `component self clean` to reclaim space
 
 ## Package Reference Format
 
@@ -226,14 +226,14 @@ Each command and subcommand has built-in help:
 
 ```bash
 # Top-level help
-wasm --help
+component --help
 
 # Subcommand help
-wasm package --help
-wasm package pull --help
+component package --help
+component package pull --help
 
 # Self commands
-wasm self --help
+component self --help
 ```
 
 ## Tips and Tricks
@@ -244,23 +244,23 @@ Generate shell completions for your preferred shell (user-local paths shown):
 
 ```bash
 # Bash
-wasm self completions bash > ~/.local/share/bash-completion/completions/wasm
+component self completions bash > ~/.local/share/bash-completion/completions/component
 
 # Zsh
-wasm self completions zsh > ~/.zfunc/_wasm
+component self completions zsh > ~/.zfunc/_component
 
 # Fish
-wasm self completions fish > ~/.config/fish/completions/wasm.fish
+component self completions fish > ~/.config/fish/completions/component.fish
 ```
 
 ### Man Pages
 
 Generate man pages for offline documentation. A user-local path is shown below;
-for system-wide installation, use `sudo` and `/usr/local/share/man/man1/wasm.1`.
+for system-wide installation, use `sudo` and `/usr/local/share/man/man1/component.1`.
 
 ```bash
 mkdir -p ~/.local/share/man/man1
-wasm self man-pages > ~/.local/share/man/man1/wasm.1
+component self man-pages > ~/.local/share/man/man1/component.1
 man wasm
 ```
 
@@ -269,9 +269,9 @@ man wasm
 The CLI supports colored output via the `--color` flag:
 
 ```bash
-wasm --color auto ...     # automatic color (default)
-wasm --color always ...   # always use color
-wasm --color never ...    # never use color
+component --color auto ...     # automatic color (default)
+component --color always ...   # always use color
+component --color never ...    # never use color
 ```
 
 Color output can also be controlled via environment variables:
@@ -285,22 +285,22 @@ Color output can also be controlled via environment variables:
 Combine commands to quickly pull and inspect:
 
 ```bash
-wasm package pull ghcr.io/example/component:latest
-wasm inspect ~/.local/share/wasm/store/content/<digest>
+component package pull ghcr.io/example/component:latest
+component inspect ~/.local/share/wasm/store/content/<digest>
 ```
 
 ### Finding Package Content
 
-After pulling a package, use `wasm package list` to find its digest, then access content in the store directory.
+After pulling a package, use `component package list` to find its digest, then access content in the store directory.
 
 ### Using with CI/CD
 
 In CI/CD pipelines:
 
 1. Authenticate using `docker login` or similar
-2. Use `wasm package pull` to retrieve dependencies
-3. Use `wasm package push` to publish artifacts
-4. Use `wasm self clean` to manage storage between builds
+2. Use `component package pull` to retrieve dependencies
+3. Use `component package push` to publish artifacts
+4. Use `component self clean` to manage storage between builds
 
 ## Troubleshooting
 
@@ -314,8 +314,8 @@ If pulling fails with "not found":
 ### Storage Issues
 
 If you encounter storage errors:
-- Run `wasm self state` to check space
-- Run `wasm self clean` to free up space
+- Run `component self state` to check space
+- Run `component self clean` to free up space
 - Check filesystem permissions on `~/.local/share/wasm`
 
 ### Network Errors
@@ -335,7 +335,7 @@ For network-related failures:
 
 ### Workspace Layout
 
-Running `wasm init` creates a workspace that includes composition directories:
+Running `component init` creates a workspace that includes composition directories:
 
 ```text
 my-workspace/
@@ -355,22 +355,22 @@ my-workspace/
 declarative language for composing Wasm components. Place `.wac` files in the
 `seams/` directory to define how components are wired together.
 
-### `wasm compose`
+### `component compose`
 
 Compose Wasm components from WAC scripts:
 
 ```bash
 # Compose a named WAC file (looks for seams/my-composition.wac)
-wasm compose my-composition
+component compose my-composition
 
 # Compose all WAC files in seams/
-wasm compose
+component compose
 
 # Use dynamic linking (import dependencies instead of embedding)
-wasm compose my-composition --linker=dynamic
+component compose my-composition --linker=dynamic
 
 # Specify output directory
-wasm compose my-composition -o output/
+component compose my-composition -o output/
 ```
 
 ### Package Resolution

@@ -37,7 +37,7 @@ For detailed guidelines, examples, and a review workflow see the `code-quality` 
 
 ## Database Schema Changes
 
-When changing the database schema, edit `crates/wasm-package-manager/src/storage/schema.sql`
+When changing the database schema, edit `crates/component-package-manager/src/storage/schema.sql`
 then run `cargo xtask sql migrate --name <description>`. Never hand-write migration files.
 
 Run `cargo xtask sql check` (or `cargo xtask test`) to verify migrations are in sync

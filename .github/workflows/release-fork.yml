@@ -41,7 +41,7 @@ jobs:
           targets: ${{ matrix.cross && matrix.target || '' }}
 
       - name: Run sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Set sccache env vars
         shell: bash
@@ -50,25 +50,25 @@ jobs:
           echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
 
       - name: Build release binary
-        run: cargo build --release --package wasm ${{ matrix.cross && format('--target {0}', matrix.target) || '' }}
+        run: cargo build --release --package component ${{ matrix.cross && format('--target {0}', matrix.target) || '' }}
 
       - name: Package binary (unix)
         if: matrix.archive == 'tar.gz'
         run: |
           BIN_DIR=${{ matrix.cross && format('target/{0}/release', matrix.target) || 'target/release' }}
-          tar czf wasm-${{ matrix.target }}.tar.gz -C "$BIN_DIR" wasm
+          tar czf component-${{ matrix.target }}.tar.gz -C "$BIN_DIR" component
 
       - name: Package binary (windows)
         if: matrix.archive == 'zip'
         shell: pwsh
         run: |
-          Compress-Archive -Path target/release/wasm.exe -DestinationPath wasm-${{ matrix.target }}.zip
+          Compress-Archive -Path target/release/component.exe -DestinationPath component-${{ matrix.target }}.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: wasm-${{ matrix.target }}
-          path: wasm-${{ matrix.target }}.${{ matrix.archive }}
+          name: component-${{ matrix.target }}
+          path: component-${{ matrix.target }}.${{ matrix.archive }}
 
   release:
     name: Create GitHub Release

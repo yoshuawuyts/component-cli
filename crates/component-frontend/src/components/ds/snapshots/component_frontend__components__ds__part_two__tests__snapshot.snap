@@ -1,0 +1,19 @@
+---
+source: crates/component-frontend/src/components/ds/part_two.rs
+expression: "crate::components::ds::pretty_html(&render(\"Part Two\", \"Components\",\n\"Composed patterns built from the foundations above. Each component documents its anchor markup and the variants it supports.\",))"
+---
+<div class="mt-24 mb-2 flex items-baseline gap-3">
+  <span class="text-[11px] mono uppercase tracking-wider text-ink-500">
+    Part Two
+  </span>
+  <span class="h-px flex-1 bg-line-soft" style="background:var(--c-line-soft)">
+  </span>
+</div>
+<h2 class="text-[28px] md:text-[32px] font-semibold tracking-tight">
+  Components
+</h2>
+<p class="mt-2 max-w-2xl text-[14px] text-ink-700 leading-relaxed">
+  Composed patterns built from the foundations above. Each component documents its anchor markup and the variants it supports.
+</p>
+<div class="mt-6 border-t rule">
+</div>

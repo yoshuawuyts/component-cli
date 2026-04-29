@@ -1,0 +1,42 @@
+[package]
+name = "component-frontend"
+description = "A server-side rendered web frontend for the WebAssembly package registry"
+readme = "README.md"
+repository = { workspace = true }
+documentation = { workspace = true }
+version = { workspace = true }
+license = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+categories = { workspace = true }
+keywords = { workspace = true }
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+anyhow = { workspace = true }
+axum = { version = "0.8", default-features = false, features = [
+    "json",
+    "query",
+] }
+html = { workspace = true }
+pulldown-cmark = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+semver = { workspace = true }
+wit-parser = { workspace = true }
+wstd = { workspace = true }
+wstd-axum = { workspace = true }
+
+[target.'cfg(all(target_os = "wasi", target_env = "p2"))'.dependencies]
+component-meta-registry-client = { workspace = true }
+
+[target.'cfg(not(all(target_os = "wasi", target_env = "p2")))'.dependencies]
+component-meta-registry-client = { workspace = true, features = ["client"] }
+[dev-dependencies]
+insta = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

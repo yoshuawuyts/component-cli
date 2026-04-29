@@ -13,7 +13,7 @@ The run command MUST report a clear error when the target file does not exist.
 
 r[run.not-installed]
 When the input looks like a manifest key (`scope:component` syntax) but is not
-listed in `[components]` in `wasm.toml`, the run command MUST auto-install it
+listed in `[dependencies.components]` in `wasm.toml`, the run command MUST auto-install it
 into the local project. This creates `wasm.toml` and `wasm.lock.toml` (along
 with the standard `vendor/` directories) when they are not already present,
 fetches the component from the registry, vendors it under `vendor/wasm/`, and
@@ -21,9 +21,11 @@ records the resulting entries in the manifest and lockfile before executing
 the component.
 
 r[run.not-installed.global-bypass]
-When the `--global/-g` flag is set, the run command MUST bypass local
-installation and run the component from the global cache instead, fetching
-from the registry on demand when the component is not already cached.
+When the `--global/-g` flag is set for an input that looks like a manifest
+key (`scope:component` syntax) but is not listed in `[dependencies.components]` in
+`wasm.toml`, the run command MUST bypass local installation and run the
+component from the global cache instead, fetching from the registry on demand
+when the component is not already cached.
 
 r[run.oci-layer-lookup]
 When running an OCI reference, the run command MUST retrieve the component

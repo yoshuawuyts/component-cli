@@ -1,0 +1,72 @@
+---
+source: crates/component-frontend/src/components/ds/footer.rs
+expression: "crate::components::ds::pretty_html(&html)"
+---
+<footer class="col-span-full">
+  <div class="max-w-[1280px] mx-auto w-full px-4 md:px-8 py-10 grid grid-cols-2 md:grid-cols-[2fr_1fr_1fr_1fr] gap-x-8 gap-y-6 text-[13px]">
+    <div class="col-span-2 md:col-span-1 flex flex-col">
+      <div class="text-[15px] font-semibold tracking-tight">
+        component
+      </div>
+      <p class="mt-3 max-w-xs text-ink-500 leading-relaxed">
+        The package manager for WebAssembly Components.
+      </p>
+      <div class="mt-auto pt-6 text-[12px] text-ink-500 mono inline-flex items-center gap-2">
+        <span class="h-1.5 w-1.5 rounded-full bg-positive">
+        </span>
+        All systems operational
+      </div>
+    </div>
+    <div>
+      <div class="text-[12px] mono uppercase tracking-wider text-ink-500">
+        Browse
+      </div>
+      <ul class="mt-3 space-y-2 text-ink-700">
+        <li>
+          <a href="/packages" class="hover:text-ink-900 no-underline">
+            Packages
+          </a>
+        </li>
+        <li>
+          <a href="/categories" class="hover:text-ink-900 no-underline">
+            Categories
+          </a>
+        </li>
+      </ul>
+    </div>
+    <div>
+      <div class="text-[12px] mono uppercase tracking-wider text-ink-500">
+        Community
+      </div>
+      <ul class="mt-3 space-y-2 text-ink-700">
+        <li>
+          <a href="https://github.com/yoshuawuyts/component-cli" class="hover:text-ink-900 no-underline">
+            GitHub
+          </a>
+        </li>
+        <li>
+          <a href="/spec" class="hover:text-ink-900 no-underline">
+            Spec
+          </a>
+        </li>
+      </ul>
+    </div>
+    <div>
+      <div class="text-[12px] mono uppercase tracking-wider text-ink-500">
+        Legal
+      </div>
+      <ul class="mt-3 space-y-2 text-ink-700">
+        <li>
+          <a href="/privacy" class="hover:text-ink-900 no-underline">
+            Privacy
+          </a>
+        </li>
+        <li>
+          <a href="/terms" class="hover:text-ink-900 no-underline">
+            Terms
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</footer>

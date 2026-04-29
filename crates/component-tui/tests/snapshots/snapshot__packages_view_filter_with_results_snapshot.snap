@@ -1,0 +1,16 @@
+---
+source: crates/component-tui/tests/snapshot.rs
+expression: output
+---
+┌ Filter ──────────────────────────────────────────────────────────────────────────────────────────┐
+│wasi                                                                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+Repository                 Registry             Tag             Size         Digest
+bytecode-alliance/wasi-htt ghcr.io              v0.2.0          256.00 KB    wasi123
+
+
+
+
+
+
+ /  Filter   p  Pull   d  Delete   Enter  View details   Esc  Clear
