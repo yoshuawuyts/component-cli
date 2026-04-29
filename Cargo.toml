@@ -11,6 +11,7 @@ members = [
     "crates/component-meta-registry-types",
     "crates/component-package-manager",
     "crates/component-detector",
+    "crates/wit-clap",
     "crates/xtask",
 ]
 exclude = [
@@ -92,6 +93,7 @@ component-meta-registry-types = { path = "crates/component-meta-registry-types",
 component-package-manager = { path = "crates/component-package-manager", version = "0.3.0" }
 component-cli-internal-run = { path = "crates/component-cli-internal-run", version = "0.3.0" }
 component-detector = { path = "crates/component-detector", version = "0.3.0" }
+wit-clap = { path = "crates/wit-clap", version = "0.3.0" }
 
 # shared dependencies
 anyhow = "1.0.100"

@@ -48,13 +48,13 @@ pub enum RunError {
     #[diagnostic(
         code(component::run::library_instantiation_failed),
         help(
-            "the component imports a WIT package the runner does not provide; \
+            "{cause}; the component imports a WIT package the runner does not provide; \
              check the component's WIT for unsupported imports"
         )
     )]
     LibraryInstantiationFailed {
         /// The underlying wasmtime error message.
-        reason: String,
+        cause: String,
     },
 }
 
@@ -76,10 +76,10 @@ impl std::fmt::Display for RunError {
             RunError::LibraryExportMissing { path } => {
                 write!(f, "component has no export named `{path}`")
             }
-            RunError::LibraryInstantiationFailed { reason } => {
+            RunError::LibraryInstantiationFailed { cause } => {
                 write!(
                     f,
-                    "failed to instantiate component (missing or unsupported import): {reason}"
+                    "failed to instantiate component (missing or unsupported import): {cause}"
                 )
             }
         }
@@ -106,7 +106,7 @@ mod tests {
                 path: "foo".to_string(),
             }),
             Box::new(RunError::LibraryInstantiationFailed {
-                reason: "missing import".to_string(),
+                cause: "missing import".to_string(),
             }),
         ];
 

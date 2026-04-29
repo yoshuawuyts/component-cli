@@ -1,0 +1,120 @@
+---
+source: crates/wit-clap/tests/snapshots.rs
+expression: rendered
+---
+=== WIT surface ===
+surface (5 items)
+├─ func shout
+│  params:
+│    s: string
+│  results:
+│    string
+├─ func greet
+│  params:
+│    person: record { name: string, age: u32 }
+│  results:
+│    string
+├─ func pick
+│  params:
+│    c: variant { red, green, blue(string) }
+│  results:
+│    string
+├─ func fail
+│  params:
+│    reason: string
+│  results:
+│    result<string, string>
+└─ interface math
+   ├─ func add
+   │  params:
+   │    a: s32
+   │    b: s32
+   │  results:
+   │    s32
+   └─ func sum
+      params:
+        xs: list<s32>
+      results:
+        s32
+
+=== Generated CLI ===
+$ <program> --help
+Dynamically dispatch to a library-style component.
+
+Usage: <program> <COMMAND>
+
+Commands:
+  shout  
+  greet  
+  pick   
+  fail   
+  math   
+  help   Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+
+$ <program> shout --help
+Usage: shout <s>
+
+Arguments:
+  <s>  parameter `s`
+
+Options:
+  -h, --help  Print help
+
+$ <program> greet --help
+Usage: greet --name <name> --age <age>
+
+Options:
+      --name <name>  field `name` of `person`
+      --age <age>    field `age` of `person`
+  -h, --help         Print help
+
+$ <program> pick --help
+Usage: pick <c>
+
+Arguments:
+  <c>  parameter `c` [possible values: red, green, blue]
+
+Options:
+  -h, --help  Print help
+
+$ <program> fail --help
+Usage: fail <reason>
+
+Arguments:
+  <reason>  parameter `reason`
+
+Options:
+  -h, --help  Print help
+
+$ <program> math --help
+Usage: math <COMMAND>
+
+Commands:
+  add   
+  sum   
+  help  Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+
+$ <program> math add --help
+Usage: add <a> <b>
+
+Arguments:
+  <a>  parameter `a`
+  <b>  parameter `b`
+
+Options:
+  -h, --help  Print help
+
+$ <program> math sum --help
+Usage: sum [xs]...
+
+Arguments:
+  [xs]...  list parameter `xs`
+
+Options:
+  -h, --help  Print help

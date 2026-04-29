@@ -6,12 +6,17 @@ use std::collections::BTreeSet;
 use clap::{Arg, ArgAction, ArgMatches, Command, value_parser};
 use wasmtime::component::Val;
 
-use super::wit::{FuncDecl, FuncPath, LibraryItem, LibrarySurface, ParamDecl, WitTy};
+use crate::wit::{FuncDecl, FuncPath, LibraryItem, LibrarySurface, ParamDecl, WitTy};
 
 /// A fully-parsed user invocation, ready to hand off to wasmtime.
 #[derive(Debug)]
-pub(crate) struct Invocation {
+#[must_use]
+pub struct Invocation {
+    /// Logical path to the function: an optional interface
+    /// (`Some("namespace:pkg/iface@version")`) plus the function
+    /// name.
     pub path: FuncPath,
+    /// Arguments to pass to wasmtime, in WIT-declaration order.
     pub args: Vec<Val>,
     /// Result types expected by the WIT signature. The runtime
     /// returns one [`Val`] per entry; the wire-up uses this to
@@ -24,31 +29,45 @@ pub(crate) struct Invocation {
 /// [`clap::Command`] or when parsing user input back into an
 /// [`Invocation`].
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum CliError {
+#[non_exhaustive]
+pub enum CliError {
     /// A type at this point in the surface cannot be expressed as a
     /// CLI argument (resource handles or unsupported compounds).
     #[error("unsupported argument type for `{param}`: {reason}")]
-    UnsupportedArg { param: String, reason: String },
+    UnsupportedArg {
+        /// Name of the parameter whose type we couldn't express.
+        param: String,
+        /// Human-readable explanation of why.
+        reason: String,
+    },
     /// Two record fields in the same function would map to the same
     /// `--flag` name even after prefixing.
     #[error("argument flag `--{flag}` collides between two parameters")]
-    FlagCollision { flag: String },
+    FlagCollision {
+        /// The colliding flag name (without leading dashes).
+        flag: String,
+    },
     /// User supplied a value that doesn't parse as the expected type.
     #[error("invalid value for `{param}`: {reason}")]
-    InvalidValue { param: String, reason: String },
+    InvalidValue {
+        /// Name of the parameter whose value didn't parse.
+        param: String,
+        /// Human-readable parse-error message.
+        reason: String,
+    },
     /// User asked for a function that the surface doesn't expose.
     #[error("no such export: {path}")]
-    UnknownFunc { path: String },
+    UnknownFunc {
+        /// The export path the user requested.
+        path: String,
+    },
 }
 
 /// Build a top-level `clap::Command` representing every export of
 /// `surface` as a sub-command tree.
 // r[impl run.library-help]
 // r[impl run.library-dispatch]
-pub(crate) fn build_clap(
-    surface: &LibrarySurface,
-    program_name: &str,
-) -> Result<Command, CliError> {
+pub fn build_clap(surface: &LibrarySurface, program_name: &str) -> Result<Command, CliError> {
     let mut root = Command::new(program_name.to_string())
         .about("Dynamically dispatch to a library-style component.")
         .subcommand_required(true)
@@ -333,7 +352,7 @@ fn debug_kind(ty: &WitTy) -> &'static str {
 /// Parse a top-level [`ArgMatches`] back into an [`Invocation`] for
 /// `surface`.
 // r[impl run.library-args]
-pub(crate) fn parse_invocation(
+pub fn parse_invocation(
     matches: &ArgMatches,
     surface: &LibrarySurface,
 ) -> Result<Invocation, CliError> {

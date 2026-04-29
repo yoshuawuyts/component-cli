@@ -13,7 +13,10 @@ use wasmtime::component::Val;
 /// Result of rendering: a process exit code (0 for success, 1 when
 /// the guest returned `result::Err`).
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct RenderOutcome {
+#[must_use]
+pub struct RenderOutcome {
+    /// Exit code the caller should use. `0` on success, `1` if any
+    /// rendered value was a `result::Err`.
     pub exit_code: i32,
 }
 
@@ -23,7 +26,7 @@ pub(crate) struct RenderOutcome {
 // r[impl run.library-output-bytes]
 // r[impl run.library-output-other]
 // r[impl run.library-result-err]
-pub(crate) fn print_results(
+pub fn print_results(
     results: &[Val],
     stdout: &mut impl Write,
     stderr: &mut impl Write,
@@ -118,10 +121,10 @@ fn render_to_stderr(val: &Val, stderr: &mut impl Write) -> std::io::Result<()> {
     match val {
         // Recurse through option/result wrappers so a
         // `result<_, option<string>>` errors render cleanly.
-        Val::Option(Some(inner)) => render_to_stderr(inner, stderr),
-        Val::Option(None) => Ok(()),
-        Val::Result(Ok(Some(inner)) | Err(Some(inner))) => render_to_stderr(inner, stderr),
-        Val::Result(Ok(None) | Err(None)) => Ok(()),
+        Val::Option(Some(inner)) | Val::Result(Ok(Some(inner)) | Err(Some(inner))) => {
+            render_to_stderr(inner, stderr)
+        }
+        Val::Option(None) | Val::Result(Ok(None) | Err(None)) => Ok(()),
         other => {
             let json = val_to_json(other);
             let s = serde_json::to_string_pretty(&json)
@@ -133,6 +136,11 @@ fn render_to_stderr(val: &Val, stderr: &mut impl Write) -> std::io::Result<()> {
 
 /// Return the Display representation of a scalar [`Val`], or
 /// `None` if `val` is not a scalar.
+//
+// Each arm intentionally binds a different concrete numeric type;
+// `clippy::match_same_arms` would only be silenced by erasing the
+// type annotation we rely on for `Display`.
+#[allow(clippy::match_same_arms)]
 fn format_scalar(val: &Val) -> Option<String> {
     match val {
         Val::Bool(b) => Some(b.to_string()),
@@ -157,6 +165,10 @@ fn all_u8(vals: &[Val]) -> bool {
 
 /// Convert a [`Val`] tree into a [`serde_json::Value`] for compound
 /// rendering. Best-effort — resources and futures become null.
+//
+// Each numeric arm binds a different concrete type for `From<T> for
+// serde_json::Value`; merging them with `|` is impossible.
+#[allow(clippy::match_same_arms)]
 fn val_to_json(val: &Val) -> Value {
     match val {
         Val::Bool(b) => Value::Bool(*b),

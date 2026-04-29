@@ -54,7 +54,7 @@ wasmtime-wasi = { workspace = true }
 wasmtime-wasi-http = { workspace = true }
 hyper = { workspace = true }
 thiserror = { workspace = true }
-wit-parser = { workspace = true }
+wit-clap = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
@@ -65,6 +65,7 @@ component-detector = { workspace = true }
 wasm-encoder = "0.248"
 component-package-manager = { workspace = true }
 wit-component = { workspace = true }
+wit-parser = { workspace = true }
 
 [lints]
 workspace = true

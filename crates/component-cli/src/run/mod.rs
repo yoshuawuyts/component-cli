@@ -12,7 +12,6 @@
 
 mod errors;
 mod http;
-mod library;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -24,7 +23,7 @@ use component_manifest::RunPermissions;
 use component_package_manager::manager::Manager;
 use wasmparser::{Parser, Payload};
 
-use library::{
+use wit_clap::{
     LibraryExtractError, build_clap, extract_library_surface, parse_invocation, print_results,
 };
 

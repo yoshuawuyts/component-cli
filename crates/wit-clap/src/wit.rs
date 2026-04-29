@@ -10,7 +10,7 @@ use wit_parser::{Resolve, Type, TypeDefKind, WorldItem, WorldKey};
 
 /// Logical path to a single exported function on a component.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct FuncPath {
+pub struct FuncPath {
     /// `Some(name)` when the function lives inside a nested
     /// interface export; `None` for free world-level exports.
     pub interface: Option<String>,
@@ -27,43 +27,70 @@ pub(crate) struct FuncPath {
 /// them in the order they were declared.
 // r[impl run.library-args]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum WitTy {
+#[non_exhaustive]
+pub enum WitTy {
+    /// `bool`
     Bool,
+    /// `s8`
     S8,
+    /// `s16`
     S16,
+    /// `s32`
     S32,
+    /// `s64`
     S64,
+    /// `u8`
     U8,
+    /// `u16`
     U16,
+    /// `u32`
     U32,
+    /// `u64`
     U64,
+    /// `f32`
     F32,
+    /// `f64`
     F64,
+    /// `char`
     Char,
+    /// `string`
     String,
+    /// `list<T>`
     List(Box<WitTy>),
+    /// `option<T>`
     Option(Box<WitTy>),
+    /// `result<T, E>` (either side may be absent).
     Result {
+        /// The success-payload type, or `None` for `result<_, E>`.
         ok: Option<Box<WitTy>>,
+        /// The error-payload type, or `None` for `result<T, _>`.
         err: Option<Box<WitTy>>,
     },
+    /// `record { name: type, ... }` — fields preserved in WIT
+    /// declaration order.
     Record(Vec<(String, WitTy)>),
+    /// `variant { case, case(payload), ... }`.
     Variant(Vec<(String, Option<Box<WitTy>>)>),
+    /// `enum { case-a, case-b, ... }`.
     Enum(Vec<String>),
+    /// `flags { flag-a, flag-b, ... }`.
     Flags(Vec<String>),
+    /// `tuple<T1, T2, ...>`.
     Tuple(Vec<WitTy>),
 }
 
 /// A single function parameter.
 #[derive(Debug, Clone)]
-pub(crate) struct ParamDecl {
+pub struct ParamDecl {
+    /// Parameter name as declared in the WIT.
     pub name: String,
+    /// Parameter type.
     pub ty: WitTy,
 }
 
 /// A single function result. Currently unnamed.
 #[derive(Debug, Clone)]
-pub(crate) struct ResultDecl {
+pub struct ResultDecl {
     /// Type of the result. Used by the wire-up to validate the
     /// number of returned values matches the declared signature
     /// and to drive future type-aware error messages.
@@ -72,20 +99,23 @@ pub(crate) struct ResultDecl {
 
 /// A single exported function.
 #[derive(Debug, Clone)]
-pub(crate) struct FuncDecl {
+pub struct FuncDecl {
+    /// Function name as declared in the WIT.
     pub name: String,
     /// Doc-comment, used as the clap `about` text.
     pub doc: Option<String>,
+    /// Parameters in declaration order.
     pub params: Vec<ParamDecl>,
     /// Function results, used to populate
-    /// [`Invocation::expected_results`] for runtime sanity
+    /// [`crate::Invocation::expected_results`] for runtime sanity
     /// checks.
     pub results: Vec<ResultDecl>,
 }
 
 /// A top-level item in the library surface.
 #[derive(Debug, Clone)]
-pub(crate) enum LibraryItem {
+#[non_exhaustive]
+pub enum LibraryItem {
     /// Free function exported at the world level.
     Func(FuncDecl),
     /// An exported interface containing one or more functions.
@@ -96,21 +126,25 @@ pub(crate) enum LibraryItem {
         /// (`namespace:pkg/iface@version`). May equal `name` when the
         /// interface was declared inline at the world level.
         export_name: String,
+        /// Doc-comment declared on the interface, if any.
         doc: Option<String>,
+        /// Functions exported by the interface, in WIT order.
         funcs: Vec<FuncDecl>,
     },
 }
 
 /// The full set of dynamically-dispatchable exports of a component.
 #[derive(Debug, Clone)]
-pub(crate) struct LibrarySurface {
+#[must_use]
+pub struct LibrarySurface {
     /// Top-level items (functions and interfaces).
     pub items: Vec<LibraryItem>,
 }
 
 /// Errors raised when we cannot extract a usable surface.
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum LibraryExtractError {
+#[non_exhaustive]
+pub enum LibraryExtractError {
     /// The component bytes could not be decoded as a WIT-bearing
     /// component.
     #[error("failed to decode component WIT: {0}")]
@@ -130,12 +164,16 @@ pub(crate) enum LibraryExtractError {
     /// A WIT type kind we don't support yet (futures, streams,
     /// error-context, owned/borrowed handles).
     #[error("unsupported WIT type kind: {kind}")]
-    UnsupportedKind { kind: &'static str },
+    UnsupportedKind {
+        /// Human-readable label for the unsupported kind
+        /// (`"future"`, `"stream"`, `"map"`, etc.).
+        kind: &'static str,
+    },
 }
 
 /// Decode `bytes` and walk the world's exports into a
 /// [`LibrarySurface`].
-pub(crate) fn extract_library_surface(bytes: &[u8]) -> Result<LibrarySurface, LibraryExtractError> {
+pub fn extract_library_surface(bytes: &[u8]) -> Result<LibrarySurface, LibraryExtractError> {
     let decoded = decode(bytes).map_err(|e| LibraryExtractError::Decode(e.to_string()))?;
     let (resolve, world_id) = match decoded {
         DecodedWasm::Component(r, w) => (r, w),

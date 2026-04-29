@@ -217,7 +217,7 @@ pub fn execute_library_function(
 
     let instance = linker.instantiate(&mut store, &component).map_err(|e| {
         RunError::LibraryInstantiationFailed {
-            reason: format!("{e:#}"),
+            cause: format!("{e:#}"),
         }
     })?;
 

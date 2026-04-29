@@ -191,6 +191,12 @@ This operation:
   above. The component's WIT exports are translated into a `clap`
   sub-CLI on the fly.
 
+The WIT → CLI mapping is implemented by the
+[`wit-clap`](../crates/wit-clap) crate. Its
+[`tests/snapshots/`](../crates/wit-clap/tests/snapshots) directory
+contains the canonical, end-user-facing spec for how each WIT type
+translates into a CLI argument — one snapshot per shipped fixture.
+
 ### A worked example
 
 Given a component with this WIT:
