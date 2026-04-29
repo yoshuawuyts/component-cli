@@ -4,7 +4,7 @@
 use crate::entities::{component_target, oci_layer, oci_manifest, wasm_component, wit_world};
 use sea_orm_migration::prelude::*;
 
-#[derive(DeriveMigrationName)]
+#[derive(Debug, DeriveMigrationName)]
 pub struct Migration;
 
 #[async_trait::async_trait]

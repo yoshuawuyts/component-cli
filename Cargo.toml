@@ -10,15 +10,10 @@ members = [
     "crates/component-meta-registry-client",
     "crates/component-meta-registry-types",
     "crates/component-package-manager",
+    "crates/component-package-manager-migration",
     "crates/component-detector",
     "crates/xtask",
 ]
-# `crates/component-package-manager-migration` is intentionally NOT a workspace
-# member during the SeaORM port. SeaORM's sqlx-sqlite and rusqlite both link
-# `sqlite3` (libsqlite3-sys), and Cargo enforces this constraint workspace-wide.
-# The migration crate participates in the workspace once `rusqlite` is removed
-# (Phase 4 of the SeaORM port).
-exclude = ["crates/component-package-manager-migration"]
 
 [workspace.package]
 version = "0.3.0"
@@ -87,6 +82,7 @@ component-meta-registry = { path = "crates/component-meta-registry", version = "
 component-meta-registry-client = { path = "crates/component-meta-registry-client", version = "0.3.0", default-features = false }
 component-meta-registry-types = { path = "crates/component-meta-registry-types", version = "0.3.0" }
 component-package-manager = { path = "crates/component-package-manager", version = "0.3.0" }
+component-package-manager-migration = { path = "crates/component-package-manager-migration", version = "0.3.0" }
 component-cli-internal-run = { path = "crates/component-cli-internal-run", version = "0.3.0" }
 component-detector = { path = "crates/component-detector", version = "0.3.0" }
 
@@ -143,7 +139,21 @@ cacache = { version = "13.1.0", features = [
     "tokio-stream",
 ], default-features = false }
 pubgrub = "0.4"
-rusqlite = { version = "0.39.0", features = ["bundled"] }
+# SeaORM 2.0 RC.
+sea-orm = { version = "=2.0.0-rc.38", default-features = false, features = [
+    "runtime-tokio-rustls",
+    "sqlx-sqlite",
+    "sqlx-postgres",
+    "macros",
+    "with-chrono",
+] }
+sea-orm-migration = { version = "=2.0.0-rc.38", default-features = false, features = [
+    "runtime-tokio-rustls",
+    "sqlx-sqlite",
+    "sqlx-postgres",
+    "with-chrono",
+] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 semver = { version = "1.0.27", features = ["serde"] }
 serde = { version = "1.0.228", features = ["derive"] }
 toml = "1.0"

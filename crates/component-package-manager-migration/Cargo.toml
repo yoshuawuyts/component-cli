@@ -1,41 +1,27 @@
 [package]
 name = "component-package-manager-migration"
-description = "SeaORM migrations for the component-package-manager database"
-version = "0.3.0"
-license = "Apache-2.0 WITH LLVM-exception"
-edition = "2024"
-authors = ["Yosh Wuyts <cargo@yosh.is>", "Josh Duffney <josh@duffney.io>"]
-repository = "https://github.com/yoshuawuyts/wasm"
-documentation = "https://github.com/yoshuawuyts/wasm"
-
-# NOTE: This crate is intentionally NOT a member of the top-level workspace
-# during the SeaORM port. SeaORM's `sqlx-sqlite` and `rusqlite` both link
-# `sqlite3`, and Cargo enforces the `links` constraint workspace-wide. Once
-# `rusqlite` is removed (Phase 4), this crate joins the workspace.
+description = "SeaORM migrations and entity definitions for the component-package-manager database"
+version = { workspace = true }
+license = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+documentation = { workspace = true }
+categories = { workspace = true }
+keywords = { workspace = true }
 
 [lib]
 name = "component_package_manager_migration"
 path = "src/lib.rs"
 
 [dependencies]
-# SeaORM 2.0 RC. Bump to stable when 2.0 ships.
-# Both crates are direct deps so the proc-macro-emitted `sea_orm::` paths
-# resolve in entity files (sea-orm-migration only re-exports it).
-sea-orm = { version = "=2.0.0-rc.38", default-features = false, features = [
-    "runtime-tokio-rustls",
-    "sqlx-postgres",
-    "sqlx-sqlite",
-    "macros",
-    "with-chrono",
-] }
-sea-orm-migration = { version = "=2.0.0-rc.38", default-features = false, features = [
-    "runtime-tokio-rustls",
-    "sqlx-postgres",
-    "sqlx-sqlite",
-    "with-chrono",
-] }
+sea-orm = { workspace = true }
+sea-orm-migration = { workspace = true }
 async-trait = "0.1"
-chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+chrono = { workspace = true }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

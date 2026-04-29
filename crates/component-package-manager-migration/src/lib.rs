@@ -13,6 +13,7 @@ pub use sea_orm_migration::prelude::*;
 pub mod entities;
 pub mod migrations;
 
+#[derive(Debug)]
 pub struct Migrator;
 
 #[async_trait::async_trait]

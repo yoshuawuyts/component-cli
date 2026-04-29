@@ -8,7 +8,7 @@ use crate::entities::{
 };
 use sea_orm_migration::prelude::*;
 
-#[derive(DeriveMigrationName)]
+#[derive(Debug, DeriveMigrationName)]
 pub struct Migration;
 
 #[async_trait::async_trait]

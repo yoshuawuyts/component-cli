@@ -182,7 +182,7 @@ impl Manager {
             reference.repository(),
             reference.tag(),
             None,
-        )?;
+        ).await?;
 
         self.store_related_tags(&reference).await?;
 
@@ -340,7 +340,7 @@ impl Manager {
             reference.repository(),
             reference.tag(),
             None,
-        )?;
+        ).await?;
 
         self.store_related_tags(&reference).await?;
 
@@ -566,7 +566,7 @@ impl Manager {
         }
 
         // 2. Fallback: search known packages by WIT name
-        if let Some(known) = self.store.search_known_package_by_wit_name(&dep.package)? {
+        if let Some(known) = self.store.search_known_package_by_wit_name(&dep.package).await? {
             let tag = if let Some(v) = dep.version.as_deref() {
                 v.to_string()
             } else {
@@ -599,7 +599,7 @@ impl Manager {
         if let Some(v) = dep.version.as_deref() {
             return v.to_string();
         }
-        if let Ok(Some(known)) = self.store.get_known_package(registry, repository)
+        if let Ok(Some(known)) = self.store.get_known_package(registry, repository).await
             && let Some(tag) = pick_latest_stable_tag(&known.tags)
         {
             return tag;
@@ -618,7 +618,7 @@ impl Manager {
     /// manifests have been pulled).  The synthetic `0.0.0` shim used for
     /// unversioned packages is excluded.
     fn pick_latest_wit_package_version(&self, package_name: &str) -> Option<String> {
-        let versions = self.store.list_wit_package_versions(package_name).ok()?;
+        let versions = self.store.list_wit_package_versions(package_name).await.ok()?;
         let tags: Vec<String> = versions.into_iter().filter(|v| v != "0.0.0").collect();
         pick_latest_stable_tag(&tags)
     }
@@ -775,7 +775,7 @@ impl Manager {
         &self,
         params: &KnownPackageParams<'_>,
     ) -> anyhow::Result<()> {
-        self.store.add_known_package_with_params(params)
+        self.store.add_known_package_with_params(params).await
     }
 
     /// List all tags for a given reference from the registry.
@@ -824,11 +824,11 @@ impl Manager {
         registry: &str,
         repository: &str,
     ) -> anyhow::Result<Option<KnownPackage>> {
-        match self.store.get_known_package(registry, repository)? {
+        match self.store.get_known_package(registry, repository).await? {
             None => Ok(None),
             Some(raw) => {
                 let mut pkg = KnownPackage::from(raw);
-                pkg.dependencies = self.store.get_package_dependencies(registry, repository)?;
+                pkg.dependencies = self.store.get_package_dependencies(registry, repository).await?;
                 Ok(Some(pkg))
             }
         }
@@ -852,18 +852,18 @@ impl Manager {
     ///
     /// Returns the number of tasks enqueued.
     pub fn enqueue_reindex_all(&self) -> anyhow::Result<u64> {
-        self.store.enqueue_reindex_all()
+        self.store.enqueue_reindex_all().await
     }
 
     /// Seed the fetch queue with completed entries for tags that were
     /// pulled before the queue existed.
     pub fn seed_completed_from_tags(&self) -> anyhow::Result<u64> {
-        self.store.seed_completed_from_tags()
+        self.store.seed_completed_from_tags().await
     }
 
     /// Return the current fetch queue status.
     pub fn get_queue_status(&self) -> anyhow::Result<component_meta_registry_types::QueueStatus> {
-        self.store.get_queue_status()
+        self.store.get_queue_status().await
     }
 
     /// Notify the registry that a specific version of a package was just
@@ -902,7 +902,7 @@ impl Manager {
         // previous "completed" or "failed" queue entry for this tag is reset
         // to "pending" instead of silently no-oping (which would happen with
         // `enqueue_pull`'s `ON CONFLICT DO NOTHING`).
-        self.store.enqueue_refetch(registry, repository, tag, -1)?;
+        self.store.enqueue_refetch(registry, repository, tag, -1).await?;
         Ok(NotifyOutcome::Enqueued)
     }
 
@@ -1050,19 +1050,19 @@ impl Manager {
                     reference.repository(),
                     tag,
                     -1, // high priority for explicit refetch
-                )?;
+                ).await?;
             } else if !self.store.is_tag_fresh(
                 reference.registry(),
                 reference.repository(),
                 tag,
                 PULL_COOLDOWN_SECS,
-            ) {
+            ).await {
                 self.store.enqueue_pull(
                     reference.registry(),
                     reference.repository(),
                     tag,
                     0, // normal priority
-                )?;
+                ).await?;
             } else {
                 // Tag is fresh — record it as completed so it appears
                 // in the queue history for visibility.
@@ -1071,7 +1071,7 @@ impl Manager {
             }
         }
 
-        if let Ok(pending) = self.store.pending_count()
+        if let Ok(pending) = self.store.pending_count().await
             && pending > 0
         {
             tracing::info!(
@@ -1102,7 +1102,7 @@ impl Manager {
     /// is recorded in the queue).  Errors are reserved for failures that
     /// prevent us from interacting with the queue at all.
     pub async fn process_next_task(&self) -> anyhow::Result<TaskOutcome> {
-        let Some(task) = self.store.dequeue_next()? else {
+        let Some(task) = self.store.dequeue_next().await? else {
             return Ok(TaskOutcome::Empty);
         };
 
@@ -1122,7 +1122,7 @@ impl Manager {
 
         match result {
             Ok(()) => {
-                self.store.complete_task(task.id)?;
+                self.store.complete_task(task.id).await?;
                 Ok(TaskOutcome::Succeeded)
             }
             Err(e) => {
@@ -1133,7 +1133,7 @@ impl Manager {
                     error = %e,
                     "Fetch task failed"
                 );
-                self.store.fail_task(task.id, &e.to_string())?;
+                self.store.fail_task(task.id, &e.to_string()).await?;
                 Ok(TaskOutcome::Failed)
             }
         }
@@ -1246,7 +1246,7 @@ impl Manager {
         registry: &str,
         repository: &str,
     ) -> anyhow::Result<Vec<component_meta_registry_types::PackageVersion>> {
-        self.store.get_package_versions(registry, repository)
+        self.store.get_package_versions(registry, repository).await
     }
 
     /// Return a single version of a package by its tag.
@@ -1266,7 +1266,7 @@ impl Manager {
         registry: &str,
         repository: &str,
     ) -> anyhow::Result<Option<component_meta_registry_types::PackageDetail>> {
-        self.store.get_package_detail(registry, repository)
+        self.store.get_package_detail(registry, repository).await
     }
 
     /// Sync the local package index from a meta-registry over HTTP.
@@ -1308,11 +1308,11 @@ impl Manager {
             }
         }
 
-        let etag = self.store.get_sync_meta("packages_etag")?;
+        let etag = self.store.get_sync_meta("packages_etag").await?;
         let client = RegistryClient::new(url);
 
         let has_cached_data = {
-            let existing = self.store.list_known_packages(0, 1)?;
+            let existing = self.store.list_known_packages(0, 1).await?;
             !existing.is_empty()
         };
 
@@ -1427,7 +1427,7 @@ impl Manager {
                     &package_name,
                     Some(&version),
                     &pkg.dependencies,
-                ) {
+                ).await {
                     tracing::warn!(
                         package = %package_name,
                         error = %e,
@@ -1437,7 +1437,7 @@ impl Manager {
             }
         }
         if let Some(etag_val) = etag {
-            self.store.set_sync_meta("packages_etag", &etag_val)?;
+            self.store.set_sync_meta("packages_etag", &etag_val).await?;
         }
         self.update_last_synced_at()?;
         Ok(SyncResult::Updated { count })
@@ -1450,7 +1450,7 @@ impl Manager {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        self.store.set_sync_meta("last_synced_at", &now.to_string())
+        self.store.set_sync_meta("last_synced_at", &now.to_string()).await
     }
 
     /// Fetch all related tags for a reference and store them as known packages.
@@ -1466,7 +1466,7 @@ impl Manager {
                 reference.repository(),
                 Some(&tag),
                 None,
-            )?;
+            ).await?;
         }
         Ok(())
     }
@@ -1521,7 +1521,7 @@ impl Manager {
                 reference.repository(),
                 &entry.digest,
                 &entry.media_type,
-            ) {
+            ).await {
                 tracing::warn!("Failed to store referrer {}: {}", entry.digest, e);
             }
         }

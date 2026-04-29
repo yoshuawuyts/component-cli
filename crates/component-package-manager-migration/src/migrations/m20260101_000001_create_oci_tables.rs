@@ -9,7 +9,7 @@ use crate::entities::{
 use crate::migrations::triggers::{drop_updated_at_trigger, install_updated_at_trigger};
 use sea_orm_migration::prelude::*;
 
-#[derive(DeriveMigrationName)]
+#[derive(Debug, DeriveMigrationName)]
 pub struct Migration;
 
 #[async_trait::async_trait]

@@ -37,7 +37,6 @@
 //! }
 //! ```
 
-pub mod components;
 /// WAC-based component composition (requires the `compose` feature).
 #[cfg(feature = "compose")]
 pub mod compose;

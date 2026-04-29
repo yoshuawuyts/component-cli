@@ -4,7 +4,7 @@ use crate::entities::fetch_queue;
 use crate::migrations::triggers::{drop_updated_at_trigger, install_updated_at_trigger};
 use sea_orm_migration::prelude::*;
 
-#[derive(DeriveMigrationName)]
+#[derive(Debug, DeriveMigrationName)]
 pub struct Migration;
 
 #[async_trait::async_trait]
@@ -105,8 +105,7 @@ impl MigrationTrait for Migration {
         let backend = manager.get_database_backend();
         let conn = manager.get_connection();
         let partial_idx = match backend {
-            sea_orm_migration::sea_orm::DatabaseBackend::Sqlite
-            | sea_orm_migration::sea_orm::DatabaseBackend::Postgres => {
+            sea_orm::DatabaseBackend::Sqlite | sea_orm::DatabaseBackend::Postgres => {
                 "CREATE INDEX IF NOT EXISTS idx_fetch_queue_pending \
                  ON fetch_queue(status, priority, created_at) \
                  WHERE status = 'pending';"
