@@ -12,13 +12,13 @@ r[cli.local-clean.help]
 The CLI MUST provide `--help` output for the `local clean` command.
 
 r[cli.local-clean.removes-lockfile]
-`wasm local clean` MUST remove the lockfile (`wasm.lock.toml`).
+`component local clean` MUST remove the lockfile (`wasm.lock.toml`).
 
 r[cli.local-clean.removes-vendor-wasm]
-`wasm local clean` MUST remove the contents of `vendor/wasm`.
+`component local clean` MUST remove the contents of `vendor/wasm`.
 
 r[cli.local-clean.removes-vendor-wit]
-`wasm local clean` MUST remove the contents of `vendor/wit`.
+`component local clean` MUST remove the contents of `vendor/wit`.
 
 ## Offline Mode
 

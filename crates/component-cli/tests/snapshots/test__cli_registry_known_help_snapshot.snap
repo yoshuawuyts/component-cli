@@ -1,0 +1,18 @@
+---
+source: crates/component-cli/tests/test.rs
+expression: output
+---
+List all known packages (previously synced or pulled)
+
+Usage: component registry known [OPTIONS]
+
+Options:
+      --limit <LIMIT>  Maximum number of results to show [default: 100]
+  -h, --help           Print help
+  -V, --version        Print version
+
+Global Options:
+      --color <WHEN>  When to use colored output [default: auto] [possible values: auto, always, never]
+      --offline       Run in offline mode
+  -v, --verbose...    Increase logging verbosity
+  -q, --quiet...      Decrease logging verbosity

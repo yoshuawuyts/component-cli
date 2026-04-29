@@ -45,7 +45,7 @@ jobs:
         id: version
         run: |
           VERSION=$(cargo metadata --no-deps --format-version 1 \
-            | jq -r '.packages[] | select(.name == "wasm") | .version')
+            | jq -r '.packages[] | select(.name == "component") | .version')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Validate tag does not exist

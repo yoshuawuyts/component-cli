@@ -1,0 +1,16 @@
+---
+source: crates/component-tui/tests/snapshot.rs
+expression: output
+---
+┌ Search ──────────────────────────────────────────────────────────────────────────────────────────┐
+│Press / to search...                                                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+Repository                       Registry                  Tags                 Last Seen
+project/component                ghcr.io                   v3.0.0, v2.0.0, +3   2024-03-01
+
+
+
+
+
+
+ /  Search   p  Pull selected   r  Refresh tags   Enter  View details   Esc  Clear

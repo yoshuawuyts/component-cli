@@ -24,15 +24,15 @@ use clap::{Parser, Subcommand};
 enum Xtask {
     /// Run tests, clippy, and formatting checks
     Test,
-    /// Run the `wasm` binary (equivalent to `cargo run --package wasm`)
+    /// Run the `component` binary (equivalent to `cargo run --package component`)
     Run {
-        /// Arguments to pass to the wasm binary
+        /// Arguments to pass to the component binary
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
-    /// Run the `wasm-meta-registry` server
+    /// Run the `component-meta-registry` server
     RunRegistry {
-        /// Arguments to pass to the wasm-meta-registry binary
+        /// Arguments to pass to the component-meta-registry binary
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
@@ -62,9 +62,9 @@ enum Xtask {
 /// Subcommands for `cargo xtask readme`.
 #[derive(Subcommand)]
 enum ReadmeCommand {
-    /// Regenerate the README commands section from `wasm --help`
+    /// Regenerate the README commands section from `component --help`
     Update,
-    /// Check that the README commands section is in sync with `wasm --help`
+    /// Check that the README commands section is in sync with `component --help`
     Check,
 }
 
@@ -89,7 +89,7 @@ fn main() -> Result<()> {
     match xtask {
         Xtask::Test => test::run_tests()?,
         Xtask::Run { args } => {
-            let mut cargo_args = vec!["run", "--package", "wasm"];
+            let mut cargo_args = vec!["run", "--package", "component"];
             if !args.is_empty() {
                 cargo_args.push("--");
                 cargo_args.extend(args.iter().map(String::as_str));
@@ -102,7 +102,7 @@ fn main() -> Result<()> {
             let registry_dir_str = registry_dir
                 .to_str()
                 .expect("workspace root path is valid UTF-8");
-            let mut cargo_args = vec!["run", "--package", "wasm-meta-registry", "--"];
+            let mut cargo_args = vec!["run", "--package", "component-meta-registry", "--"];
             if args.is_empty() {
                 cargo_args.push(registry_dir_str);
             } else {
@@ -132,9 +132,9 @@ fn main() -> Result<()> {
 /// Run a clean demo install.
 ///
 /// 1. Checks the local meta-registry is reachable at `localhost:8080`.
-/// 2. Cleans the global cache (`wasm self clean`).
+/// 2. Cleans the global cache (`component self clean`).
 /// 3. Removes local `vendor/`, `wasm.toml`, and `wasm.lock.toml`.
-/// 4. Runs `wasm init`.
+/// 4. Runs `component init`.
 /// 5. Installs `ba:sample-wasi-http-rust`.
 fn run_demo() -> Result<()> {
     // 1. Check the meta-registry is up.
@@ -152,7 +152,7 @@ fn run_demo() -> Result<()> {
     // 2. Clean global cache.
     run_command(
         "cargo",
-        &["run", "--package", "wasm", "--", "self", "clean"],
+        &["run", "--package", "component", "--", "self", "clean"],
     )?;
 
     // 3. Remove local project files.
@@ -162,7 +162,7 @@ fn run_demo() -> Result<()> {
     let _ = std::fs::remove_file(root.join("wasm.lock.toml"));
 
     // 4. Init a fresh project.
-    run_command("cargo", &["run", "--package", "wasm", "--", "init"])?;
+    run_command("cargo", &["run", "--package", "component", "--", "init"])?;
 
     // 5. Install the sample component.
     run_command(
@@ -170,7 +170,7 @@ fn run_demo() -> Result<()> {
         &[
             "run",
             "--package",
-            "wasm",
+            "component",
             "--",
             "install",
             "ba:sample-wasi-http-rust",

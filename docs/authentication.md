@@ -71,7 +71,7 @@ The authentication flow:
 
 3. Verify the configuration:
    ```bash
-   wasm self config
+   component self config
    ```
 
 ### Using Docker Login

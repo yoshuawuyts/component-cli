@@ -1,0 +1,45 @@
+---
+source: crates/component-frontend/src/components/ds/elevation.rs
+expression: "crate::components::ds::pretty_html(&render(\"elevation\", \"04\", \"Elevation\",\n\"Soft rules do most of the work. Shadow is reserved for floating overlays.\",))"
+---
+<section class="pt-12 md:pt-16" id="elevation">
+  <div class="grid md:grid-cols-[600px_1fr] gap-6 md:gap-12">
+    <div>
+      <div class="text-[12px] mono uppercase tracking-wider text-ink-500">
+        04
+      </div>
+      <h2 class="mt-2 text-[24px] font-semibold tracking-tight">
+        Elevation
+      </h2>
+      <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
+        Soft rules do most of the work. Shadow is reserved for floating overlays.
+      </p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="p-5 bg-surface border border-lineSoft rounded-lg">
+        <div class="text-[13px] font-medium">
+          Rule
+        </div>
+        <div class="mt-1 text-[12px] text-ink-500 mono">
+          border 1px #E4E4E7
+        </div>
+      </div>
+      <div class="p-5 bg-surface rounded-lg shadow-card">
+        <div class="text-[13px] font-medium">
+          Card
+        </div>
+        <div class="mt-1 text-[12px] text-ink-500 mono">
+          0 1px 0 rgba(20,22,28,.04)
+        </div>
+      </div>
+      <div class="p-5 backdrop-blur text-canvas rounded-md shadow-tooltip" style="background: var(--c-ink-900);">
+        <div class="text-[13px] font-medium">
+          Tooltip
+        </div>
+        <div class="mt-1 text-[12px] text-ink-300 mono">
+          0 8px 24px -8px rgba(20,22,28,.35)
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,19 @@
+---
+source: crates/component-tui/tests/snapshot.rs
+expression: output
+---
+┌ Filter ──────────────────────────────────────────────────────────────────────────────────────────┐
+│Press / to filter...                                                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+Repository                 Registry             Tag             Size         Digest
+bytecode-alliance/wasmtime ghcr.io              v1.0.0          5.00 MB      abc123def456
+example/hello-wasm         docker.io            latest          512.00 KB    -
+user/my-component          ghcr.io              v2.1.0          2.00 MB      789xyz
+
+
+
+
+
+
+
+ /  Filter   p  Pull   d  Delete   Enter  View details   Esc  Clear

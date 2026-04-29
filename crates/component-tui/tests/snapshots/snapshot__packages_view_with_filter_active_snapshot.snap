@@ -1,0 +1,19 @@
+---
+source: crates/component-tui/tests/snapshot.rs
+expression: output
+---
+┌ Filter ──────────────────────────────────────────────────────────────────────────────────────────┐
+│wasi_                                                                                             │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+                               No packages found matching your filter.
+
+
+
+
+
+
+
+
+
+
+ /  Filter   p  Pull   d  Delete   Enter  View details   Esc  Clear

@@ -1,0 +1,19 @@
+---
+source: crates/component-cli/tests/test.rs
+expression: output
+---
+Show the application log file
+
+Usage: component self log [OPTIONS]
+
+Options:
+  -f, --follow         Continuously stream new log lines (like `tail -f`)
+  -n, --lines <LINES>  Number of lines to show from the end of the log
+  -h, --help           Print help
+  -V, --version        Print version
+
+Global Options:
+      --color <WHEN>  When to use colored output [default: auto] [possible values: auto, always, never]
+      --offline       Run in offline mode
+  -v, --verbose...    Increase logging verbosity
+  -q, --quiet...      Decrease logging verbosity

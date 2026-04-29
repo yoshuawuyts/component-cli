@@ -2,16 +2,16 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/wasm-cli",
-    "crates/wasm-cli-internal-run",
-    "crates/wasm-frontend",
-    "crates/wasm-manifest",
-    "crates/wasm-meta-registry",
-    "crates/wasm-meta-registry-client",
-    "crates/wasm-meta-registry-types",
-    "crates/wasm-package-manager",
-    "crates/wasm-detector",
-    "crates/wasm-tui",
+    "crates/component-cli",
+    "crates/component-cli-internal-run",
+    "crates/component-frontend",
+    "crates/component-manifest",
+    "crates/component-meta-registry",
+    "crates/component-meta-registry-client",
+    "crates/component-meta-registry-types",
+    "crates/component-package-manager",
+    "crates/component-detector",
+    "crates/component-tui",
     "crates/xtask",
 ]
 
@@ -77,14 +77,14 @@ str_to_string = "allow"
 [workspace.dependencies]
 
 # local dependencies
-wasm-manifest = { path = "crates/wasm-manifest", version = "0.3.0" }
-wasm-meta-registry = { path = "crates/wasm-meta-registry", version = "0.3.0" }
-wasm-meta-registry-client = { path = "crates/wasm-meta-registry-client", version = "0.3.0", default-features = false }
-wasm-meta-registry-types = { path = "crates/wasm-meta-registry-types", version = "0.3.0" }
-wasm-package-manager = { path = "crates/wasm-package-manager", version = "0.3.0" }
-wasm-cli-internal-run = { path = "crates/wasm-cli-internal-run", version = "0.3.0" }
-wasm-detector = { path = "crates/wasm-detector", version = "0.3.0" }
-wasm-tui = { path = "crates/wasm-tui", version = "0.3.0" }
+component-manifest = { path = "crates/component-manifest", version = "0.3.0" }
+component-meta-registry = { path = "crates/component-meta-registry", version = "0.3.0" }
+component-meta-registry-client = { path = "crates/component-meta-registry-client", version = "0.3.0", default-features = false }
+component-meta-registry-types = { path = "crates/component-meta-registry-types", version = "0.3.0" }
+component-package-manager = { path = "crates/component-package-manager", version = "0.3.0" }
+component-cli-internal-run = { path = "crates/component-cli-internal-run", version = "0.3.0" }
+component-detector = { path = "crates/component-detector", version = "0.3.0" }
+component-tui = { path = "crates/component-tui", version = "0.3.0" }
 
 # shared dependencies
 anyhow = "1.0.100"
@@ -121,10 +121,10 @@ dirs = "6.0.0"
 insta = "1.44.3"
 serde_json = { version = "1.0.145", features = ["alloc"] }
 termcolor = "1.4.1"
-wasm-metadata = "0.246.1"
-wasmtime = "43.0.0"
-wasmtime-wasi = "43.0.0"
-wasmtime-wasi-http = "43.0.0"
+wasm-metadata = "0.247.0"
+wasmtime = "44.0.0"
+wasmtime-wasi = "44.0.0"
+wasmtime-wasi-http = "44.0.0"
 hyper = { version = "1", features = ["http1", "server"] }
 ratatui = "0.30.0"
 crossterm = "0.29.0"
@@ -140,18 +140,18 @@ cacache = { version = "13.1.0", features = [
     "tokio-runtime",
     "tokio-stream",
 ], default-features = false }
-pubgrub = "0.3"
+pubgrub = "0.4"
 rusqlite = { version = "0.39.0", features = ["bundled"] }
 semver = { version = "1.0.27", features = ["serde"] }
 serde = { version = "1.0.228", features = ["derive"] }
 toml = "1.0"
-wasmparser = "0.246"
-wit-component = "0.246"
-wit-parser = "0.246"
+wasmparser = "0.247"
+wit-component = "0.247"
+wit-parser = "0.247"
 
 # frontend dependencies
 html = "0.6"
-pulldown-cmark = { version = "0.12", default-features = false, features = [
+pulldown-cmark = { version = "0.13", default-features = false, features = [
     "html",
 ] }
 wstd = "0.6"
@@ -168,10 +168,10 @@ reqwest = { version = "0.13", default-features = false, features = [
 tower-http = { version = "0.6.8", features = ["cors", "trace"] }
 
 # composition dependencies
-wac-parser = "0.9.0"
-wac-graph = "0.9.0"
-wac-resolver = "0.9.0"
-wac-types = "0.9.0"
+wac-parser = "0.10.0"
+wac-graph = "0.10.0"
+wac-resolver = "0.10.0"
+wac-types = "0.10.0"
 
 # detector dependencies
 ignore = "0.4.25"

@@ -27,10 +27,6 @@ name = "time-server-js"
 repository = "time-server-js"
 
 [[component]]
-name = "arxiv-rs"
-repository = "arxiv-rs"
-
-[[component]]
 name = "github-js"
 repository = "github-js"
 

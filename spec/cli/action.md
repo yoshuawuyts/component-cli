@@ -12,5 +12,5 @@ Every global CLI flag referenced in an `action.yml` input description MUST
 appear in the `wasm --help` output.
 
 r[action.run-flags]
-Every `wasm run`-specific CLI flag referenced in an `action.yml` input
-description MUST appear in the `wasm run --help` output.
+Every `component run`-specific CLI flag referenced in an `action.yml` input
+description MUST appear in the `component run --help` output.

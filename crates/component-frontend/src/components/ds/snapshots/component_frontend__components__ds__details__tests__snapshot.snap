@@ -1,0 +1,322 @@
+---
+source: crates/component-frontend/src/components/ds/details.rs
+expression: "crate::components::ds::pretty_html(&render(\"details\", \"24\", \"Details\",\n\"Compact key/value lists for sidebars and inspector panels. Three variants: stacked for spacious layouts, inline for narrow rails, and sectioned when groups need separation.\",\nSTACKED, INLINE, SECTIONED_A, SECTIONED_B, CARD_DETAILS, SIDEBAR_PRIMARY,\nSIDEBAR_SECONDARY,))"
+---
+<section class="pt-12 md:pt-16" id="details">
+  <div class="grid md:grid-cols-[600px_1fr] gap-6 md:gap-12">
+    <div>
+      <div class="text-[12px] mono uppercase tracking-wider text-ink-500">
+        24
+      </div>
+      <h2 class="mt-2 text-[24px] font-semibold tracking-tight">
+        Details
+      </h2>
+      <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
+        Compact key/value lists for sidebars and inspector panels. Three variants: stacked for spacious layouts, inline for narrow rails, and sectioned when groups need separation.
+      </p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div>
+        <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">
+          Stacked
+        </h3>
+        <dl class="space-y-3 max-w-[220px]">
+          <div>
+            <dt class="text-[11px] text-ink-500 uppercase tracking-wider">
+              Status
+            </dt>
+            <dd class="text-[14px] mt-0.5">
+              Active
+            </dd>
+          </div>
+          <div>
+            <dt class="text-[11px] text-ink-500 uppercase tracking-wider">
+              Owner
+            </dt>
+            <dd class="text-[14px] mt-0.5">
+              Aenean Lectus
+            </dd>
+          </div>
+          <div>
+            <dt class="text-[11px] text-ink-500 uppercase tracking-wider">
+              Created
+            </dt>
+            <dd class="text-[14px] mt-0.5 mono tabular-nums">
+              2026-04-02
+            </dd>
+          </div>
+          <div>
+            <dt class="text-[11px] text-ink-500 uppercase tracking-wider">
+              Region
+            </dt>
+            <dd class="text-[14px] mt-0.5">
+              eu-west-1
+            </dd>
+          </div>
+        </dl>
+      </div>
+      <div>
+        <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">
+          Inline
+        </h3>
+        <dl class="text-[13px] max-w-[260px]">
+          <div class="flex items-baseline justify-between gap-4 py-1.5">
+            <dt class="text-ink-500">
+              Status
+            </dt>
+            <dd>
+              Active
+            </dd>
+          </div>
+          <div class="flex items-baseline justify-between gap-4 py-1.5">
+            <dt class="text-ink-500">
+              Owner
+            </dt>
+            <dd>
+              Aenean Lectus
+            </dd>
+          </div>
+          <div class="flex items-baseline justify-between gap-4 py-1.5">
+            <dt class="text-ink-500">
+              Created
+            </dt>
+            <dd class="mono tabular-nums">
+              2026-04-02
+            </dd>
+          </div>
+          <div class="flex items-baseline justify-between gap-4 py-1.5">
+            <dt class="text-ink-500">
+              Region
+            </dt>
+            <dd>
+              eu-west-1
+            </dd>
+          </div>
+          <div class="flex items-baseline justify-between gap-4 py-1.5">
+            <dt class="text-ink-500">
+              Replicas
+            </dt>
+            <dd class="mono tabular-nums">
+              3
+            </dd>
+          </div>
+        </dl>
+      </div>
+      <div>
+        <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">
+          Sectioned
+        </h3>
+        <div class="max-w-[260px] text-[13px]">
+          <dl class="">
+            <div class="flex items-baseline justify-between gap-4 py-1.5">
+              <dt class="text-ink-500">
+                Status
+              </dt>
+              <dd>
+                Active
+              </dd>
+            </div>
+            <div class="flex items-baseline justify-between gap-4 py-1.5">
+              <dt class="text-ink-500">
+                Owner
+              </dt>
+              <dd>
+                Aenean Lectus
+              </dd>
+            </div>
+          </dl>
+          <div class="my-3 border-t-[1.5px] border-rule">
+          </div>
+          <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-1.5">
+            Infrastructure
+          </div>
+          <dl class="">
+            <div class="flex items-baseline justify-between gap-4 py-1.5">
+              <dt class="text-ink-500">
+                Region
+              </dt>
+              <dd>
+                eu-west-1
+              </dd>
+            </div>
+            <div class="flex items-baseline justify-between gap-4 py-1.5">
+              <dt class="text-ink-500">
+                Replicas
+              </dt>
+              <dd class="mono tabular-nums">
+                3
+              </dd>
+            </div>
+            <div class="flex items-baseline justify-between gap-4 py-1.5">
+              <dt class="text-ink-500">
+                Uptime
+              </dt>
+              <dd class="mono tabular-nums">
+                99.94%
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+    </div>
+    <div class="mt-10 space-y-8">
+      <div>
+        <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">
+          In a card
+        </h3>
+        <div class="p-5 bg-surface rounded-lg shadow-card max-w-[320px]">
+          <div class="flex items-baseline justify-between gap-3">
+            <div class="text-[14px] font-medium tracking-tight">
+              Aenean Lectus
+            </div>
+            <span class="inline-flex items-center px-2 h-5 rounded-pill bg-cat-green text-cat-greenInk text-[11px] font-medium">
+              Active
+            </span>
+          </div>
+          <div class="text-[11px] text-ink-500 mono mt-0.5">
+            id_8a4f29c1
+          </div>
+          <div class="my-4 border-t-[1.5px] border-rule">
+          </div>
+          <dl class="text-[13px]">
+            <div class="flex items-baseline justify-between gap-4 py-1.5">
+              <dt class="text-ink-500">
+                Region
+              </dt>
+              <dd>
+                eu-west-1
+              </dd>
+            </div>
+            <div class="flex items-baseline justify-between gap-4 py-1.5">
+              <dt class="text-ink-500">
+                Replicas
+              </dt>
+              <dd class="mono tabular-nums">
+                3
+              </dd>
+            </div>
+            <div class="flex items-baseline justify-between gap-4 py-1.5">
+              <dt class="text-ink-500">
+                Created
+              </dt>
+              <dd class="mono tabular-nums">
+                2026-04-02
+              </dd>
+            </div>
+            <div class="flex items-baseline justify-between gap-4 py-1.5">
+              <dt class="text-ink-500">
+                Uptime
+              </dt>
+              <dd class="mono tabular-nums">
+                99.94%
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+      <div>
+        <h3 class="text-[13px] mono uppercase tracking-wider text-ink-500 mb-3">
+          As a sidebar across regions
+        </h3>
+        <div class="border border-line rounded-lg overflow-hidden">
+          <div class="bg-canvas p-5 space-y-5">
+            <div>
+              <div class="text-[11px] mono uppercase tracking-wider text-ink-500">
+                Primary · canvas
+              </div>
+              <div class="mt-2 text-[16px] font-semibold tracking-tight">
+                Lorem ipsum dolor
+              </div>
+              <div class="mt-3 grid grid-cols-3 gap-2 max-w-[320px]">
+                <div class="h-10 rounded bg-surfaceMuted">
+                </div>
+                <div class="h-10 rounded bg-surfaceMuted">
+                </div>
+                <div class="h-10 rounded bg-surfaceMuted">
+                </div>
+              </div>
+            </div>
+            <aside class="max-w-[260px]">
+              <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">
+                Details
+              </div>
+              <dl class="text-[12px]">
+                <div class="flex items-baseline justify-between gap-4 py-1.5">
+                  <dt class="text-ink-500">
+                    Status
+                  </dt>
+                  <dd>
+                    Active
+                  </dd>
+                </div>
+                <div class="flex items-baseline justify-between gap-4 py-1.5">
+                  <dt class="text-ink-500">
+                    Owner
+                  </dt>
+                  <dd>
+                    A. Lectus
+                  </dd>
+                </div>
+                <div class="flex items-baseline justify-between gap-4 py-1.5">
+                  <dt class="text-ink-500">
+                    Region
+                  </dt>
+                  <dd>
+                    eu-west-1
+                  </dd>
+                </div>
+                <div class="flex items-baseline justify-between gap-4 py-1.5">
+                  <dt class="text-ink-500">
+                    Replicas
+                  </dt>
+                  <dd class="mono tabular-nums">
+                    3
+                  </dd>
+                </div>
+              </dl>
+            </aside>
+          </div>
+          <div class="bg-surface p-5">
+            <div class="text-[11px] mono uppercase tracking-wider text-ink-500 mb-2">
+              Secondary · surface
+            </div>
+            <dl class="text-[12px] max-w-[320px]">
+              <div class="flex items-baseline justify-between gap-4 py-1.5">
+                <dt class="text-ink-500">
+                  Created
+                </dt>
+                <dd class="mono tabular-nums">
+                  2026-04-02
+                </dd>
+              </div>
+              <div class="flex items-baseline justify-between gap-4 py-1.5">
+                <dt class="text-ink-500">
+                  Uptime
+                </dt>
+                <dd class="mono tabular-nums">
+                  99.94%
+                </dd>
+              </div>
+              <div class="flex items-baseline justify-between gap-4 py-1.5">
+                <dt class="text-ink-500">
+                  Build
+                </dt>
+                <dd class="mono">
+                  v2.18.3
+                </dd>
+              </div>
+              <div class="flex items-baseline justify-between gap-4 py-1.5">
+                <dt class="text-ink-500">
+                  Tier
+                </dt>
+                <dd>
+                  Standard
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
