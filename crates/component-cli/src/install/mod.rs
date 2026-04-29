@@ -43,6 +43,14 @@ pub(crate) struct Opts {
 }
 
 impl Opts {
+    /// Construct an [`Opts`] from a list of installation inputs.
+    ///
+    /// Used by other commands (e.g., `component run`) that need to invoke the
+    /// install logic without going through clap-based argument parsing.
+    pub(crate) fn with_inputs(inputs: Vec<String>) -> Self {
+        Self { inputs }
+    }
+
     pub(crate) async fn run(self, offline: bool) -> miette::Result<()> {
         let manifest_path = std::path::PathBuf::from("wasm.toml");
         let lockfile_path = std::path::PathBuf::from("wasm.lock.toml");

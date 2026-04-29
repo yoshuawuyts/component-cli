@@ -70,21 +70,27 @@ impl Opts {
         let is_local = local_path.exists();
 
         // Try manifest key lookup (scope:component syntax).
-        let manifest_path = if is_local {
+        let mut manifest_path = if is_local {
             None
         } else {
             resolve_manifest_key(&self.input)?
         };
 
-        // Block OCI fallthrough for inputs that look like manifest keys
-        // (scope:component) but aren't installed in the local project.
-        // With `--global`, fall back to the global cache instead of failing.
+        // For inputs that look like manifest keys (`scope:component`) but are
+        // not yet installed in the local project, auto-install into a local
+        // manifest + lockfile by default. The `--global` flag bypasses local
+        // installation and runs from the global cache instead.
         let global_bytes =
             if !is_local && manifest_path.is_none() && looks_like_manifest_key(&self.input) {
                 if self.global {
                     Some(load_from_global_cache(&self.input, offline).await?)
                 } else {
-                    return Err(not_installed_error(&self.input).await);
+                    auto_install(&self.input, offline).await?;
+                    // Re-resolve the manifest key now that the install has
+                    // populated `wasm.toml`, `wasm.lock.toml`, and the
+                    // vendored Wasm file.
+                    manifest_path = resolve_manifest_key(&self.input)?;
+                    None
                 }
             } else {
                 None
@@ -413,68 +419,49 @@ fn looks_like_manifest_key(input: &str) -> bool {
     !scope.is_empty() && !component.is_empty() && !input.contains('/') && !input.contains('.')
 }
 
-/// Build an error for a manifest-key input that is not installed locally.
+/// Auto-install a manifest key into the local project so that `component run`
+/// can execute it directly without requiring an explicit `component install` step.
 ///
-/// Checks the global cache and the known-package index for a matching
-/// component and returns the most actionable hint available.
-async fn not_installed_error(input: &str) -> miette::Report {
-    // Convert `scope:component` to `scope/component` to match the repository
-    // path format used in the OCI cache and known-package index.
-    let search_pattern = input.replace(':', "/");
+/// Creates `wasm.toml`, `wasm.lock.toml`, and the standard vendor directories
+/// when they are not already present, then delegates to the install command
+/// to fetch the component, vendor it, and update the manifest + lockfile.
+async fn auto_install(input: &str, offline: bool) -> miette::Result<()> {
+    use miette::{IntoDiagnostic, WrapErr};
 
-    // Best-effort lookup: if the manager can't be opened (e.g. no cache
-    // directory yet for first-time users), fall back to the generic hint.
-    let hint = match Manager::open().await {
-        Ok(manager) => build_hint_from_manager(&manager, input, &search_pattern),
-        Err(_) => default_install_hint(input),
-    };
+    // Ensure the minimal project skeleton exists so that `install` can
+    // succeed. This creates the manifest, lockfile, and vendor directories
+    // needed here; it does not attempt to fully replicate `component init`.
+    tokio::fs::create_dir_all("vendor/wit")
+        .await
+        .into_diagnostic()
+        .wrap_err("failed to create vendor/wit directory")?;
+    tokio::fs::create_dir_all("vendor/wasm")
+        .await
+        .into_diagnostic()
+        .wrap_err("failed to create vendor/wasm directory")?;
 
-    miette::miette!(
-        help = hint,
-        "component '{input}' is not installed in the local project"
-    )
-}
-
-/// Inspect the manager's cache and known-package index and return a hint.
-fn build_hint_from_manager(manager: &Manager, input: &str, search_pattern: &str) -> String {
-    if is_in_cache(manager, search_pattern) {
-        return format!(
-            "a copy of the component is available from the local cache. \
-             Call `component run -g {input}` to run it."
-        );
+    let manifest_path = std::path::Path::new("wasm.toml");
+    if !manifest_path.exists() {
+        let manifest = component_manifest::Manifest::default();
+        let manifest_str = toml::to_string_pretty(&manifest).into_diagnostic()?;
+        tokio::fs::write(manifest_path, manifest_str.as_bytes())
+            .await
+            .into_diagnostic()
+            .wrap_err("failed to write wasm.toml")?;
     }
-    if is_in_registry(manager, search_pattern) {
-        return format!(
-            "a component with the same name is available from the registry. \
-             Call `component run -i {input}` to install it before running it."
-        );
+
+    let lockfile_path = std::path::Path::new("wasm.lock.toml");
+    if !lockfile_path.exists() {
+        let lockfile = component_manifest::Lockfile::default();
+        crate::util::write_lock_file(lockfile_path, &lockfile)
+            .await
+            .into_diagnostic()
+            .wrap_err("failed to write wasm.lock.toml")?;
     }
-    default_install_hint(input)
-}
 
-/// Check whether a component matching `pattern` exists in the local cache.
-///
-/// Matches when a cached image's repository equals the pattern or ends
-/// with `/<pattern>` to avoid false positives from substring matching.
-fn is_in_cache(manager: &Manager, pattern: &str) -> bool {
-    let Ok(entries) = manager.list_all() else {
-        return false;
-    };
-    let suffix = format!("/{pattern}");
-    entries
-        .iter()
-        .any(|e| e.ref_repository == pattern || e.ref_repository.ends_with(&suffix))
-}
-
-/// Check whether a component matching `pattern` exists in the known-package index.
-fn is_in_registry(manager: &Manager, pattern: &str) -> bool {
-    let Ok(packages) = manager.search_packages(pattern, 0, 1) else {
-        return false;
-    };
-    !packages.is_empty()
-}
-
-/// Fallback hint when neither cache nor registry has the component.
-fn default_install_hint(input: &str) -> String {
-    format!("run `component install {input}` to add it to the project before running it.")
+    // Delegate the actual fetch + vendor + manifest update to the install
+    // command. This keeps the auto-install behavior identical to running
+    // `component install <input>` directly.
+    let opts = crate::install::Opts::with_inputs(vec![input.to_string()]);
+    opts.run(offline).await
 }

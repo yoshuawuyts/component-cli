@@ -281,6 +281,13 @@ fn test_cli_registry_sync_help_snapshot() {
     assert_snapshot!(output);
 }
 
+// r[verify cli.registry-notify.help]
+#[test]
+fn test_cli_registry_notify_help_snapshot() {
+    let output = run_cli(&["registry", "notify", "--help"]);
+    assert_snapshot!(output);
+}
+
 // r[verify cli.registry-delete.help]
 #[test]
 fn test_cli_registry_delete_help_snapshot() {
@@ -835,6 +842,7 @@ digest = "sha256:abcdef123456"
 }
 
 // r[verify run.not-installed]
+// r[verify run.not-installed.global-bypass]
 #[test]
 fn test_run_scope_component_not_in_manifest() {
     let dir = TempDir::new().expect("Failed to create temp dir");
@@ -847,18 +855,42 @@ fn test_run_scope_component_not_in_manifest() {
         .expect("Failed to execute command");
     assert!(output.status.success());
 
-    // Try running a scope:component key that doesn't exist in the manifest
-    let stderr = run_cli_error(&["run", "missing:component"], Some(dir.path()));
+    // Try running a scope:component key that doesn't exist in the manifest.
+    // Use --offline so the auto-install attempt does not hit the network;
+    // it should fail with an offline-related error rather than the legacy
+    // "not installed in the local project" message.
+    let stderr = run_cli_error(&["--offline", "run", "missing:component"], Some(dir.path()));
     assert!(
-        stderr.contains("not installed in the local project"),
-        "expected error about component not installed, got: {stderr}"
+        !stderr.contains("not installed in the local project"),
+        "expected auto-install attempt instead of legacy not-installed error, got: {stderr}"
     );
-    // Should include a hint (either about cache, registry, or `component install`)
     assert!(
-        stderr.contains("component run -g")
-            || stderr.contains("component run -i")
-            || stderr.contains("component install"),
-        "expected actionable hint in error, got: {stderr}"
+        stderr.contains("offline") || stderr.contains("not found"),
+        "expected offline / not-found error from auto-install, got: {stderr}"
+    );
+}
+
+// r[verify run.not-installed]
+#[test]
+fn test_run_auto_creates_manifest_and_lockfile() {
+    // Verify that `component run scope:component` creates wasm.toml and
+    // wasm.lock.toml when no project files exist yet, even if the
+    // subsequent install step fails (here, due to --offline).
+    let dir = TempDir::new().expect("Failed to create temp dir");
+    assert!(!dir.path().join("wasm.toml").exists());
+    assert!(!dir.path().join("wasm.lock.toml").exists());
+
+    // The install attempt will fail in offline mode; we only care that
+    // the auto-install path runs and creates the project skeleton.
+    let _ = run_cli_error(&["--offline", "run", "missing:component"], Some(dir.path()));
+
+    assert!(
+        dir.path().join("wasm.toml").exists(),
+        "auto-install should create wasm.toml"
+    );
+    assert!(
+        dir.path().join("wasm.lock.toml").exists(),
+        "auto-install should create wasm.lock.toml"
     );
 }
 

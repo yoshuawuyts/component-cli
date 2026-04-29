@@ -1332,6 +1332,45 @@ impl Manager {
         }
     }
 
+    /// Notify a meta-registry that a new version of a package was just
+    /// published, requesting it be pulled as soon as possible.
+    ///
+    /// This sends an HTTP `POST` to the meta-registry's
+    /// `/v1/packages/notify/{registry}/{repository}?tag={tag}` endpoint. The
+    /// meta-registry treats the request as a hint and may dedupe or skip it
+    /// based on its own freshness/cooldown policy. The returned
+    /// [`NotifyOutcome`] describes what the server actually did.
+    ///
+    /// [`NotifyOutcome`]: component_meta_registry_types::NotifyOutcome
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when offline mode is enabled or when the HTTP
+    /// request fails (e.g. the meta-registry is unreachable, or returns an
+    /// unknown package).
+    #[cfg(feature = "http-sync")]
+    pub async fn notify_meta_registry(
+        &self,
+        url: &str,
+        registry: &str,
+        repository: &str,
+        tag: &str,
+    ) -> anyhow::Result<component_meta_registry_types::NotifyOutcome> {
+        use anyhow::Context as _;
+        use component_meta_registry_client::RegistryClient;
+
+        if self.offline {
+            anyhow::bail!("cannot notify meta-registry in offline mode");
+        }
+
+        let client = RegistryClient::new(url);
+        client
+            .notify_new_version(registry, repository, tag)
+            .await
+            .map_err(|e| anyhow::Error::msg(e.to_string()))
+            .with_context(|| format!("failed to notify meta-registry at {url}"))
+    }
+
     #[cfg(feature = "http-sync")]
     fn handle_update(
         &self,
