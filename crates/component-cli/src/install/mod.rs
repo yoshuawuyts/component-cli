@@ -139,16 +139,16 @@ impl Opts {
         // Built *before* the resolver so that both manifest entries and CLI
         // inputs can be fed into the PubGrub planning pass.
         let to_install: Vec<(Reference, bool, Option<String>)> = if self.inputs.is_empty() {
-            manifest
-                .all_dependencies()
-                .map(|(key, dep, _)| {
-                    resolve_manifest_dependency(key, dep, &manager)
-                        .map(|(r, name)| (r, false, name))
-                })
-                .collect::<anyhow::Result<Vec<_>>>()
-                .map_err(crate::util::into_miette)?
+            let mut out = Vec::new();
+            for (key, dep, _) in manifest.all_dependencies() {
+                let (r, name) = resolve_manifest_dependency(key, dep, &manager)
+                    .await
+                    .map_err(crate::util::into_miette)?;
+                out.push((r, false, name));
+            }
+            out
         } else {
-            resolve_install_inputs(&self.inputs, &manifest, &manager)?
+            resolve_install_inputs(&self.inputs, &manifest, &manager).await?
         };
 
         // Pre-install conflict detection + transitive dependency planning.
@@ -200,7 +200,7 @@ impl Opts {
             }
 
             if !roots.is_empty() {
-                match manager.resolve_all_dependencies(&roots) {
+                match manager.resolve_all_dependencies(&roots).await {
                     Ok(deps) => {
                         resolved_transitive = deps;
                     }
@@ -228,20 +228,22 @@ impl Opts {
         // redundant downloads.
         let existing_interface_names: HashSet<_> =
             lockfile.interfaces.iter().map(|p| p.name.clone()).collect();
-        let transitive_installs: Vec<PlannedInstall> = resolved_transitive
-            .into_iter()
-            .filter(|(name, _)| !existing_interface_names.contains(name))
-            .filter_map(|(name, version)| {
-                let dep = DependencyItem {
-                    package: name.clone(),
-                    version: Some(version.to_string()),
-                };
-                resolve_dep_reference(&manager, &dep).map(|r| PlannedInstall::Transitive {
+        let mut transitive_installs: Vec<PlannedInstall> = Vec::new();
+        for (name, version) in resolved_transitive {
+            if existing_interface_names.contains(&name) {
+                continue;
+            }
+            let dep = DependencyItem {
+                package: name.clone(),
+                version: Some(version.to_string()),
+            };
+            if let Some(r) = resolve_dep_reference(&manager, &dep).await {
+                transitive_installs.push(PlannedInstall::Transitive {
                     reference: r,
                     package_name: name,
-                })
-            })
-            .collect();
+                });
+            }
+        }
 
         let all_installs: Vec<PlannedInstall> = to_install
             .into_iter()

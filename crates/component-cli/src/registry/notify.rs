@@ -91,5 +91,5 @@ async fn resolve_reference(input: &str, manager: &Manager) -> Result<Reference> 
             SyncPolicy::IfStale,
         )
         .await;
-    install::resolve_wit_name(input, manager)
+    install::resolve_wit_name(input, manager).await
 }

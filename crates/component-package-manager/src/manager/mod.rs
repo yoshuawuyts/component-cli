@@ -244,7 +244,7 @@ impl Manager {
         // Insert metadata into the database
         let (result, image_id) =
             self.store
-                .insert_metadata(&reference, Some(&digest), &manifest, size_on_disk)?;
+                .insert_metadata(&reference, Some(&digest), &manifest, size_on_disk).await?;
 
         if result == InsertResult::Inserted {
             // Stream and store each layer individually with progress
@@ -532,10 +532,10 @@ impl Manager {
     }
 
     /// List all stored images and their metadata.
-    pub fn list_all(&self) -> anyhow::Result<Vec<ImageEntry>> {
+    pub async fn list_all(&self) -> anyhow::Result<Vec<ImageEntry>> {
         Ok(self
             .store
-            .list_all()?
+            .list_all().await?
             .into_iter()
             .map(ImageEntry::from)
             .collect())
@@ -551,16 +551,16 @@ impl Manager {
     /// When no version is specified, the latest stable semver tag is
     /// selected instead of `"latest"`. Pre-release, hash-based, and
     /// non-semver tags are skipped.
-    pub fn resolve_wit_dependency(
+    pub async fn resolve_wit_dependency(
         &self,
         dep: &crate::types::DependencyItem,
     ) -> anyhow::Result<Option<Reference>> {
         // 1. Exact DB lookup: WIT package → OCI reference
         if let Some((registry, repository)) = self
             .store
-            .find_oci_reference_by_wit_name(&dep.package, dep.version.as_deref())?
+            .find_oci_reference_by_wit_name(&dep.package, dep.version.as_deref()).await?
         {
-            let tag = self.resolve_tag_for_dep(dep, &registry, &repository);
+            let tag = self.resolve_tag_for_dep(dep, &registry, &repository).await;
             let ref_str = format!("{registry}/{repository}:{tag}");
             return Ok(Some(ref_str.parse()?));
         }
@@ -573,9 +573,13 @@ impl Manager {
                 // Try tags from the OCI store first, then fall back to
                 // versions stored in the `wit_package` table (populated by
                 // sync stubs even when no OCI manifest has been pulled yet).
-                pick_latest_stable_tag(&known.tags)
-                    .or_else(|| self.pick_latest_wit_package_version(&dep.package))
-                    .unwrap_or_else(|| "latest".to_string())
+                if let Some(t) = pick_latest_stable_tag(&known.tags) {
+                    t
+                } else if let Some(t) = self.pick_latest_wit_package_version(&dep.package).await {
+                    t
+                } else {
+                    "latest".to_string()
+                }
             };
             let ref_str = format!("{}/{}:{}", known.registry, known.repository, tag);
             return Ok(Some(ref_str.parse()?));
@@ -590,7 +594,7 @@ impl Manager {
     /// When the dependency carries an explicit version, use it directly.
     /// Otherwise, try to find the latest stable semver tag from the
     /// known-package cache for the same registry/repository.
-    fn resolve_tag_for_dep(
+    async fn resolve_tag_for_dep(
         &self,
         dep: &crate::types::DependencyItem,
         registry: &str,
@@ -605,7 +609,7 @@ impl Manager {
             return tag;
         }
         // Fall back to versions from the `wit_package` table (sync stubs).
-        if let Some(v) = self.pick_latest_wit_package_version(&dep.package) {
+        if let Some(v) = self.pick_latest_wit_package_version(&dep.package).await {
             return v;
         }
         "latest".to_string()
@@ -617,7 +621,7 @@ impl Manager {
     /// on a fresh DB where sync has stored `wit_package` stubs but no OCI
     /// manifests have been pulled).  The synthetic `0.0.0` shim used for
     /// unversioned packages is excluded.
-    fn pick_latest_wit_package_version(&self, package_name: &str) -> Option<String> {
+    async fn pick_latest_wit_package_version(&self, package_name: &str) -> Option<String> {
         let versions = self.store.list_wit_package_versions(package_name).await.ok()?;
         let tags: Vec<String> = versions.into_iter().filter(|v| v != "0.0.0").collect();
         pick_latest_stable_tag(&tags)
@@ -647,65 +651,68 @@ impl Manager {
     /// Search for known packages by query string.
     /// Searches in both registry and repository fields.
     /// Uses pagination with `offset` and `limit` parameters.
-    pub fn search_packages(
+    pub async fn search_packages(
         &self,
         query: &str,
         offset: u32,
         limit: u32,
     ) -> anyhow::Result<Vec<KnownPackage>> {
-        self.store
-            .search_known_packages(query, offset, limit)?
-            .into_iter()
-            .map(|raw| {
-                let mut pkg = KnownPackage::from(raw);
+        {
+            let raws = self.store
+            .search_known_packages(query, offset, limit).await?;
+            let mut out = Vec::with_capacity(raws.len());
+            for mut pkg in raws {
                 pkg.dependencies = self
                     .store
-                    .get_package_dependencies(&pkg.registry, &pkg.repository)?;
-                Ok(pkg)
-            })
-            .collect()
+                    .get_package_dependencies(&pkg.registry, &pkg.repository).await?;
+                out.push(pkg);
+            }
+            Ok(out)
+        }
     }
 
     /// Search for known packages that import a given interface.
     /// Uses pagination with `offset` and `limit` parameters.
-    pub fn search_packages_by_import(
+    pub async fn search_packages_by_import(
         &self,
         interface: &str,
         offset: u32,
         limit: u32,
     ) -> anyhow::Result<Vec<KnownPackage>> {
-        self.store
-            .search_known_packages_by_import(interface, offset, limit)?
-            .into_iter()
-            .map(|raw| {
-                let mut pkg = KnownPackage::from(raw);
+        {
+            let raws = self.store
+            .search_known_packages_by_import(interface, offset, limit).await?;
+            let mut out = Vec::with_capacity(raws.len());
+            for mut pkg in raws {
                 pkg.dependencies = self
                     .store
-                    .get_package_dependencies(&pkg.registry, &pkg.repository)?;
-                Ok(pkg)
-            })
-            .collect()
+                    .get_package_dependencies(&pkg.registry, &pkg.repository).await?;
+                out.push(pkg);
+            }
+            Ok(out)
+        }
     }
 
     /// Search for known packages that export a given interface.
     /// Uses pagination with `offset` and `limit` parameters.
-    pub fn search_packages_by_export(
+    pub async fn search_packages_by_export(
         &self,
         interface: &str,
         offset: u32,
         limit: u32,
     ) -> anyhow::Result<Vec<KnownPackage>> {
-        self.store
-            .search_known_packages_by_export(interface, offset, limit)?
-            .into_iter()
-            .map(|raw| {
-                let mut pkg = KnownPackage::from(raw);
+        {
+            let raws = self.store
+            .search_known_packages_by_export(interface, offset, limit).await?;
+            let mut out = Vec::with_capacity(raws.len());
+            for mut pkg in raws {
                 pkg.dependencies = self
                     .store
-                    .get_package_dependencies(&pkg.registry, &pkg.repository)?;
-                Ok(pkg)
-            })
-            .collect()
+                    .get_package_dependencies(&pkg.registry, &pkg.repository).await?;
+                out.push(pkg);
+            }
+            Ok(out)
+        }
     }
 
     /// Get all known packages.
@@ -719,47 +726,49 @@ impl Manager {
     /// search (~50 items) and keeps the code simple. A future
     /// optimisation could batch-load all dependencies in a single query keyed
     /// by `(registry, repository)` pairs.
-    pub fn list_known_packages(
+    pub async fn list_known_packages(
         &self,
         offset: u32,
         limit: u32,
     ) -> anyhow::Result<Vec<KnownPackage>> {
-        self.store
-            .list_known_packages(offset, limit)?
-            .into_iter()
-            .map(|raw| {
-                let mut pkg = KnownPackage::from(raw);
+        {
+            let raws = self.store
+            .list_known_packages(offset, limit).await?;
+            let mut out = Vec::with_capacity(raws.len());
+            for mut pkg in raws {
                 pkg.dependencies = self
                     .store
-                    .get_package_dependencies(&pkg.registry, &pkg.repository)?;
-                Ok(pkg)
-            })
-            .collect()
+                    .get_package_dependencies(&pkg.registry, &pkg.repository).await?;
+                out.push(pkg);
+            }
+            Ok(out)
+        }
     }
 
     /// Get recently updated known packages.
     ///
     /// Uses pagination with `offset` and `limit` parameters.
-    pub fn list_recent_known_packages(
+    pub async fn list_recent_known_packages(
         &self,
         offset: u32,
         limit: u32,
     ) -> anyhow::Result<Vec<KnownPackage>> {
-        self.store
-            .list_recent_known_packages(offset, limit)?
-            .into_iter()
-            .map(|raw| {
-                let mut pkg = KnownPackage::from(raw);
+        {
+            let raws = self.store
+            .list_recent_known_packages(offset, limit).await?;
+            let mut out = Vec::with_capacity(raws.len());
+            for mut pkg in raws {
                 pkg.dependencies = self
                     .store
-                    .get_package_dependencies(&pkg.registry, &pkg.repository)?;
-                Ok(pkg)
-            })
-            .collect()
+                    .get_package_dependencies(&pkg.registry, &pkg.repository).await?;
+                out.push(pkg);
+            }
+            Ok(out)
+        }
     }
 
     /// Add or update a known package entry.
-    pub fn add_known_package(
+    pub async fn add_known_package(
         &self,
         registry: &str,
         repository: &str,
@@ -767,11 +776,11 @@ impl Manager {
         description: Option<&str>,
     ) -> anyhow::Result<()> {
         self.store
-            .add_known_package(registry, repository, tag, description)
+            .add_known_package(registry, repository, tag, description).await
     }
 
     /// Add or update a known package entry with WIT namespace mapping.
-    pub fn add_known_package_with_params(
+    pub async fn add_known_package_with_params(
         &self,
         params: &KnownPackageParams<'_>,
     ) -> anyhow::Result<()> {
@@ -785,7 +794,7 @@ impl Manager {
     pub async fn list_tags(&self, reference: &Reference) -> anyhow::Result<Vec<String>> {
         if self.offline {
             // Return cached tags from known packages
-            return self.list_cached_tags(reference);
+            return self.list_cached_tags(reference).await;
         }
         self.client.list_tags(reference).await
     }
@@ -795,11 +804,11 @@ impl Manager {
     /// This is a private helper method used by `list_tags` when in offline mode.
     /// Returns all cached tags (release, signature, and attestation) for the given
     /// reference from the local known packages database.
-    fn list_cached_tags(&self, reference: &Reference) -> anyhow::Result<Vec<String>> {
+    async fn list_cached_tags(&self, reference: &Reference) -> anyhow::Result<Vec<String>> {
         // Use efficient lookup by registry and repository
         match self
             .store
-            .get_known_package(reference.registry(), reference.repository())?
+            .get_known_package(reference.registry(), reference.repository()).await?
         {
             Some(pkg) => {
                 // Combine all tag types: release, signature, and attestation
@@ -819,7 +828,7 @@ impl Manager {
     ///
     /// The returned [`KnownPackage`] has its `dependencies` field populated
     /// from the local `wit_package_dependency` table.
-    pub fn get_known_package(
+    pub async fn get_known_package(
         &self,
         registry: &str,
         repository: &str,
@@ -851,18 +860,18 @@ impl Manager {
     /// Enqueue reindex tasks for all known tags that have cached layers.
     ///
     /// Returns the number of tasks enqueued.
-    pub fn enqueue_reindex_all(&self) -> anyhow::Result<u64> {
+    pub async fn enqueue_reindex_all(&self) -> anyhow::Result<u64> {
         self.store.enqueue_reindex_all().await
     }
 
     /// Seed the fetch queue with completed entries for tags that were
     /// pulled before the queue existed.
-    pub fn seed_completed_from_tags(&self) -> anyhow::Result<u64> {
+    pub async fn seed_completed_from_tags(&self) -> anyhow::Result<u64> {
         self.store.seed_completed_from_tags().await
     }
 
     /// Return the current fetch queue status.
-    pub fn get_queue_status(&self) -> anyhow::Result<component_meta_registry_types::QueueStatus> {
+    pub async fn get_queue_status(&self) -> anyhow::Result<component_meta_registry_types::QueueStatus> {
         self.store.get_queue_status().await
     }
 
@@ -880,7 +889,7 @@ impl Manager {
     ///
     /// Enqueued tasks are given high priority (priority `-1`) so they jump
     /// ahead of the routine sync backlog.
-    pub fn notify_new_version(
+    pub async fn notify_new_version(
         &self,
         registry: &str,
         repository: &str,
@@ -890,7 +899,7 @@ impl Manager {
 
         if self
             .store
-            .is_tag_fresh(registry, repository, tag, PULL_COOLDOWN_SECS)
+            .is_tag_fresh(registry, repository, tag, PULL_COOLDOWN_SECS).await
         {
             return Ok(NotifyOutcome::Skipped {
                 reason: "fresh".to_string(),
@@ -1009,7 +1018,7 @@ impl Manager {
                     wit_namespace,
                     wit_name,
                     kind,
-                })?;
+                }).await?;
         }
 
         // Enqueue every semver-tagged version for pulling.  Tags that are
@@ -1067,7 +1076,7 @@ impl Manager {
                 // Tag is fresh — record it as completed so it appears
                 // in the queue history for visibility.
                 self.store
-                    .record_completed(reference.registry(), reference.repository(), tag)?;
+                    .record_completed(reference.registry(), reference.repository(), tag).await?;
             }
         }
 
@@ -1085,12 +1094,12 @@ impl Manager {
         // Return the indexed package with its now-populated dependencies.
         let raw = self
             .store
-            .get_known_package(reference.registry(), reference.repository())?
+            .get_known_package(reference.registry(), reference.repository()).await?
             .ok_or(ManagerError::IndexRetrievalFailed)?;
         let mut pkg = KnownPackage::from(raw);
         pkg.dependencies = self
             .store
-            .get_package_dependencies(reference.registry(), reference.repository())?;
+            .get_package_dependencies(reference.registry(), reference.repository()).await?;
         Ok(pkg)
     }
 
@@ -1156,10 +1165,10 @@ impl Manager {
     }
 
     /// Get all WIT interfaces with their associated component references.
-    pub fn list_wit_packages_with_components(&self) -> anyhow::Result<Vec<(WitPackage, String)>> {
+    pub async fn list_wit_packages_with_components(&self) -> anyhow::Result<Vec<(WitPackage, String)>> {
         Ok(self
             .store
-            .list_wit_packages_with_components()?
+            .list_wit_packages_with_components().await?
             .into_iter()
             .map(|(wt, s)| (WitPackage::from(wt), s))
             .collect())
@@ -1173,13 +1182,13 @@ impl Manager {
     /// the dependency resolver.
     ///
     /// Returns an empty list when the package has no recorded dependencies.
-    pub fn get_dependencies_by_name(
+    pub async fn get_dependencies_by_name(
         &self,
         package_name: &str,
         version: Option<&str>,
     ) -> anyhow::Result<Vec<crate::storage::PackageDependencyRef>> {
         self.store
-            .get_package_dependencies_by_name(package_name, version)
+            .get_package_dependencies_by_name(package_name, version).await
     }
 
     /// Resolve the complete transitive dependency graph for a root package and
@@ -1194,7 +1203,7 @@ impl Manager {
     /// conflict-free version assignment exists.
     /// Returns [`crate::resolver::ResolveError::Db`] when a database query
     /// fails.
-    pub fn resolve_dependencies(
+    pub async fn resolve_dependencies(
         &self,
         package: &str,
         version: crate::resolver::WitVersion,
@@ -1222,7 +1231,7 @@ impl Manager {
     /// conflict-free version assignment exists.
     /// Returns [`crate::resolver::ResolveError::Db`] when a database query
     /// fails.
-    pub fn resolve_all_dependencies(
+    pub async fn resolve_all_dependencies(
         &self,
         roots: &[(String, crate::resolver::WitVersion)],
     ) -> Result<
@@ -1241,7 +1250,7 @@ impl Manager {
     /// Each version includes OCI annotations, WIT worlds (with imports and
     /// exports), Wasm components (with targets), dependencies, referrers,
     /// and WIT source text.
-    pub fn get_package_versions(
+    pub async fn get_package_versions(
         &self,
         registry: &str,
         repository: &str,
@@ -1250,18 +1259,18 @@ impl Manager {
     }
 
     /// Return a single version of a package by its tag.
-    pub fn get_package_version(
+    pub async fn get_package_version(
         &self,
         registry: &str,
         repository: &str,
         version_tag: &str,
     ) -> anyhow::Result<Option<component_meta_registry_types::PackageVersion>> {
         self.store
-            .get_package_version(registry, repository, version_tag)
+            .get_package_version(registry, repository, version_tag).await
     }
 
     /// Return full package detail including all versions and metadata.
-    pub fn get_package_detail(
+    pub async fn get_package_detail(
         &self,
         registry: &str,
         repository: &str,
@@ -1295,7 +1304,7 @@ impl Manager {
         if policy == SyncPolicy::IfStale {
             let last_synced_epoch = self
                 .store
-                .get_sync_meta("last_synced_at")?
+                .get_sync_meta("last_synced_at").await?
                 .and_then(|s| s.parse::<i64>().ok());
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -1318,10 +1327,10 @@ impl Manager {
 
         match client.fetch_packages(etag.as_deref(), 1000).await {
             Ok(FetchResult::NotModified) => {
-                self.update_last_synced_at()?;
+                self.update_last_synced_at().await?;
                 Ok(SyncResult::NotModified)
             }
-            Ok(FetchResult::Updated { packages, etag }) => self.handle_update(&packages, etag),
+            Ok(FetchResult::Updated { packages, etag }) => self.handle_update(&packages, etag).await,
             Err(e) if has_cached_data => Ok(SyncResult::Degraded {
                 error: e.to_string(),
             }),
@@ -1372,7 +1381,7 @@ impl Manager {
     }
 
     #[cfg(feature = "http-sync")]
-    fn handle_update(
+    async fn handle_update(
         &self,
         packages: &[KnownPackage],
         etag: Option<String>,
@@ -1390,7 +1399,7 @@ impl Manager {
                     wit_namespace: pkg.wit_namespace.as_deref(),
                     wit_name: pkg.wit_name.as_deref(),
                     kind: pkg.kind,
-                })?;
+                }).await?;
             // Also add remaining tags.
             for tag in pkg.tags.iter().skip(1) {
                 self.store
@@ -1402,7 +1411,7 @@ impl Manager {
                         wit_namespace: pkg.wit_namespace.as_deref(),
                         wit_name: pkg.wit_name.as_deref(),
                         kind: pkg.kind,
-                    })?;
+                    }).await?;
             }
 
             // r[impl db.wit-package-dependency.populate-on-sync]
@@ -1439,13 +1448,13 @@ impl Manager {
         if let Some(etag_val) = etag {
             self.store.set_sync_meta("packages_etag", &etag_val).await?;
         }
-        self.update_last_synced_at()?;
+        self.update_last_synced_at().await?;
         Ok(SyncResult::Updated { count })
     }
 
     /// Update the `last_synced_at` timestamp in `_sync_meta`.
     #[cfg(feature = "http-sync")]
-    fn update_last_synced_at(&self) -> anyhow::Result<()> {
+    async fn update_last_synced_at(&self) -> anyhow::Result<()> {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()

@@ -60,13 +60,13 @@ pub fn looks_like_wit_name(input: &str) -> bool {
 ///
 /// Returns [`InstallError::UnknownPackage`] when the package cannot be found
 /// in the known-package index.
-pub fn resolve_wit_name(input: &str, manager: &Manager) -> anyhow::Result<Reference> {
+pub async fn resolve_wit_name(input: &str, manager: &Manager) -> anyhow::Result<Reference> {
     let (package, version) = match input.split_once('@') {
         Some((pkg, ver)) if !ver.is_empty() => (pkg.to_string(), Some(ver.to_string())),
         _ => (input.to_string(), None),
     };
     let dep = DependencyItem { package, version };
-    match manager.resolve_wit_dependency(&dep)? {
+    match manager.resolve_wit_dependency(&dep).await? {
         Some(reference) => Ok(reference),
         None => Err(InstallError::UnknownPackage {
             input: input.to_string(),
@@ -110,7 +110,7 @@ pub fn reference_from_dependency(
 ///
 /// Returns `(reference, explicit_name)` where `explicit_name` is set when
 /// the user provided a WIT-style name.
-pub fn resolve_manifest_dependency(
+pub async fn resolve_manifest_dependency(
     key: &str,
     dep: &component_manifest::Dependency,
     manager: &Manager,
@@ -123,7 +123,7 @@ pub fn resolve_manifest_dependency(
             // (e.g. "0.1.6") rather than an OCI reference path.
             // Resolve through the known-package DB using the manifest key.
             let input = format!("{key}@{s}");
-            let reference = resolve_wit_name(&input, manager)?;
+            let reference = resolve_wit_name(&input, manager).await?;
             Ok((reference, Some(key.to_string())))
         }
         _ => {
@@ -140,7 +140,7 @@ pub fn resolve_manifest_dependency(
 /// (`namespace:package`), it is resolved via the known-package database.
 /// Otherwise, it is tried as an OCI reference. Returns an error when
 /// neither interpretation works.
-pub fn resolve_install_inputs(
+pub async fn resolve_install_inputs(
     inputs: &[String],
     manifest: &component_manifest::Manifest,
     manager: &Manager,
@@ -156,6 +156,7 @@ pub fn resolve_install_inputs(
 
         if let Some(dep) = dep {
             let (reference, explicit_name) = resolve_manifest_dependency(input, dep, manager)
+                .await
                 .map_err(|e| InstallError::ResolveFailure {
                     reason: e.to_string(),
                 })?;
@@ -169,8 +170,9 @@ pub fn resolve_install_inputs(
         // Preserve the user's input as the explicit name so it becomes the
         // manifest key — the embedded WIT metadata may use a placeholder.
         if looks_like_wit_name(input) {
-            let reference =
-                resolve_wit_name(input, manager).map_err(|e| InstallError::ResolveFailure {
+            let reference = resolve_wit_name(input, manager)
+                .await
+                .map_err(|e| InstallError::ResolveFailure {
                     reason: e.to_string(),
                 })?;
             result.push((reference, true, Some(input.clone())));
@@ -313,8 +315,8 @@ pub async fn re_vendor_wit_files(
 ///
 /// Returns `None` (with a debug log) if the dependency cannot be resolved.
 #[must_use]
-pub fn resolve_dep_reference(manager: &Manager, dep: &DependencyItem) -> Option<Reference> {
-    match manager.resolve_wit_dependency(dep) {
+pub async fn resolve_dep_reference(manager: &Manager, dep: &DependencyItem) -> Option<Reference> {
+    match manager.resolve_wit_dependency(dep).await {
         Ok(Some(r)) => Some(r),
         Ok(None) => {
             tracing::debug!(
