@@ -121,7 +121,7 @@ dirs = "6.0.0"
 insta = "1.44.3"
 serde_json = { version = "1.0.145", features = ["alloc"] }
 termcolor = "1.4.1"
-wasm-metadata = "0.247.0"
+wasm-metadata = "0.248.0"
 wasmtime = "44.0.0"
 wasmtime-wasi = "44.0.0"
 wasmtime-wasi-http = "44.0.0"
@@ -145,9 +145,9 @@ rusqlite = { version = "0.39.0", features = ["bundled"] }
 semver = { version = "1.0.27", features = ["serde"] }
 serde = { version = "1.0.228", features = ["derive"] }
 toml = "1.0"
-wasmparser = "0.247"
-wit-component = "0.247"
-wit-parser = "0.247"
+wasmparser = "0.248"
+wit-component = "0.248"
+wit-parser = "0.248"
 
 # frontend dependencies
 html = "0.6"

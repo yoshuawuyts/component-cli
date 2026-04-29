@@ -2622,11 +2622,14 @@ fn payload_to_summary(
         .iter()
         .flat_map(|p| {
             p.iter().flat_map(|(field, pairs)| {
-                pairs.iter().map(move |(tool, ver)| ProducerEntry {
-                    field: field.clone(),
-                    name: tool.clone(),
-                    version: ver.clone(),
-                })
+                pairs
+                    .iter()
+                    .map(|(tool, ver)| ProducerEntry {
+                        field: field.clone(),
+                        name: tool.clone(),
+                        version: ver.clone(),
+                    })
+                    .collect::<Vec<_>>()
             })
         })
         .collect();
