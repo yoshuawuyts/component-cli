@@ -1,5 +1,0 @@
----
-source: crates/wasm-tui/tests/snapshot.rs
-expression: output
----
-Loading state information...

@@ -26,7 +26,7 @@ Setting the XDG environment variable always takes precedence on every platform.
 To view the current configuration and file locations:
 
 ```bash
-wasm self config
+component self config
 ```
 
 ### Configuration Format
@@ -116,7 +116,7 @@ The metadata database is a SQLite database that stores package metadata.
 Check storage usage with:
 
 ```bash
-wasm self state
+component self state
 ```
 
 ### Cleaning Up Storage
@@ -124,7 +124,7 @@ wasm self state
 Remove unused content and optimize the database:
 
 ```bash
-wasm self clean
+component self clean
 ```
 
 This command:
@@ -137,7 +137,7 @@ This command:
 View all locally stored packages:
 
 ```bash
-wasm package list
+component package list
 ```
 
 ## Database Migrations

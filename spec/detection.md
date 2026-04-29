@@ -1,6 +1,6 @@
 # Wasm Detection
 
-The `wasm-detector` crate finds `.wasm` files on the local filesystem.
+The `component-detector` crate finds `.wasm` files on the local filesystem.
 
 r[detector.find-wasm]
 The detector MUST find all `.wasm` files in a directory tree.

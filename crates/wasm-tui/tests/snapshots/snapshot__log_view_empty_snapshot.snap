@@ -1,7 +1,0 @@
----
-source: crates/wasm-tui/tests/snapshot.rs
-expression: output
----
-                              No log entries found.
-
-                        Run `wasm self log` to view logs.

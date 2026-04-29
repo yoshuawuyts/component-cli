@@ -1,0 +1,160 @@
+---
+source: crates/component-frontend/src/components/ds/sigil.rs
+expression: "crate::components::ds::pretty_html(&render(\"sigils\", \"25\", \"Sigils\",\n\"18\\u{00d7}18px rounded squares with a single monospace letter, used to classify items by kind in sidebars, item lists, and detail pages. Each sigil pairs a categorical background with its ink counterpart for 4.5:1 contrast.\",\nALL,))"
+---
+<section class="pt-12 md:pt-16" id="sigils">
+  <div class="grid md:grid-cols-[600px_1fr] gap-6 md:gap-12">
+    <div>
+      <div class="text-[12px] mono uppercase tracking-wider text-ink-500">
+        25
+      </div>
+      <h2 class="mt-2 text-[24px] font-semibold tracking-tight">
+        Sigils
+      </h2>
+      <p class="mt-2 text-[13px] text-ink-500 leading-relaxed">
+        18×18px rounded squares with a single monospace letter, used to classify items by kind in sidebars, item lists, and detail pages. Each sigil pairs a categorical background with its ink counterpart for 4.5:1 contrast.
+      </p>
+    </div>
+    <div class="space-y-6">
+      <div class="text-[12px] text-ink-500 mb-3">
+        Legend
+      </div>
+      <div class="flex flex-wrap gap-4">
+        <div class="flex flex-col items-center gap-2">
+          <span class="sigil" style="background:var(--c-cat-cream);color:var(--c-cat-cream-ink);">
+            W
+          </span>
+          <span class="text-[11px] text-ink-500">
+            World
+          </span>
+        </div>
+        <div class="flex flex-col items-center gap-2">
+          <span class="sigil" style="background:var(--c-cat-rust);color:var(--c-cat-rust-ink);">
+            I
+          </span>
+          <span class="text-[11px] text-ink-500">
+            Interface
+          </span>
+        </div>
+        <div class="flex flex-col items-center gap-2">
+          <span class="sigil" style="background:var(--c-cat-green);color:var(--c-cat-green-ink);">
+            F
+          </span>
+          <span class="text-[11px] text-ink-500">
+            Function
+          </span>
+        </div>
+        <div class="flex flex-col items-center gap-2">
+          <span class="sigil" style="background:var(--c-cat-blue);color:var(--c-cat-blue-ink);">
+            T
+          </span>
+          <span class="text-[11px] text-ink-500">
+            Type
+          </span>
+        </div>
+        <div class="flex flex-col items-center gap-2">
+          <span class="sigil" style="background:var(--c-cat-peach);color:var(--c-cat-peach-ink);">
+            R
+          </span>
+          <span class="text-[11px] text-ink-500">
+            Resource
+          </span>
+        </div>
+        <div class="flex flex-col items-center gap-2">
+          <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilac-ink);">
+            R
+          </span>
+          <span class="text-[11px] text-ink-500">
+            Record
+          </span>
+        </div>
+        <div class="flex flex-col items-center gap-2">
+          <span class="sigil" style="background:var(--c-cat-lilac);color:var(--c-cat-lilac-ink);">
+            F
+          </span>
+          <span class="text-[11px] text-ink-500">
+            Flags
+          </span>
+        </div>
+        <div class="flex flex-col items-center gap-2">
+          <span class="sigil" style="background:var(--c-cat-teal);color:var(--c-cat-teal-ink);">
+            V
+          </span>
+          <span class="text-[11px] text-ink-500">
+            Variant
+          </span>
+        </div>
+        <div class="flex flex-col items-center gap-2">
+          <span class="sigil" style="background:var(--c-cat-teal);color:var(--c-cat-teal-ink);">
+            E
+          </span>
+          <span class="text-[11px] text-ink-500">
+            Enum
+          </span>
+        </div>
+        <div class="flex flex-col items-center gap-2">
+          <span class="sigil" style="background:var(--c-cat-pink);color:var(--c-cat-pink-ink);">
+            M
+          </span>
+          <span class="text-[11px] text-ink-500">
+            Module
+          </span>
+        </div>
+        <div class="flex flex-col items-center gap-2">
+          <span class="sigil" style="background:var(--c-cat-plum);color:var(--c-cat-plum-ink);">
+            C
+          </span>
+          <span class="text-[11px] text-ink-500">
+            Component
+          </span>
+        </div>
+        <div class="flex flex-col items-center gap-2">
+          <span class="sigil" style="background:var(--c-cat-plum);color:var(--c-cat-plum-ink);">
+            <svg style="width:12px;height:12px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" />
+              <path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" />
+              <path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" />
+            </svg>
+          </span>
+          <span class="text-[11px] text-ink-500">
+            Dependency
+          </span>
+        </div>
+        <div class="flex flex-col items-center gap-2">
+          <span class="sigil" style="background:var(--c-cat-plum);color:var(--c-cat-plum-ink);">
+            ·
+          </span>
+          <span class="text-[11px] text-ink-500">
+            Root
+          </span>
+        </div>
+      </div>
+      <div>
+        <div class="text-[12px] text-ink-500 mb-3">
+          Inline with text
+        </div>
+        <div class="flex items-center gap-2 text-[14px] text-ink-700">
+          <span class="sigil" style="background:var(--c-cat-cream);color:var(--c-cat-cream-ink);">
+            W
+          </span>
+          <span class="font-medium">
+            wasi:http/handler
+          </span>
+        </div>
+      </div>
+      <div>
+        <div class="text-[12px] text-ink-500 mb-3">
+          Inline with heading
+        </div>
+        <div class="flex items-center gap-[6px] text-[24px] font-semibold tracking-tight text-ink-900">
+          <span class="sigil" style="background:var(--c-cat-rust);color:var(--c-cat-rust-ink);width:22px;height:22px;font-size:12px;">
+            I
+          </span>
+          <span>
+            wasi:http/handler
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

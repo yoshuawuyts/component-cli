@@ -7,12 +7,12 @@ dependencies from OCI registries, or validating local Wasm files.
 
 ## Usage
 
-Reference the action from the `yoshuawuyts/wasm-cli` repository in any
+Reference the action from the `yoshuawuyts/component-cli` repository in any
 workflow step. Pin to the major version tag for automatic patch and minor
 updates:
 
 ```yaml
-- uses: yoshuawuyts/wasm-cli@v0
+- uses: yoshuawuyts/component-cli@v0
   with:
     command: run
     input: path/to/component.wasm
@@ -27,13 +27,13 @@ only falls back to building from source if no suitable pre-built binary is avail
 | Input              | Required | Default  | Description                                                              |
 | ------------------ | -------- | -------- | ------------------------------------------------------------------------ |
 | `command`          | yes      | `run`    | The `wasm` subcommand to run (`run`, `install`, `init`, `local`, `registry`) |
-| `input`            | no       | —        | For `wasm run`: local file path or OCI reference to the Wasm Component   |
+| `input`            | no       | —        | For `component run`: local file path or OCI reference to the Wasm Component   |
 | `args`             | no       | —        | Additional arguments passed verbatim to the `wasm` command               |
 | `offline`          | no       | `false`  | Run in offline mode (`--offline`)                                        |
 | `color`            | no       | `auto`   | When to use colored output: `auto`, `always`, or `never` (`--color`)    |
-| `inherit-env`      | no       | `false`  | For `wasm run`: inherit all host environment variables (`--inherit-env`) |
-| `inherit-network`  | no       | `false`  | For `wasm run`: allow the guest to access the network (`--inherit-network`) |
-| `no-stdio`         | no       | `false`  | For `wasm run`: suppress stdin/stdout/stderr inheritance (`--no-stdio`)  |
+| `inherit-env`      | no       | `false`  | For `component run`: inherit all host environment variables (`--inherit-env`) |
+| `inherit-network`  | no       | `false`  | For `component run`: allow the guest to access the network (`--inherit-network`) |
+| `no-stdio`         | no       | `false`  | For `component run`: suppress stdin/stdout/stderr inheritance (`--no-stdio`)  |
 
 ## Outputs
 
@@ -48,7 +48,7 @@ only falls back to building from source if no suitable pre-built binary is avail
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: yoshuawuyts/wasm-cli@v0
+  - uses: yoshuawuyts/component-cli@v0
     with:
       command: run
       input: my-component.wasm
@@ -59,7 +59,7 @@ steps:
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: yoshuawuyts/wasm-cli@v0
+  - uses: yoshuawuyts/component-cli@v0
     with:
       command: install
       input: ghcr.io/bytecodealliance/sample-wasi-http-rust/sample-wasi-http-rust:0.1.6
@@ -70,7 +70,7 @@ steps:
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: yoshuawuyts/wasm-cli@v0
+  - uses: yoshuawuyts/component-cli@v0
     with:
       command: run
       input: my-component.wasm
@@ -82,7 +82,7 @@ steps:
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: yoshuawuyts/wasm-cli@v0
+  - uses: yoshuawuyts/component-cli@v0
     with:
       command: run
       input: my-component.wasm
@@ -96,7 +96,7 @@ steps:
   - uses: actions/checkout@v4
   - name: Run component
     id: run
-    uses: yoshuawuyts/wasm-cli@v0
+    uses: yoshuawuyts/component-cli@v0
     with:
       command: run
       input: my-component.wasm
@@ -114,7 +114,7 @@ steps:
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: yoshuawuyts/wasm-cli@v0
+  - uses: yoshuawuyts/component-cli@v0
     with:
       command: run
       input: my-component.wasm

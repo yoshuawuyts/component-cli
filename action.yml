@@ -1,18 +1,18 @@
-name: 'Run wasm CLI'
-description: 'Run the wasm(1) unified WebAssembly developer tool in your GitHub Actions workflow'
+name: 'Run component CLI'
+description: 'Run the component(1) unified WebAssembly developer tool in your GitHub Actions workflow'
 author: 'yoshuawuyts'
 
 inputs:
   command:
-    description: 'The wasm subcommand to run (run, install, init, local, registry)'
+    description: 'The component subcommand to run (run, install, init, local, registry)'
     required: true
     default: 'run'
   input:
-    description: 'For `wasm run`: local file path or OCI reference to the Wasm Component'
+    description: 'For `component run`: local file path or OCI reference to the Wasm Component'
     required: false
     default: ''
   args:
-    description: 'Additional arguments passed verbatim to the wasm command'
+    description: 'Additional arguments passed verbatim to the component command'
     required: false
     default: ''
   offline:
@@ -24,22 +24,22 @@ inputs:
     required: false
     default: 'auto'
   inherit-env:
-    description: 'For `wasm run`: inherit all host environment variables (--inherit-env)'
+    description: 'For `component run`: inherit all host environment variables (--inherit-env)'
     required: false
     default: 'false'
   inherit-network:
-    description: 'For `wasm run`: allow the guest to access the network (--inherit-network)'
+    description: 'For `component run`: allow the guest to access the network (--inherit-network)'
     required: false
     default: 'false'
   no-stdio:
-    description: 'For `wasm run`: suppress stdin/stdout/stderr inheritance (--no-stdio)'
+    description: 'For `component run`: suppress stdin/stdout/stderr inheritance (--no-stdio)'
     required: false
     default: 'false'
 
 outputs:
   exit-code:
-    description: 'Exit code returned by the wasm command'
-    value: ${{ steps.wasm.outputs.exit-code }}
+    description: 'Exit code returned by the component command'
+    value: ${{ steps.component.outputs.exit-code }}
 
 runs:
   using: composite
@@ -49,7 +49,7 @@ runs:
       shell: bash
       run: |
         ACTION_REF="${{ github.action_ref }}"
-        REPO="${{ github.action_repository || 'yoshuawuyts/wasm-cli' }}"
+        REPO="${{ github.action_repository || 'yoshuawuyts/component-cli' }}"
         if [[ "$ACTION_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
           echo "tag=$ACTION_REF" >> "$GITHUB_OUTPUT"
         elif [[ "$ACTION_REF" =~ ^v([0-9]+)$ ]]; then
@@ -130,13 +130,13 @@ runs:
         echo "target=$TARGET" >> "$GITHUB_OUTPUT"
         echo "ext=$EXT" >> "$GITHUB_OUTPUT"
 
-    - name: Cache wasm CLI binary
+    - name: Cache component CLI binary
       if: steps.version.outputs.tag != '' && steps.platform.outputs.target != ''
       id: cache
       uses: actions/cache@v5
       with:
-        path: ${{ runner.tool_cache }}/wasm-cli
-        key: wasm-cli-${{ steps.version.outputs.tag }}-${{ runner.os }}-${{ runner.arch }}
+        path: ${{ runner.tool_cache }}/component-cli
+        key: component-cli-${{ steps.version.outputs.tag }}-${{ runner.os }}-${{ runner.arch }}
 
     - name: Download pre-built binary
       id: download
@@ -149,9 +149,9 @@ runs:
         TAG="${{ steps.version.outputs.tag }}"
         TARGET="${{ steps.platform.outputs.target }}"
         EXT="${{ steps.platform.outputs.ext }}"
-        REPO="${{ github.action_repository || 'yoshuawuyts/wasm-cli' }}"
-        URL="https://github.com/${REPO}/releases/download/${TAG}/wasm-${TARGET}.${EXT}"
-        DEST="${{ runner.tool_cache }}/wasm-cli"
+        REPO="${{ github.action_repository || 'yoshuawuyts/component-cli' }}"
+        URL="https://github.com/${REPO}/releases/download/${TAG}/component-${TARGET}.${EXT}"
+        DEST="${{ runner.tool_cache }}/component-cli"
         mkdir -p "$DEST"
         echo "Downloading $URL"
         if [[ "$EXT" == "tar.gz" ]]; then
@@ -161,21 +161,21 @@ runs:
             exit 0
           fi
         else
-          if ! curl -fsSL "$URL" -o /tmp/wasm.zip; then
+          if ! curl -fsSL "$URL" -o /tmp/component.zip; then
             echo "::warning::Failed to download pre-built binary from $URL"
             echo "ok=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if ! unzip -o /tmp/wasm.zip -d "$DEST"; then
+          if ! unzip -o /tmp/component.zip -d "$DEST"; then
             echo "::warning::Failed to extract pre-built binary archive"
-            rm -f /tmp/wasm.zip
+            rm -f /tmp/component.zip
             echo "ok=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          rm -f /tmp/wasm.zip
+          rm -f /tmp/component.zip
         fi
-        if [ -f "$DEST/wasm" ]; then
-          chmod +x "$DEST/wasm"
+        if [ -f "$DEST/component" ]; then
+          chmod +x "$DEST/component"
         fi
         echo "ok=true" >> "$GITHUB_OUTPUT"
 
@@ -185,22 +185,22 @@ runs:
         steps.platform.outputs.target != '' &&
         (steps.cache.outputs.cache-hit == 'true' || steps.download.outputs.ok == 'true')
       shell: bash
-      run: echo "${{ runner.tool_cache }}/wasm-cli" >> "$GITHUB_PATH"
+      run: echo "${{ runner.tool_cache }}/component-cli" >> "$GITHUB_PATH"
 
     - name: Fallback to cargo install
       shell: bash
       run: |
-        if ! command -v wasm &>/dev/null; then
-          REPO="${{ github.action_repository || 'yoshuawuyts/wasm-cli' }}"
-          cargo install --git "https://github.com/${REPO}.git" wasm
+        if ! command -v component &>/dev/null; then
+          REPO="${{ github.action_repository || 'yoshuawuyts/component-cli' }}"
+          cargo install --git "https://github.com/${REPO}.git" component
         fi
 
-    - name: Verify wasm is available
+    - name: Verify component is available
       shell: bash
-      run: wasm --help > /dev/null
+      run: component --help > /dev/null
 
-    - name: Run wasm
-      id: wasm
+    - name: Run component
+      id: component
       shell: bash
       env:
         INPUT_COMMAND: ${{ inputs.command }}
@@ -221,10 +221,10 @@ runs:
         # Subcommand
         args+=("$INPUT_COMMAND")
 
-        # Positional input argument (e.g. file path or OCI reference for `wasm run`)
+        # Positional input argument (e.g. file path or OCI reference for `component run`)
         [ -n "$INPUT_INPUT" ] && args+=("$INPUT_INPUT")
 
-        # Flags for `wasm run`
+        # Flags for `component run`
         [ "$INPUT_INHERIT_ENV" = "true" ] && args+=(--inherit-env)
         [ "$INPUT_INHERIT_NETWORK" = "true" ] && args+=(--inherit-network)
         [ "$INPUT_NO_STDIO" = "true" ] && args+=(--no-stdio)
@@ -236,7 +236,7 @@ runs:
         fi
 
         set +e
-        wasm "${args[@]}"
+        component "${args[@]}"
         exit_code=$?
         set -e
         echo "exit-code=$exit_code" >> "$GITHUB_OUTPUT"
