@@ -712,10 +712,11 @@ fn with_cache_control(
 /// body bytes using the FNV-1a 64-bit hash. FNV-1a is deterministic and
 /// stable across Rust toolchain versions, platforms, and process restarts,
 /// which is what we need so that a given page produces the same ETag every
-/// time it is served. Collisions are not a security concern here — an
-/// occasional false `If-None-Match` match would only cause a stale page to
-/// be served until the `Cache-Control` TTL expires, which is the existing
-/// worst-case behavior anyway.
+/// time it is served. Collisions are not treated as a security concern
+/// here, but they can cause incorrect cache validation: if two different
+/// bodies ever hash to the same ETag, clients and intermediaries may keep
+/// receiving `304 Not Modified` for the newer body and continue serving the
+/// older cached body indefinitely across revalidations.
 fn compute_etag(bytes: &[u8]) -> String {
     // FNV-1a 64-bit, per http://www.isthe.com/chongo/tech/comp/fnv/
     const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
@@ -731,17 +732,19 @@ fn compute_etag(bytes: &[u8]) -> String {
 /// Returns `true` when the request's `If-None-Match` header lists `etag` or
 /// the wildcard `*`, indicating the client already has a matching cached
 /// representation.
+fn normalize_entity_tag(tag: &str) -> &str {
+    tag.trim().strip_prefix("W/").unwrap_or(tag.trim())
+}
+
 fn if_none_match_matches(req_headers: &HeaderMap, etag: &str) -> bool {
-    let Some(value) = req_headers
-        .get(header::IF_NONE_MATCH)
-        .and_then(|v| v.to_str().ok())
-    else {
-        return false;
-    };
-    value
-        .split(',')
+    let normalized_etag = normalize_entity_tag(etag);
+    req_headers
+        .get_all(header::IF_NONE_MATCH)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(','))
         .map(str::trim)
-        .any(|tag| tag == etag || tag == "*")
+        .any(|tag| tag == "*" || normalize_entity_tag(tag) == normalized_etag)
 }
 
 #[must_use]
