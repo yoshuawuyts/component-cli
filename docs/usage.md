@@ -56,28 +56,20 @@ component package pull registry.example.com/org/component:tag
 
 The package is stored locally in content-addressable storage and can be listed with `component package list`.
 
-### Pushing Packages
+### Publishing a Package
 
-Push a local package to a registry:
-
-```bash
-component package push ghcr.io/myuser/my-component:v1.0.0
-```
-
-**Note**: You must be authenticated to push packages. See [Authentication](authentication.md) for details.
-
-### Publishing a Package (manifest-driven)
-
-For projects with a `wasm.toml` manifest, prefer the higher-level
-`component publish` command. It reads a `[package]` section from the
-manifest and uploads either the compiled component (`kind = "component"`)
-or a freshly-built WIT package (`kind = "interface"`).
+`component publish` reads a `[package]` section from `wasm.toml` and
+uploads either the compiled component (`kind = "component"`) or a
+freshly-built WIT package (`kind = "interface"`). The target registry
+**must** be spelled out in the manifest — there is no implicit default,
+so publishing is fully reproducible from `wasm.toml` alone.
 
 ```toml
 # wasm.toml
 [package]
 name = "yoshuawuyts:fetch"
 version = "0.1.0"
+registry = "ghcr.io"
 kind = "component"
 file = "build/fetch.wasm"     # defaults to build/<name>.wasm
 description = "A tiny fetch helper"
@@ -91,6 +83,7 @@ For an interface package, point `wit` at the WIT directory:
 [package]
 name = "wasi:logging"
 version = "1.0.0"
+registry = "ghcr.io"
 kind = "interface"
 wit = "wit"     # defaults to "wit"
 ```
@@ -108,8 +101,7 @@ component publish --dry-run
 Publish for real:
 
 ```bash
-component publish                       # uses ghcr.io
-component publish --registry oci.io     # to a different host
+component publish                       # uses [package].registry
 component publish --file build/x.wasm   # override the artifact path
 ```
 
@@ -117,6 +109,8 @@ The artifact is uploaded as a single OCI layer
 (`application/vnd.wasm.config.v0+json` config, `application/wasm`
 layer) with `org.opencontainers.image.{title,version,created,description,source,url,documentation,licenses,authors}`
 annotations populated from the `[package]` section.
+
+**Note**: You must be authenticated to push packages. See [Authentication](authentication.md) for details.
 
 
 ### Listing Packages

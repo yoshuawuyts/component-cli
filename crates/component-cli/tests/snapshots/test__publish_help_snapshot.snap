@@ -13,8 +13,6 @@ Options:
           Print the OCI manifest, layers, annotations, and target reference that would be pushed without actually contacting the registry
       --manifest-path <MANIFEST_PATH>
           Path to the project directory containing `wasm.toml`. Defaults to the current directory [default: .]
-      --registry <REGISTRY>
-          The registry host to publish to. Defaults to `ghcr.io` [default: ghcr.io]
   -h, --help
           Print help
   -V, --version

@@ -1589,9 +1589,8 @@ impl Manager {
         &self,
         manifest: &component_manifest::Manifest,
         manifest_dir: &Path,
-        default_registry: &str,
     ) -> anyhow::Result<crate::publish::PublishPlan> {
-        crate::publish::plan(manifest, manifest_dir, default_registry).await
+        crate::publish::plan(manifest, manifest_dir).await
     }
 
     /// Publish the artifact described by `manifest` to an OCI registry.
@@ -1600,18 +1599,17 @@ impl Manager {
     /// via [`crate::publish::build_wit_package`] (which stamps the
     /// manifest version onto the WIT package decl).
     ///
-    /// On success, the new tag is recorded locally so subsequent calls
-    /// to [`Manager::list_tags`] reflect it.
+    /// The target registry comes from the manifest's
+    /// `[package].registry` field — there is no implicit default.
     pub async fn publish(
         &self,
         manifest: &component_manifest::Manifest,
         manifest_dir: &Path,
-        default_registry: &str,
     ) -> anyhow::Result<crate::publish::PublishPlan> {
         if self.offline {
             anyhow::bail!("cannot publish in offline mode");
         }
-        let plan = crate::publish::plan(manifest, manifest_dir, default_registry).await?;
+        let plan = crate::publish::plan(manifest, manifest_dir).await?;
         let _response = self
             .client
             .push(
@@ -1627,24 +1625,6 @@ impl Manager {
         // the canonical source — the next `tags` call will refetch it.
         tracing::debug!(reference = %plan.reference, "published artifact");
         Ok(plan)
-    }
-
-    /// Low-level push: upload the given wasm bytes to `reference`,
-    /// reusing the same OCI primitive as [`Manager::publish`]. No
-    /// manifest is consulted and no annotations beyond the empty
-    /// default set are added.
-    ///
-    /// This backs the low-level `component registry push` subcommand,
-    /// which mirrors the existing `pull` for one-off pushes outside a
-    /// manifest.
-    pub async fn registry_push(&self, reference: &Reference, bytes: Vec<u8>) -> anyhow::Result<()> {
-        if self.offline {
-            anyhow::bail!("cannot push in offline mode");
-        }
-        self.client
-            .push(reference, bytes, std::collections::BTreeMap::new())
-            .await?;
-        Ok(())
     }
 }
 

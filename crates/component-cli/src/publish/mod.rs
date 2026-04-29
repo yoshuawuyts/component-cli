@@ -9,11 +9,6 @@ use anyhow::{Context, Result, bail};
 use component_manifest::{Manifest, PackageKind};
 use component_package_manager::manager::Manager;
 
-/// The default registry host published artifacts target when no
-/// override is supplied. Mirrors the convention used elsewhere in the
-/// CLI examples.
-const DEFAULT_REGISTRY: &str = "ghcr.io";
-
 /// Options for the top-level `component publish` command.
 #[derive(clap::Args)]
 pub(crate) struct Opts {
@@ -33,10 +28,6 @@ pub(crate) struct Opts {
     /// to the current directory.
     #[arg(long, default_value = ".")]
     manifest_path: PathBuf,
-
-    /// The registry host to publish to. Defaults to `ghcr.io`.
-    #[arg(long, default_value = DEFAULT_REGISTRY)]
-    registry: String,
 }
 
 impl Opts {
@@ -69,9 +60,7 @@ impl Opts {
         };
 
         if self.dry_run {
-            let plan = manager
-                .publish_dry_run(&manifest, &manifest_dir, &self.registry)
-                .await?;
+            let plan = manager.publish_dry_run(&manifest, &manifest_dir).await?;
             println!("{}", plan.render());
             return Ok(());
         }
@@ -80,9 +69,7 @@ impl Opts {
             bail!("cannot publish in offline mode");
         }
 
-        let plan = manager
-            .publish(&manifest, &manifest_dir, &self.registry)
-            .await?;
+        let plan = manager.publish(&manifest, &manifest_dir).await?;
         println!(
             "{:>12} {} ({} bytes)",
             console::style("Published").green().bold(),

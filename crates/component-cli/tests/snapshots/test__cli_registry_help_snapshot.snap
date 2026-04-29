@@ -9,7 +9,6 @@ Usage: component registry [OPTIONS] <COMMAND>
 Commands:
   show     Fetch OCI metadata for a component
   pull     Pull a component from the registry
-  push     Push a single Wasm artifact to the registry (low-level)
   tags     List all available tags for a component
   search   Search for packages across configured registries
   sync     Force-sync the package index from the configured meta-registry

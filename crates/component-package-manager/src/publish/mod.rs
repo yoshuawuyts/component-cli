@@ -156,17 +156,16 @@ pub fn build_annotations(pkg: &Package, created: DateTime<Utc>) -> BTreeMap<Stri
     a
 }
 
-/// Resolve the OCI reference for a given `[package]` section, given the
-/// configured default registry (e.g. `ghcr.io`).
+/// Resolve the OCI reference for a given `[package]` section.
 ///
 /// The package name is expected in `namespace:name` form. The resulting
-/// reference looks like `<registry>/<namespace>/<name>:<version>`.
+/// reference looks like `<package.registry>/<namespace>/<name>:<version>`.
 ///
 /// # Errors
 ///
 /// Returns an error when the package name is not in `namespace:name`
 /// form, or the resulting reference cannot be parsed.
-pub fn resolve_reference(pkg: &Package, default_registry: &str) -> Result<Reference> {
+pub fn resolve_reference(pkg: &Package) -> Result<Reference> {
     let (namespace, name) = pkg.name.split_once(':').with_context(|| {
         format!(
             "[package].name `{}` must be in `namespace:name` form",
@@ -179,7 +178,7 @@ pub fn resolve_reference(pkg: &Package, default_registry: &str) -> Result<Refere
             pkg.name
         );
     }
-    let s = format!("{default_registry}/{namespace}/{name}:{}", pkg.version);
+    let s = format!("{}/{namespace}/{name}:{}", pkg.registry, pkg.version);
     s.parse::<Reference>()
         .with_context(|| format!("failed to parse OCI reference `{s}`"))
 }
@@ -204,16 +203,12 @@ pub fn require_package(manifest: &Manifest) -> Result<&Package> {
 /// any network I/O.
 ///
 /// `manifest_dir` is the directory containing `wasm.toml` (used to
-/// resolve relative paths in `[package].file` / `[package].wit`).
-/// `default_registry` is the host the artifact would be pushed to
-/// (e.g. `ghcr.io`).
-pub async fn plan(
-    manifest: &Manifest,
-    manifest_dir: &Path,
-    default_registry: &str,
-) -> Result<PublishPlan> {
+/// resolve relative paths in `[package].file` / `[package].wit`). The
+/// target registry is read from the manifest's `[package].registry`
+/// field — there is no implicit default.
+pub async fn plan(manifest: &Manifest, manifest_dir: &Path) -> Result<PublishPlan> {
     let pkg = require_package(manifest)?;
-    let reference = resolve_reference(pkg, default_registry)?;
+    let reference = resolve_reference(pkg)?;
     let (bytes, source_path, built) = load_artifact(manifest_dir, pkg).await?;
     let size_bytes = bytes.len() as u64;
     let annotations = build_annotations(pkg, Utc::now());
@@ -236,6 +231,7 @@ mod tests {
         Package {
             name: "yoshuawuyts:fetch".into(),
             version: "0.1.0".into(),
+            registry: "ghcr.io".into(),
             kind: PackageKind::Component,
             file: None,
             wit: None,
@@ -307,7 +303,7 @@ mod tests {
     #[test]
     fn reference_is_built_from_namespace_name_and_version() {
         let pkg = sample_pkg();
-        let r = resolve_reference(&pkg, "ghcr.io").expect("ok");
+        let r = resolve_reference(&pkg).expect("ok");
         assert_eq!(r.registry(), "ghcr.io");
         assert_eq!(r.repository(), "yoshuawuyts/fetch");
         assert_eq!(r.tag(), Some("0.1.0"));
@@ -318,7 +314,7 @@ mod tests {
     fn reference_requires_namespace_name_form() {
         let mut pkg = sample_pkg();
         pkg.name = "no-colon".into();
-        assert!(resolve_reference(&pkg, "ghcr.io").is_err());
+        assert!(resolve_reference(&pkg).is_err());
     }
 
     // r[verify publish.require-package.missing]
