@@ -131,6 +131,10 @@ fn rewrite_doc_links(source: &str) -> String {
 }
 
 /// Rewrite a single link destination if it points to a known doc page.
+///
+/// Preserves any trailing `#fragment` or `?query` suffix so links such as
+/// `configuration.md#credential-helpers` are rewritten to
+/// `/docs/configuration#credential-helpers`.
 fn rewrite_dest(dest: &str) -> String {
     // Don't rewrite absolute URLs or anchors.
     if dest.starts_with("http://")
@@ -140,13 +144,16 @@ fn rewrite_dest(dest: &str) -> String {
     {
         return dest.to_owned();
     }
-    if dest.eq_ignore_ascii_case("README.md") {
-        return "/docs".to_owned();
+    // Split off any `#fragment` or `?query` suffix; rewrite only the path.
+    let suffix_start = dest.find(['#', '?']).unwrap_or(dest.len());
+    let (path, suffix) = dest.split_at(suffix_start);
+    if path.eq_ignore_ascii_case("README.md") {
+        return format!("/docs{suffix}");
     }
-    if let Some(stem) = dest.strip_suffix(".md")
+    if let Some(stem) = path.strip_suffix(".md")
         && PAGES.iter().any(|p| p.slug == stem)
     {
-        return format!("/docs/{stem}");
+        return format!("/docs/{stem}{suffix}");
     }
     dest.to_owned()
 }
@@ -182,6 +189,37 @@ mod tests {
     #[test]
     fn leaves_unknown_md_links_alone() {
         let input = "[Other](unknown.md)";
+        let out = rewrite_doc_links(input);
+        assert_eq!(out, input);
+    }
+
+    #[test]
+    fn rewrites_md_link_with_fragment() {
+        let input = "See [Helpers](configuration.md#credential-helpers).";
+        let out = rewrite_doc_links(input);
+        assert_eq!(
+            out,
+            "See [Helpers](/docs/configuration#credential-helpers)."
+        );
+    }
+
+    #[test]
+    fn rewrites_md_link_with_query() {
+        let input = "[Cfg](configuration.md?x=1)";
+        let out = rewrite_doc_links(input);
+        assert_eq!(out, "[Cfg](/docs/configuration?x=1)");
+    }
+
+    #[test]
+    fn rewrites_readme_link_with_fragment() {
+        let input = "[Index](README.md#top)";
+        let out = rewrite_doc_links(input);
+        assert_eq!(out, "[Index](/docs#top)");
+    }
+
+    #[test]
+    fn leaves_unknown_md_link_with_fragment_alone() {
+        let input = "[Other](unknown.md#foo)";
         let out = rewrite_doc_links(input);
         assert_eq!(out, input);
     }
