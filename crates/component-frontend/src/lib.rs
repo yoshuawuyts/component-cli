@@ -19,11 +19,13 @@ mod pages;
 mod reserved;
 mod wit_doc;
 
+use axum::body::Body;
 use axum::extract::{Path, Query};
-use axum::http::{HeaderValue, StatusCode, Uri, header};
+use axum::http::{HeaderMap, HeaderValue, StatusCode, Uri, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Json, Router, routing::get};
 use serde::Deserialize;
+use std::hash::{DefaultHasher, Hasher};
 
 use component_meta_registry_client::{KnownPackage, RegistryClient};
 
@@ -102,10 +104,10 @@ async fn health() -> impl IntoResponse {
 
 // r[impl frontend.pages.home]
 /// Front page showing recently updated components and interfaces.
-async fn home() -> Response {
+async fn home(headers: HeaderMap) -> Response {
     let client = RegistryClient::from_env();
     let html = pages::home::render(&client).await;
-    with_cache_control(html, "public, max-age=60")
+    with_cache_control(&headers, html, "public, max-age=60")
 }
 
 /// Query parameters for the search page.
@@ -133,19 +135,19 @@ fn default_all_packages_limit() -> u32 {
 
 // r[impl frontend.pages.search]
 /// Search results page.
-async fn search(Query(params): Query<SearchParams>) -> Response {
+async fn search(headers: HeaderMap, Query(params): Query<SearchParams>) -> Response {
     let client = RegistryClient::from_env();
     let html = pages::search::render(&client, &params.q).await;
-    with_cache_control(html, "public, max-age=60")
+    with_cache_control(&headers, html, "public, max-age=60")
 }
 
 // r[impl frontend.pages.all]
 /// Paginated listing of all known packages.
-async fn all_packages(Query(params): Query<AllPackagesParams>) -> Response {
+async fn all_packages(headers: HeaderMap, Query(params): Query<AllPackagesParams>) -> Response {
     let client = RegistryClient::from_env();
     let limit = params.limit.clamp(1, 200);
     let html = pages::all::render(&client, params.offset, limit).await;
-    with_cache_control(html, "public, max-age=60")
+    with_cache_control(&headers, html, "public, max-age=60")
 }
 
 /// About page — redirects to docs.
@@ -154,39 +156,39 @@ async fn about() -> Response {
 }
 
 /// Documentation page.
-async fn docs() -> Response {
+async fn docs(headers: HeaderMap) -> Response {
     let html = pages::docs::render();
-    with_cache_control(html, "public, max-age=3600")
+    with_cache_control(&headers, html, "public, max-age=3600")
 }
 
 /// Design system reference page.
-async fn design_system() -> Response {
+async fn design_system(headers: HeaderMap) -> Response {
     let html = pages::design_system::render();
-    with_cache_control(html, "public, max-age=3600")
+    with_cache_control(&headers, html, "public, max-age=3600")
 }
 
 /// Downloads page.
-async fn downloads() -> Response {
+async fn downloads(headers: HeaderMap) -> Response {
     let html = pages::downloads::render();
-    with_cache_control(html, "public, max-age=3600")
+    with_cache_control(&headers, html, "public, max-age=3600")
 }
 
 /// Fetch queue status page.
-async fn queue_status() -> Response {
+async fn queue_status(headers: HeaderMap) -> Response {
     let client = RegistryClient::from_env();
     let html = pages::queue::render(&client).await;
-    with_cache_control(html, "no-cache")
+    with_cache_control(&headers, html, "no-cache")
 }
 
 /// Namespace page — list all packages under a publisher.
-async fn namespace_page(Path(namespace): Path<String>) -> Response {
+async fn namespace_page(headers: HeaderMap, Path(namespace): Path<String>) -> Response {
     if is_reserved(&namespace) {
         return not_found_response();
     }
 
     let client = RegistryClient::from_env();
     let html = pages::namespace::render(&client, &namespace).await;
-    with_cache_control(html, "public, max-age=60")
+    with_cache_control(&headers, html, "public, max-age=60")
 }
 
 // r[impl frontend.pages.package-redirect]
@@ -228,6 +230,7 @@ async fn package_redirect(
 // r[impl frontend.routing.package-path]
 /// Package detail page at `/<namespace>/<name>/<version>`.
 async fn package_detail(
+    headers: HeaderMap,
     Path((namespace, name, version)): Path<(String, String, String)>,
 ) -> Response {
     let client = RegistryClient::from_env();
@@ -257,7 +260,7 @@ async fn package_detail(
         &importers,
         &exporters,
     );
-    with_cache_control(html, "public, max-age=300")
+    with_cache_control(&headers, html, "public, max-age=300")
 }
 
 /// Legacy dependencies route — redirects to the main package page.
@@ -276,6 +279,7 @@ async fn package_dependents(
 
 /// Interface detail page at `/<namespace>/<name>/<version>/interface/<iface>`.
 async fn interface_detail(
+    headers: HeaderMap,
     Path((namespace, name, version, iface)): Path<(String, String, String, String)>,
 ) -> Response {
     let client = RegistryClient::from_env();
@@ -291,11 +295,12 @@ async fn interface_detail(
         return not_found_response();
     };
     let html = pages::interface::render(&pkg, &version, Some(&version_detail), iface_doc, &doc);
-    with_cache_control(html, "public, max-age=300")
+    with_cache_control(&headers, html, "public, max-age=300")
 }
 
 /// Item detail page at `/<namespace>/<name>/<version>/interface/<iface>/<item>`.
 async fn item_detail(
+    headers: HeaderMap,
     Path((namespace, name, version, iface, item_name)): Path<(
         String,
         String,
@@ -321,7 +326,7 @@ async fn item_detail(
     if let Some(ty) = iface_doc.types.iter().find(|t| t.name == item_name) {
         let html =
             pages::item::render_type(&pkg, &version, Some(&version_detail), &iface, ty, &doc);
-        return with_cache_control(html, "public, max-age=300");
+        return with_cache_control(&headers, html, "public, max-age=300");
     }
     if let Some(func) = iface_doc.functions.iter().find(|f| f.name == item_name) {
         let iface_url = format!("/{namespace}/{name}/{version}/interface/{iface}");
@@ -334,7 +339,7 @@ async fn item_detail(
             func,
             &doc,
         );
-        return with_cache_control(html, "public, max-age=300");
+        return with_cache_control(&headers, html, "public, max-age=300");
     }
 
     not_found_response()
@@ -342,6 +347,7 @@ async fn item_detail(
 
 /// World detail page at `/<namespace>/<name>/<version>/world/<world_name>`.
 async fn world_detail(
+    headers: HeaderMap,
     Path((namespace, name, version, world_name)): Path<(String, String, String, String)>,
 ) -> Response {
     let client = RegistryClient::from_env();
@@ -361,12 +367,13 @@ async fn world_detail(
         return not_found_response();
     }
     let html = pages::world::render(&pkg, &version, Some(&version_detail), world_doc, &doc);
-    with_cache_control(html, "public, max-age=300")
+    with_cache_control(&headers, html, "public, max-age=300")
 }
 
 /// Detail page for a freestanding function declared directly on a world,
 /// at `/<namespace>/<name>/<version>/world/<world>/function/<func>`.
 async fn world_function_detail(
+    headers: HeaderMap,
     Path((namespace, name, version, world_name, func_name)): Path<(
         String,
         String,
@@ -410,7 +417,7 @@ async fn world_function_detail(
         func,
         &doc,
     );
-    with_cache_control(html, "public, max-age=300")
+    with_cache_control(&headers, html, "public, max-age=300")
 }
 
 /// Detail page for a freestanding function inlined onto a package page,
@@ -418,6 +425,7 @@ async fn world_function_detail(
 /// world's imports and exports for a function with the given name and
 /// returns the first match.
 async fn package_function_detail(
+    headers: HeaderMap,
     Path((namespace, name, version, func_name)): Path<(String, String, String, String)>,
 ) -> Response {
     use crate::wit_doc::WorldItemDoc;
@@ -459,7 +467,7 @@ async fn package_function_detail(
         func,
         &doc,
     );
-    with_cache_control(html, "public, max-age=300")
+    with_cache_control(&headers, html, "public, max-age=300")
 }
 
 /// Fetch and parse the WIT document for a package version, returning
@@ -510,6 +518,7 @@ async fn fetch_wit_doc(
 
 /// Module detail page at `/<namespace>/<name>/<version>/module/<child_name>`.
 async fn module_detail(
+    headers: HeaderMap,
     Path((namespace, name, version, child_name)): Path<(String, String, String, String)>,
 ) -> Response {
     let client = RegistryClient::from_env();
@@ -556,11 +565,12 @@ async fn module_detail(
     };
     let html =
         pages::child_component::render(&pkg, &version, version_detail.as_ref(), child, &child_name);
-    with_cache_control(html, "public, max-age=300")
+    with_cache_control(&headers, html, "public, max-age=300")
 }
 
 /// Child component detail page at `/<namespace>/<name>/<version>/component/<index>`.
 async fn child_component_detail(
+    headers: HeaderMap,
     Path((namespace, name, version, child_index)): Path<(String, String, String, String)>,
 ) -> Response {
     let client = RegistryClient::from_env();
@@ -596,7 +606,7 @@ async fn child_component_detail(
         child,
         &display_name,
     );
-    with_cache_control(html, "public, max-age=300")
+    with_cache_control(&headers, html, "public, max-age=300")
 }
 
 /// Fetch a package by WIT namespace/name, validating the version exists.
@@ -666,14 +676,63 @@ fn error_response(message: &str) -> Response {
 }
 
 // r[impl frontend.caching.static-pages]
-/// Wrap an HTML string response with `Cache-Control` header.
-fn with_cache_control(html: String, cache_control: &'static str) -> Response {
+// r[impl frontend.caching.etag]
+/// Wrap an HTML string response with `Cache-Control` and a content-derived
+/// `ETag` header. Honors `If-None-Match` on the incoming request and returns
+/// `304 Not Modified` (with the matching `ETag`/`Cache-Control` headers and
+/// an empty body) when the client already has the current version.
+fn with_cache_control(
+    req_headers: &HeaderMap,
+    html: String,
+    cache_control: &'static str,
+) -> Response {
+    let etag = compute_etag(html.as_bytes());
+    let etag_value =
+        HeaderValue::from_str(&etag).expect("etag is composed of ascii hex digits and quotes");
+    let cache_value = HeaderValue::from_static(cache_control);
+
+    if if_none_match_matches(req_headers, &etag) {
+        let mut response = Response::new(Body::empty());
+        *response.status_mut() = StatusCode::NOT_MODIFIED;
+        response.headers_mut().insert(header::ETAG, etag_value);
+        response
+            .headers_mut()
+            .insert(header::CACHE_CONTROL, cache_value);
+        return response;
+    }
+
     let mut response = axum::response::Html(html).into_response();
-    response.headers_mut().insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static(cache_control),
-    );
     response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, cache_value);
+    response.headers_mut().insert(header::ETAG, etag_value);
+    response
+}
+
+/// Compute a strong `ETag` value (a quoted hex string) from the response
+/// body bytes. Uses [`DefaultHasher`] (SipHash) which is sufficient for
+/// detecting content changes across publishes; collisions are not a
+/// security concern here.
+fn compute_etag(bytes: &[u8]) -> String {
+    let mut hasher = DefaultHasher::new();
+    hasher.write(bytes);
+    format!("\"{:016x}\"", hasher.finish())
+}
+
+/// Returns `true` when the request's `If-None-Match` header lists `etag` or
+/// the wildcard `*`, indicating the client already has a matching cached
+/// representation.
+fn if_none_match_matches(req_headers: &HeaderMap, etag: &str) -> bool {
+    let Some(value) = req_headers
+        .get(header::IF_NONE_MATCH)
+        .and_then(|v| v.to_str().ok())
+    else {
+        return false;
+    };
+    value
+        .split(',')
+        .map(str::trim)
+        .any(|tag| tag == etag || tag == "*")
 }
 
 #[must_use]
@@ -718,11 +777,10 @@ mod tests {
     // r[verify frontend.routing.reserved-namespaces]
     #[tokio::test]
     async fn package_detail_reserved_namespace_returns_not_found() {
-        let response = package_detail(Path((
-            "all".to_string(),
-            "demo".to_string(),
-            "1.0.0".to_string(),
-        )))
+        let response = package_detail(
+            HeaderMap::new(),
+            Path(("all".to_string(), "demo".to_string(), "1.0.0".to_string())),
+        )
         .await;
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -773,7 +831,12 @@ mod tests {
     // r[verify frontend.caching.static-pages]
     #[test]
     fn with_cache_control_sets_header() {
-        let response = with_cache_control("<p>Hello</p>".to_string(), "public, max-age=60");
+        let response = with_cache_control(
+            &HeaderMap::new(),
+            "<p>Hello</p>".to_string(),
+            "public, max-age=60",
+        );
+        assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             response
                 .headers()
@@ -781,6 +844,101 @@ mod tests {
                 .expect("cache-control header should be set"),
             "public, max-age=60"
         );
+    }
+
+    // r[verify frontend.caching.etag]
+    #[test]
+    fn with_cache_control_emits_strong_etag_for_body() {
+        let response = with_cache_control(
+            &HeaderMap::new(),
+            "<p>Hello</p>".to_string(),
+            "public, max-age=60",
+        );
+        let etag = response
+            .headers()
+            .get(header::ETAG)
+            .expect("etag header should be set")
+            .to_str()
+            .expect("etag should be ascii");
+        assert!(
+            etag.starts_with('"') && etag.ends_with('"'),
+            "etag should be a quoted string, got {etag}"
+        );
+    }
+
+    // r[verify frontend.caching.etag]
+    #[test]
+    fn compute_etag_changes_with_body() {
+        let a = compute_etag(b"<p>Hello</p>");
+        let b = compute_etag(b"<p>World</p>");
+        assert_ne!(
+            a, b,
+            "different bodies should produce different etags so fresh content is picked up"
+        );
+        assert_eq!(a, compute_etag(b"<p>Hello</p>"));
+    }
+
+    // r[verify frontend.caching.etag]
+    #[tokio::test]
+    async fn with_cache_control_returns_304_on_matching_if_none_match() {
+        let body = "<p>Hello</p>".to_string();
+        let etag = compute_etag(body.as_bytes());
+
+        let mut req_headers = HeaderMap::new();
+        req_headers.insert(
+            header::IF_NONE_MATCH,
+            HeaderValue::from_str(&etag).expect("etag is ascii"),
+        );
+
+        let response = with_cache_control(&req_headers, body, "public, max-age=60");
+        assert_eq!(response.status(), StatusCode::NOT_MODIFIED);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::ETAG)
+                .expect("etag header should be set"),
+            etag.as_str()
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .expect("cache-control header should be set"),
+            "public, max-age=60"
+        );
+        let bytes = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("304 response body should be readable");
+        assert!(bytes.is_empty(), "304 responses must have an empty body");
+    }
+
+    // r[verify frontend.caching.etag]
+    #[test]
+    fn with_cache_control_returns_304_on_wildcard_if_none_match() {
+        let mut req_headers = HeaderMap::new();
+        req_headers.insert(header::IF_NONE_MATCH, HeaderValue::from_static("*"));
+
+        let response = with_cache_control(
+            &req_headers,
+            "<p>Hello</p>".to_string(),
+            "public, max-age=60",
+        );
+        assert_eq!(response.status(), StatusCode::NOT_MODIFIED);
+    }
+
+    // r[verify frontend.caching.etag]
+    #[test]
+    fn with_cache_control_returns_200_when_if_none_match_does_not_match() {
+        let mut req_headers = HeaderMap::new();
+        req_headers.insert(header::IF_NONE_MATCH, HeaderValue::from_static("\"stale\""));
+
+        let response = with_cache_control(
+            &req_headers,
+            "<p>Hello</p>".to_string(),
+            "public, max-age=60",
+        );
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(response.headers().get(header::ETAG).is_some());
     }
 
     #[test]

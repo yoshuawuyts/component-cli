@@ -93,3 +93,13 @@ HTML responses SHOULD include appropriate `Cache-Control` headers to
 optimize for caching. Home page responses SHOULD use a short TTL
 (e.g. 60 seconds), package detail pages a medium TTL (e.g. 300 seconds),
 and error pages SHOULD NOT be cached.
+
+r[frontend.caching.etag]
+Cacheable HTML responses MUST include a strong `ETag` header derived from
+the response body so that intermediaries and clients can perform
+conditional requests. When a request includes an `If-None-Match` header
+that matches the current `ETag` (or is `*`), the server MUST respond with
+`304 Not Modified` and an empty body, while still emitting the matching
+`ETag` and `Cache-Control` headers. This ensures that newly published
+content is picked up as soon as it changes, rather than after the
+`Cache-Control` TTL expires.
