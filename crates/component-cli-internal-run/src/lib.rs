@@ -1,5 +1,4 @@
 #![allow(clippy::print_stderr)]
-
 //! Internal crate for executing WebAssembly components via Wasmtime.
 //!
 //! This crate is **not** intended for third-party consumption — it is an
@@ -17,6 +16,7 @@
 //!   `Func::call` API.
 
 mod errors;
+mod http_hooks;
 
 use miette::Context;
 use wasmparser::{Encoding, Parser, Payload};
@@ -37,6 +37,7 @@ struct WasiState {
     ctx: wasmtime_wasi::WasiCtx,
     http: WasiHttpCtx,
     table: ResourceTable,
+    p3_hooks: http_hooks::NativeCertHooks,
 }
 
 impl WasiView for WasiState {
@@ -63,7 +64,7 @@ impl WasiHttpViewP3 for WasiState {
         WasiHttpCtxViewP3 {
             ctx: &mut self.http,
             table: &mut self.table,
-            hooks: Default::default(),
+            hooks: &mut self.p3_hooks,
         }
     }
 }
@@ -144,6 +145,7 @@ fn build_wasi_state(
         ctx: wasi_ctx,
         http: WasiHttpCtx::new(),
         table: ResourceTable::new(),
+        p3_hooks: http_hooks::NativeCertHooks,
     })
 }
 
