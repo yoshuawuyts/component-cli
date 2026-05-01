@@ -76,7 +76,9 @@ pub fn build_clap(surface: &LibrarySurface, program_name: &str) -> Result<Comman
     for item in &surface.items {
         match item {
             LibraryItem::Func(f) => {
-                root = root.subcommand(build_func_command(f)?);
+                if let Ok(cmd) = build_func_command(f) {
+                    root = root.subcommand(cmd);
+                }
             }
             LibraryItem::Interface {
                 name, doc, funcs, ..
@@ -87,10 +89,16 @@ pub fn build_clap(surface: &LibrarySurface, program_name: &str) -> Result<Comman
                 if let Some(doc) = doc {
                     iface_cmd = iface_cmd.about(doc.trim().to_string());
                 }
+                let mut added = 0usize;
                 for f in funcs {
-                    iface_cmd = iface_cmd.subcommand(build_func_command(f)?);
+                    if let Ok(cmd) = build_func_command(f) {
+                        iface_cmd = iface_cmd.subcommand(cmd);
+                        added += 1;
+                    }
                 }
-                root = root.subcommand(iface_cmd);
+                if added > 0 {
+                    root = root.subcommand(iface_cmd);
+                }
             }
         }
     }
