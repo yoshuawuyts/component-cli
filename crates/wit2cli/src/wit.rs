@@ -189,8 +189,10 @@ pub fn extract_library_surface(bytes: &[u8]) -> Result<LibrarySurface, LibraryEx
     for (key, item) in &world.exports {
         match item {
             WorldItem::Function(func) => {
-                let decl = func_to_decl(&resolve, &func.name, func)?;
-                items.push(LibraryItem::Func(decl));
+                match func_to_decl(&resolve, &func.name, func) {
+                    Ok(decl) => items.push(LibraryItem::Func(decl)),
+                    Err(_) => continue, // skip functions with unsupported types (streams, futures, etc.)
+                }
             }
             WorldItem::Interface { id, .. } => {
                 let iface = resolve.interfaces.get(*id).ok_or_else(|| {
@@ -200,14 +202,19 @@ pub fn extract_library_surface(bytes: &[u8]) -> Result<LibrarySurface, LibraryEx
                 let export_name = world_key_export_name(&resolve, key, iface);
                 let mut funcs = Vec::with_capacity(iface.functions.len());
                 for func in iface.functions.values() {
-                    funcs.push(func_to_decl(&resolve, &func.name, func)?);
+                    match func_to_decl(&resolve, &func.name, func) {
+                        Ok(decl) => funcs.push(decl),
+                        Err(_) => continue, // skip functions with unsupported types (streams, futures, etc.)
+                    }
                 }
-                items.push(LibraryItem::Interface {
-                    name: iface_name,
-                    export_name,
-                    doc: iface.docs.contents.clone(),
-                    funcs,
-                });
+                if !funcs.is_empty() {
+                    items.push(LibraryItem::Interface {
+                        name: iface_name,
+                        export_name,
+                        doc: iface.docs.contents.clone(),
+                        funcs,
+                    });
+                }
             }
             WorldItem::Type { .. } => {
                 // Type aliases at the world level are not invocable.
