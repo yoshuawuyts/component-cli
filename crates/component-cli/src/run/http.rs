@@ -12,7 +12,7 @@ use hyper::server::conn::http1;
 use miette::Context;
 use wasmparser::{Parser, Payload};
 use wasmtime::component::{Component, Linker, ResourceTable};
-use wasmtime::{Engine, Store};
+use wasmtime::Store;
 use wasmtime_wasi::{WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
 use wasmtime_wasi_http::io::TokioIo;
 use wasmtime_wasi_http::p2::bindings::ProxyPre;
@@ -102,11 +102,7 @@ pub(super) async fn serve(
     addr: SocketAddr,
 ) -> miette::Result<()> {
     // Enable component-model-async so WASI 0.3 stream/future types are accepted.
-    let mut config = wasmtime::Config::new();
-    config.wasm_component_model_async(true);
-    let engine = Engine::new(&config)
-        .map_err(crate::util::into_miette)
-        .wrap_err("failed to create Wasmtime engine")?;
+    let engine = component_cli_internal_run::build_engine()?;
 
     let component = Component::new(&engine, bytes)
         .map_err(crate::util::into_miette)

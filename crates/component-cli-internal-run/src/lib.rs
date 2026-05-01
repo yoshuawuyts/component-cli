@@ -273,7 +273,7 @@ fn display_path(interface: Option<&str>, func: &str) -> String {
 
 /// Build a [`wasmtime::Engine`] with component-model-async enabled so that
 /// WASI 0.3 components using `stream` / `future` types can be compiled.
-fn build_engine() -> miette::Result<Engine> {
+pub fn build_engine() -> miette::Result<Engine> {
     let mut config = wasmtime::Config::new();
     config.wasm_component_model_async(true);
     Engine::new(&config)
