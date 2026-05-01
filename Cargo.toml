@@ -131,7 +131,7 @@ insta = "1.44.3"
 serde_json = { version = "1.0.145", features = ["alloc"] }
 termcolor = "1.4.1"
 wasm-metadata = "0.247.0"
-wasmtime = "44.0.0"
+wasmtime = { version = "44.0.0", features = ["component-model-async"] }
 wasmtime-wasi = "44.0.0"
 wasmtime-wasi-http = "44.0.0"
 hyper = { version = "1", features = ["http1", "server"] }

@@ -101,8 +101,12 @@ pub(super) async fn serve(
     permissions: &component_manifest::ResolvedPermissions,
     addr: SocketAddr,
 ) -> miette::Result<()> {
-    // Wasmtime 42+ enables async support by default.
-    let engine = Engine::default();
+    // Enable component-model-async so WASI 0.3 stream/future types are accepted.
+    let mut config = wasmtime::Config::new();
+    config.wasm_component_model_async(true);
+    let engine = Engine::new(&config)
+        .map_err(crate::util::into_miette)
+        .wrap_err("failed to create Wasmtime engine")?;
 
     let component = Component::new(&engine, bytes)
         .map_err(crate::util::into_miette)

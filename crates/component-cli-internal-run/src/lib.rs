@@ -151,7 +151,7 @@ pub fn execute_cli_component(
     permissions: &component_manifest::ResolvedPermissions,
     argv: &[String],
 ) -> miette::Result<Result<(), ()>> {
-    let engine = Engine::default();
+    let engine = build_engine()?;
     let component = Component::new(&engine, bytes)
         .map_err(into_miette)
         .wrap_err("failed to compile Wasm Component")?;
@@ -199,7 +199,7 @@ pub fn execute_library_function(
     func: &str,
     args: &[Val],
 ) -> miette::Result<Vec<Val>> {
-    let engine = Engine::default();
+    let engine = build_engine()?;
     let component = Component::new(&engine, bytes)
         .map_err(into_miette)
         .wrap_err("failed to compile Wasm Component")?;
@@ -269,6 +269,16 @@ fn display_path(interface: Option<&str>, func: &str) -> String {
         Some(iface) => format!("{iface}#{func}"),
         None => func.to_string(),
     }
+}
+
+/// Build a [`wasmtime::Engine`] with component-model-async enabled so that
+/// WASI 0.3 components using `stream` / `future` types can be compiled.
+fn build_engine() -> miette::Result<Engine> {
+    let mut config = wasmtime::Config::new();
+    config.wasm_component_model_async(true);
+    Engine::new(&config)
+        .map_err(into_miette)
+        .wrap_err("failed to create Wasmtime engine")
 }
 
 /// Convert an error into a [`miette::Report`], preserving the cause chain.
