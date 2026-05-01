@@ -131,9 +131,10 @@ insta = "1.44.3"
 serde_json = { version = "1.0.145", features = ["alloc"] }
 termcolor = "1.4.1"
 wasm-metadata = "0.247.0"
+rustls = { version = "0.23", features = ["ring"] }
 wasmtime = { version = "44.0.0", features = ["component-model-async"] }
 wasmtime-wasi = "44.0.0"
-wasmtime-wasi-http = "44.0.0"
+wasmtime-wasi-http = { version = "44.0.0", features = ["p3"] }
 hyper = { version = "1", features = ["http1", "server"] }
 
 # store dependencies
@@ -184,3 +185,6 @@ wac-types = "0.10.0"
 # detector dependencies
 ignore = "0.4.25"
 tempfile = "3"
+
+[patch.crates-io]
+wasmtime-wasi-http = { path = "vendor/wasmtime-wasi-http" }

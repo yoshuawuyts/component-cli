@@ -26,6 +26,9 @@ use wasmtime_wasi::p2::bindings::sync::Command;
 use wasmtime_wasi::{DirPerms, FilePerms, ResourceTable, WasiCtxBuilder, WasiCtxView, WasiView};
 use wasmtime_wasi_http::WasiHttpCtx;
 use wasmtime_wasi_http::p2::{WasiHttpCtxView, WasiHttpView};
+use wasmtime_wasi_http::p3::{
+    WasiHttpCtxView as WasiHttpCtxViewP3, WasiHttpView as WasiHttpViewP3,
+};
 
 pub use errors::RunError;
 
@@ -48,6 +51,16 @@ impl WasiView for WasiState {
 impl WasiHttpView for WasiState {
     fn http(&mut self) -> WasiHttpCtxView<'_> {
         WasiHttpCtxView {
+            ctx: &mut self.http,
+            table: &mut self.table,
+            hooks: Default::default(),
+        }
+    }
+}
+
+impl WasiHttpViewP3 for WasiState {
+    fn http(&mut self) -> WasiHttpCtxViewP3<'_> {
+        WasiHttpCtxViewP3 {
             ctx: &mut self.http,
             table: &mut self.table,
             hooks: Default::default(),
@@ -181,7 +194,7 @@ pub fn execute_cli_component(
 }
 
 /// Invoke an arbitrary exported function on a "library-style"
-/// component using wasmtime's untyped `Func::call` API.
+/// component using wasmtime's untyped `Func::call_async` API.
 ///
 /// `interface` selects an exported interface (e.g. `"math"`); pass
 /// `None` for free world-level exports. `func` is the function name.
@@ -192,7 +205,7 @@ pub fn execute_cli_component(
 /// or invocation failures.
 // r[impl run.library-detection]
 // r[impl run.library-dispatch]
-pub fn execute_library_function(
+pub async fn execute_library_function(
     bytes: &[u8],
     permissions: &component_manifest::ResolvedPermissions,
     interface: Option<&str>,
@@ -208,18 +221,21 @@ pub fn execute_library_function(
     let mut store = Store::new(&engine, state);
 
     let mut linker: Linker<WasiState> = Linker::new(&engine);
-    wasmtime_wasi::p2::add_to_linker_sync(&mut linker).map_err(into_miette)?;
+    wasmtime_wasi::p2::add_to_linker_async(&mut linker).map_err(into_miette)?;
     // Make wasi:http/outgoing-handler available so library functions
     // can opportunistically perform outbound HTTP. Use the
     // http-only variant to avoid colliding with `wasi:io/error` etc.
-    // already provided by `wasmtime_wasi::p2::add_to_linker_sync`.
-    wasmtime_wasi_http::p2::add_only_http_to_linker_sync(&mut linker).map_err(into_miette)?;
+    // already provided by `wasmtime_wasi::p2::add_to_linker_async`.
+    wasmtime_wasi_http::p2::add_only_http_to_linker_async(&mut linker).map_err(into_miette)?;
+    // Also provide WASI HTTP 0.3-rc interfaces for components targeting wasi:http 0.3.
+    wasmtime_wasi_http::p3::add_to_linker(&mut linker).map_err(into_miette)?;
 
-    let instance = linker.instantiate(&mut store, &component).map_err(|e| {
-        RunError::LibraryInstantiationFailed {
+    let instance = linker
+        .instantiate_async(&mut store, &component)
+        .await
+        .map_err(|e| RunError::LibraryInstantiationFailed {
             cause: format!("{e:#}"),
-        }
-    })?;
+        })?;
 
     // Look up the function. Two-phase via `Component::get_export_index`
     // for interface-nested functions; direct `instance.get_func` for
@@ -256,10 +272,10 @@ pub fn execute_library_function(
     let mut results = vec![Val::Bool(false); result_count];
 
     target
-        .call(&mut store, args, &mut results)
+        .call_async(&mut store, args, &mut results)
+        .await
         .map_err(into_miette)
         .wrap_err_with(|| format!("invoking {}", display_path(interface, func)))?;
-    // CRITICAL: do NOT call `Func::post_return` — automatic in wasmtime 43+.
 
     Ok(results)
 }
