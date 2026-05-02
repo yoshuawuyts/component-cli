@@ -199,6 +199,13 @@ pub fn extract_library_surface(bytes: &[u8]) -> Result<LibrarySurface, LibraryEx
                     LibraryExtractError::Decode("interface id not in resolve".to_string())
                 })?;
                 let iface_name = world_key_label(&resolve, key, iface.name.as_deref());
+                // Skip "exports" — this is a componentize-py/componentize-js internal
+                // bootstrap interface (not part of the user-facing API). Calling its
+                // `init` function causes the Python/JS interpreter to panic because it
+                // is already running.
+                if iface_name == "exports" {
+                    continue;
+                }
                 let export_name = world_key_export_name(&resolve, key, iface);
                 let mut funcs = Vec::with_capacity(iface.functions.len());
                 for func in iface.functions.values() {

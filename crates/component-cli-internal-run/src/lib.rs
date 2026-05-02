@@ -37,6 +37,7 @@ struct WasiState {
     ctx: wasmtime_wasi::WasiCtx,
     http: WasiHttpCtx,
     table: ResourceTable,
+    p2_hooks: http_hooks::NativeCertHooksP2,
     p3_hooks: http_hooks::NativeCertHooks,
 }
 
@@ -54,7 +55,7 @@ impl WasiHttpView for WasiState {
         WasiHttpCtxView {
             ctx: &mut self.http,
             table: &mut self.table,
-            hooks: Default::default(),
+            hooks: &mut self.p2_hooks,
         }
     }
 }
@@ -145,6 +146,7 @@ fn build_wasi_state(
         ctx: wasi_ctx,
         http: WasiHttpCtx::new(),
         table: ResourceTable::new(),
+        p2_hooks: http_hooks::NativeCertHooksP2,
         p3_hooks: http_hooks::NativeCertHooks,
     })
 }
