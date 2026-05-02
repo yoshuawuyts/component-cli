@@ -171,10 +171,233 @@ pub enum LibraryExtractError {
     },
 }
 
+/// Best-effort extraction for components that lack a `component-type` custom
+/// section (e.g. components built with older `wit-bindgen` toolchains).
+///
+/// Walks the binary with `wasmparser`, resolving exported functions from nested
+/// components and matching them to the top-level instance exports. Only
+/// primitive WIT types (`bool`, `s8`…`u64`, `f32/f64`, `char`, `string`) are
+/// resolved; functions with complex type references are silently skipped.
+///
+/// Returns `Some(LibrarySurface)` if at least one interface with at least one
+/// function was found, `None` otherwise.
+fn fallback_library_surface(bytes: &[u8]) -> Option<LibrarySurface> {
+    use std::collections::HashMap;
+    use wasmparser::{
+        ComponentExternalKind, ComponentType as WpComponentType, ComponentTypeRef,
+        ComponentValType, Encoding, Parser, Payload, PrimitiveValType,
+    };
+
+    fn prim_to_wit(p: PrimitiveValType) -> Option<WitTy> {
+        match p {
+            PrimitiveValType::Bool => Some(WitTy::Bool),
+            PrimitiveValType::S8 => Some(WitTy::S8),
+            PrimitiveValType::S16 => Some(WitTy::S16),
+            PrimitiveValType::S32 => Some(WitTy::S32),
+            PrimitiveValType::S64 => Some(WitTy::S64),
+            PrimitiveValType::U8 => Some(WitTy::U8),
+            PrimitiveValType::U16 => Some(WitTy::U16),
+            PrimitiveValType::U32 => Some(WitTy::U32),
+            PrimitiveValType::U64 => Some(WitTy::U64),
+            PrimitiveValType::F32 => Some(WitTy::F32),
+            PrimitiveValType::F64 => Some(WitTy::F64),
+            PrimitiveValType::Char => Some(WitTy::Char),
+            PrimitiveValType::String => Some(WitTy::String),
+            _ => None,
+        }
+    }
+
+    fn cval_to_wit(cty: ComponentValType) -> Option<WitTy> {
+        match cty {
+            ComponentValType::Primitive(p) => prim_to_wit(p),
+            ComponentValType::Type(_) => None, // complex type: skip
+        }
+    }
+
+    fn iface_short_name(export_name: &str) -> String {
+        // "local:time-server/time"   → "time"
+        // "wasi:io/streams@0.2.0"   → "streams"
+        let after_slash = export_name.rsplit('/').next().unwrap_or(export_name);
+        after_slash.split('@').next().unwrap_or(after_slash).to_string()
+    }
+
+    let mut depth: u32 = 0;
+    let mut in_inner_component = false;
+    // Maps type index → (params, result) within the current depth-2 component.
+    let mut inner_types: Vec<Option<(Vec<(String, ComponentValType)>, Option<ComponentValType>)>> =
+        Vec::new();
+    // Collected function declarations: name → FuncDecl.
+    let mut func_map: HashMap<String, FuncDecl> = HashMap::new();
+    // Top-level instance exports: (full_export_name, short_interface_name).
+    let mut instance_exports: Vec<(String, String)> = Vec::new();
+    // Raw JSON from the `package-docs` custom section, if present.
+    let mut pkg_docs_json: Option<String> = None;
+
+    for payload in Parser::new(0).parse_all(bytes) {
+        let Ok(payload) = payload else { continue };
+        match payload {
+            Payload::Version { encoding, .. } => {
+                depth += 1;
+                if depth == 2 {
+                    in_inner_component = encoding == Encoding::Component;
+                    inner_types.clear();
+                }
+            }
+            Payload::End(_) => {
+                if depth == 2 {
+                    in_inner_component = false;
+                }
+                depth = depth.saturating_sub(1);
+            }
+            Payload::ComponentTypeSection(reader) if depth == 2 && in_inner_component => {
+                for ty in reader.into_iter().flatten() {
+                    match ty {
+                        WpComponentType::Func(ft) => {
+                            let params: Vec<(String, ComponentValType)> =
+                                ft.params.iter().map(|(n, t)| (n.to_string(), *t)).collect();
+                            inner_types.push(Some((params, ft.result)));
+                        }
+                        _ => inner_types.push(None),
+                    }
+                }
+            }
+            Payload::ComponentExportSection(reader) if depth == 2 && in_inner_component => {
+                for export in reader.into_iter().flatten() {
+                    if export.kind != ComponentExternalKind::Func {
+                        continue;
+                    }
+                    let type_idx = match export.ty {
+                        Some(ComponentTypeRef::Func(idx)) => idx as usize,
+                        _ => continue,
+                    };
+                    let Some(Some((params, result))) = inner_types.get(type_idx) else {
+                        continue;
+                    };
+                    let mut param_decls = Vec::new();
+                    let mut params_ok = true;
+                    for (pname, pty) in params {
+                        match cval_to_wit(*pty) {
+                            Some(wty) => param_decls.push(ParamDecl {
+                                name: pname.clone(),
+                                ty: wty,
+                            }),
+                            None => {
+                                params_ok = false;
+                                break;
+                            }
+                        }
+                    }
+                    if !params_ok {
+                        continue;
+                    }
+                    let result_decls = match result {
+                        Some(r) => match cval_to_wit(*r) {
+                            Some(wty) => vec![ResultDecl { ty: wty }],
+                            None => continue,
+                        },
+                        None => Vec::new(),
+                    };
+                    func_map.insert(
+                        export.name.0.to_string(),
+                        FuncDecl {
+                            name: export.name.0.to_string(),
+                            doc: None,
+                            params: param_decls,
+                            results: result_decls,
+                        },
+                    );
+                }
+            }
+            Payload::ComponentExportSection(reader) if depth == 1 => {
+                for export in reader.into_iter().flatten() {
+                    if export.kind == ComponentExternalKind::Instance {
+                        let full_name = export.name.0.to_string();
+                        let short_name = iface_short_name(&full_name);
+                        instance_exports.push((full_name, short_name));
+                    }
+                }
+            }
+            Payload::CustomSection(cs) if depth == 1 && cs.name() == "package-docs" => {
+                pkg_docs_json = std::str::from_utf8(cs.data())
+                    .ok()
+                    .map(|s| s.to_string());
+            }
+            _ => {}
+        }
+    }
+
+    if func_map.is_empty() || instance_exports.is_empty() {
+        return None;
+    }
+
+    // Parse `package-docs` JSON to get interface→(func→doc) mapping.
+    // Format: {"interfaces":{"time":{"funcs":{"get-current-time":{"docs":"..."}}}}}
+    let iface_funcs: Option<HashMap<String, HashMap<String, Option<String>>>> =
+        pkg_docs_json.as_deref().and_then(|json| {
+            let val: serde_json::Value = serde_json::from_str(json).ok()?;
+            let ifaces = val.get("interfaces")?.as_object()?;
+            let mut result: HashMap<String, HashMap<String, Option<String>>> = HashMap::new();
+            for (iname, ival) in ifaces {
+                let mut fmap: HashMap<String, Option<String>> = HashMap::new();
+                if let Some(funcs) = ival.get("funcs").and_then(|v| v.as_object()) {
+                    for (fname, fval) in funcs {
+                        let doc = fval
+                            .get("docs")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+                        fmap.insert(fname.clone(), doc);
+                    }
+                }
+                result.insert(iname.clone(), fmap);
+            }
+            Some(result)
+        });
+
+    let mut items = Vec::new();
+    for (export_name, short_name) in &instance_exports {
+        let funcs: Vec<FuncDecl> = match iface_funcs.as_ref().and_then(|m| m.get(short_name)) {
+            Some(func_docs) => func_docs
+                .iter()
+                .filter_map(|(fname, doc)| {
+                    let mut decl = func_map.get(fname)?.clone();
+                    decl.doc = doc.clone();
+                    Some(decl)
+                })
+                .collect(),
+            None => func_map.values().cloned().collect(),
+        };
+        if !funcs.is_empty() {
+            items.push(LibraryItem::Interface {
+                name: short_name.clone(),
+                export_name: export_name.clone(),
+                doc: None,
+                funcs,
+            });
+        }
+    }
+
+    if items.is_empty() {
+        None
+    } else {
+        Some(LibrarySurface { items })
+    }
+}
+
 /// Decode `bytes` and walk the world's exports into a
 /// [`LibrarySurface`].
 pub fn extract_library_surface(bytes: &[u8]) -> Result<LibrarySurface, LibraryExtractError> {
-    let decoded = decode(bytes).map_err(|e| LibraryExtractError::Decode(e.to_string()))?;
+    let decoded = match decode(bytes) {
+        Ok(d) => d,
+        Err(e) => {
+            // `wit_parser::decode` requires a `component-type` custom section that
+            // older bindgen toolchains (e.g. wit-bindgen-c 0.37) do not emit.
+            // Try a direct wasmparser walk as a last resort.
+            if let Some(surface) = fallback_library_surface(bytes) {
+                return Ok(surface);
+            }
+            return Err(LibraryExtractError::Decode(e.to_string()));
+        }
+    };
     let (resolve, world_id) = match decoded {
         DecodedWasm::Component(r, w) => (r, w),
         DecodedWasm::WitPackage(_, _) => return Err(LibraryExtractError::NotAComponent),
