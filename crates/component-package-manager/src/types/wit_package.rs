@@ -1,4 +1,5 @@
-use super::raw::RawWitPackage;
+use chrono::{DateTime, Utc};
+use component_package_manager_migration::entities::wit_package;
 
 /// A public view of a WIT package, without internal database IDs.
 ///
@@ -34,14 +35,18 @@ pub struct WitPackage {
     pub created_at: String,
 }
 
-impl From<RawWitPackage> for WitPackage {
-    fn from(wt: RawWitPackage) -> Self {
+impl From<wit_package::Model> for WitPackage {
+    fn from(wt: wit_package::Model) -> Self {
         Self {
             package_name: wt.package_name,
             version: wt.version,
             description: wt.description,
             wit_text: wt.wit_text,
-            created_at: wt.created_at,
+            created_at: format_ts(wt.created_at),
         }
     }
+}
+
+fn format_ts(ts: DateTime<Utc>) -> String {
+    ts.to_rfc3339()
 }

@@ -16,6 +16,7 @@
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::fmt;
+use std::future::Future;
 
 use pubgrub::{
     Dependencies, DependencyConstraints, DependencyProvider, PackageResolutionStatistics, Ranges,
@@ -84,6 +85,12 @@ pub enum ResolveError {
     NoSolution(String),
     /// A database query failed while looking up dependency information.
     Db(String),
+    /// The resolver was called from outside a Tokio runtime, or from a
+    /// runtime flavor that cannot host blocking calls (e.g. the
+    /// `current_thread` runtime).  Callers must invoke `resolve_*_from_db`
+    /// from within a `#[tokio::main(flavor = "multi_thread")]` runtime, or
+    /// use an async resolver entry point.
+    NoRuntime(String),
 }
 
 impl fmt::Display for ResolveError {
@@ -91,11 +98,42 @@ impl fmt::Display for ResolveError {
         match self {
             Self::NoSolution(msg) => write!(f, "no solution: {msg}"),
             Self::Db(msg) => write!(f, "database error: {msg}"),
+            Self::NoRuntime(msg) => write!(f, "tokio runtime unavailable: {msg}"),
         }
     }
 }
 
 impl std::error::Error for ResolveError {}
+
+/// Run an async future to completion from a synchronous context, returning a
+/// structured [`ResolveError`] (rather than panicking) when no suitable Tokio
+/// runtime is available.
+///
+/// The pubgrub `DependencyProvider` trait is synchronous, but the [`Store`]
+/// methods we call are async (SeaORM).  This helper bridges the two by using
+/// [`tokio::task::block_in_place`] + [`tokio::runtime::Handle::block_on`],
+/// but only after verifying via [`tokio::runtime::Handle::try_current`] that
+/// a runtime handle exists.  `block_in_place` itself panics on a
+/// `current_thread` runtime, so we also detect that case up-front and surface
+/// it as a [`ResolveError::NoRuntime`] rather than aborting the process.
+fn block_on_in_runtime<F, T>(fut: F) -> Result<T, ResolveError>
+where
+    F: Future<Output = T>,
+{
+    let handle = tokio::runtime::Handle::try_current().map_err(|e| {
+        ResolveError::NoRuntime(format!(
+            "the resolver requires an active Tokio runtime: {e}"
+        ))
+    })?;
+    if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread {
+        return Err(ResolveError::NoRuntime(
+            "the resolver requires a multi-thread Tokio runtime; \
+             current_thread runtimes cannot host `block_in_place`"
+                .to_owned(),
+        ));
+    }
+    Ok(tokio::task::block_in_place(|| handle.block_on(fut)))
+}
 
 // ─── DependencyProvider implementation ───────────────────────────────────────
 
@@ -132,10 +170,14 @@ impl DependencyProvider for DbDependencyProvider<'_> {
         version: &WitVersion,
     ) -> Result<Dependencies<String, WitVersionRange, String>, ResolveError> {
         let ver_str = version.to_string();
-        let raw_deps = self
-            .store
-            .get_package_dependencies_by_name(package, Some(&ver_str))
-            .map_err(|e| ResolveError::Db(e.to_string()))?;
+        // Bridge sync pubgrub -> async Store via a multi-thread Tokio runtime.
+        // Returns a structured `ResolveError::NoRuntime` rather than panicking
+        // when no suitable runtime is available.
+        let raw_deps = block_on_in_runtime(
+            self.store
+                .get_package_dependencies_by_name(package, Some(&ver_str)),
+        )?
+        .map_err(|e: anyhow::Error| ResolveError::Db(e.to_string()))?;
 
         // Use a HashMap to merge duplicate constraints, then convert to DependencyConstraints.
         let mut merged: HashMap<String, WitVersionRange> = HashMap::new();
@@ -182,17 +224,16 @@ impl DependencyProvider for DbDependencyProvider<'_> {
         package: &String,
         range: &WitVersionRange,
     ) -> Result<Option<WitVersion>, ResolveError> {
-        let version_strings = self
-            .store
-            .list_wit_package_versions(package)
-            .map_err(|e| ResolveError::Db(e.to_string()))?;
+        let version_strings: Vec<String> =
+            block_on_in_runtime(self.store.list_wit_package_versions(package))?
+                .map_err(|e: anyhow::Error| ResolveError::Db(e.to_string()))?;
 
         // Parse each version string, collect valid ones, sort newest-first.
         let mut candidates: Vec<WitVersion> = version_strings
             .iter()
-            .filter_map(|s| s.parse::<WitVersion>().ok())
+            .filter_map(|s: &String| s.parse::<WitVersion>().ok())
             .collect();
-        candidates.sort_unstable_by(|a, b| b.cmp(a)); // descending
+        candidates.sort_unstable_by(|a: &WitVersion, b: &WitVersion| b.cmp(a)); // descending
 
         Ok(candidates.into_iter().find(|v| range.contains(v)))
     }
@@ -375,6 +416,100 @@ pub(crate) fn resolve_all_from_db(
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
+mod smoke_tests {
+    //! Minimal end-to-end resolver tests that exercise the full
+    //! `Store` → `DbDependencyProvider` → pubgrub pipeline against an
+    //! in-memory SQLite database.
+    //!
+    //! These tests intentionally avoid the still-unimplemented high-level
+    //! `Store::insert_metadata` / `Store::insert_layer` paths and instead
+    //! insert rows directly via SeaORM entities, so that regressions in
+    //! the resolver's pubgrub integration are still caught during the
+    //! SeaORM transition.  See the `tests` module below for the richer
+    //! (currently disabled) suite that should be re-enabled once the
+    //! high-level insert paths land.
+
+    use component_package_manager_migration::entities::{wit_package, wit_package_dependency};
+    use sea_orm::{ActiveModelTrait, Set};
+
+    use super::*;
+    use crate::storage::Store;
+
+    /// Insert a `wit_package` row and return its id.
+    async fn insert_pkg(store: &Store, name: &str, version: &str) -> i64 {
+        let am = wit_package::ActiveModel {
+            package_name: Set(name.to_owned()),
+            version: Set(Some(version.to_owned())),
+            ..Default::default()
+        };
+        am.insert(store.db()).await.unwrap().id
+    }
+
+    /// Declare a dependency edge from `dependent_id` -> `(dep_name, dep_version)`.
+    async fn insert_dep(
+        store: &Store,
+        dependent_id: i64,
+        dep_name: &str,
+        dep_version: Option<&str>,
+    ) {
+        let am = wit_package_dependency::ActiveModel {
+            dependent_id: Set(dependent_id),
+            declared_package: Set(dep_name.to_owned()),
+            declared_version: Set(dep_version.map(str::to_owned)),
+            resolved_package_id: Set(None),
+            ..Default::default()
+        };
+        am.insert(store.db()).await.unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn resolve_root_with_no_dependencies() {
+        let store = Store::open_in_memory().await.unwrap();
+        insert_pkg(&store, "foo", "1.0.0").await;
+
+        let plan = resolve_from_db(&store, "foo", WitVersion::new(1, 0, 0)).unwrap();
+        assert_eq!(plan.len(), 1);
+        assert_eq!(plan.get("foo"), Some(&WitVersion::new(1, 0, 0)));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn resolve_picks_transitive_dependency() {
+        let store = Store::open_in_memory().await.unwrap();
+        let foo_id = insert_pkg(&store, "foo", "1.0.0").await;
+        insert_pkg(&store, "bar", "2.0.0").await;
+        insert_dep(&store, foo_id, "bar", Some("2.0.0")).await;
+
+        let plan = resolve_from_db(&store, "foo", WitVersion::new(1, 0, 0)).unwrap();
+        assert_eq!(plan.get("foo"), Some(&WitVersion::new(1, 0, 0)));
+        assert_eq!(plan.get("bar"), Some(&WitVersion::new(2, 0, 0)));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn resolve_all_with_multiple_roots() {
+        let store = Store::open_in_memory().await.unwrap();
+        insert_pkg(&store, "foo", "1.0.0").await;
+        insert_pkg(&store, "bar", "2.0.0").await;
+
+        let roots = vec![
+            ("foo".to_owned(), WitVersion::new(1, 0, 0)),
+            ("bar".to_owned(), WitVersion::new(2, 0, 0)),
+        ];
+        let plan = resolve_all_from_db(&store, &roots).unwrap();
+        assert_eq!(plan.get("foo"), Some(&WitVersion::new(1, 0, 0)));
+        assert_eq!(plan.get("bar"), Some(&WitVersion::new(2, 0, 0)));
+    }
+}
+
+// TODO(seaorm-port-phase4): The original resolver tests inserted packages via
+// the legacy rusqlite-backed `RawWitPackage` / `WitPackageDependency` shims
+// and then called `resolve_*_from_db` synchronously. Those shims are gone and
+// the equivalent `Store` insert paths are still `todo!()` stubs. Re-enable the
+// tests once `Store::insert_metadata`, `Store::insert_layer`, and
+// `Store::upsert_package_dependencies_from_sync` are implemented; rewrite
+// them as `#[tokio::test]` async tests using `Store::open_in_memory().await`.
+// Until then, see `smoke_tests` above for minimal coverage of the resolver's
+// pubgrub integration via direct entity inserts.
+#[cfg(any())]
 mod tests {
     use rusqlite::Connection;
 

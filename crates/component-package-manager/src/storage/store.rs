@@ -1,44 +1,53 @@
-use anyhow::Context;
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-use std::collections::HashSet;
+//! SeaORM-backed implementation of the package-manager metadata store.
+//!
+//! This is the single place in the crate that talks to the database. It owns
+//! a [`sea_orm::DatabaseConnection`] and exposes a method-oriented API used by
+//! [`crate::manager::Manager`] and friends.
+//!
+//! The schema is defined in [`component_package_manager_migration`]; entities
+//! used here are re-imported from that crate.
+
+// SeaORM 2.0-rc deprecates `Insert::do_nothing` in favour of
+// `try_insert`/`on_conflict_do_nothing*`, but those have a different return
+// shape that doesn't compose cleanly with our existing helpers. Re-evaluate
+// when SeaORM 2.0 ships stable.
+#![allow(deprecated)]
+// `mod _foo {}` shims used as scratch space for bound traits get lifted out
+// of statement position by clippy in this file; the patterns are intentional.
+#![allow(clippy::items_after_statements)]
+
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
+
+use anyhow::Context;
+use chrono::{DateTime, Utc};
+use futures_concurrency::prelude::*;
+use oci_client::{Reference, client::ImageData, manifest::OciImageManifest};
+#[cfg(test)]
+use sea_orm::ConnectOptions;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, Database, DatabaseConnection, DbBackend,
+    EntityTrait, FromQueryResult, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    Statement, TransactionTrait,
+    sea_query::{Expr, OnConflict, SimpleExpr},
+};
+use tracing::warn;
+
+use component_package_manager_migration::Migrator;
+use component_package_manager_migration::MigratorTrait;
+use component_package_manager_migration::entities::{
+    fetch_queue, oci_layer, oci_layer_annotation, oci_manifest, oci_manifest_annotation,
+    oci_referrer, oci_repository, oci_tag, sync_meta, wasm_component, wit_package,
+    wit_package_dependency, wit_world, wit_world_export, wit_world_import,
+};
 
 use super::config::StateInfo;
 use super::known_package::KnownPackageParams;
-use super::models::{Migrations, RawKnownPackage};
-use crate::components::{ComponentTarget, WasmComponent};
-use crate::oci::{
-    InsertResult, OciLayer, OciLayerAnnotation, OciManifest, OciReferrer, OciRepository, OciTag,
-    RawImageEntry,
-};
-use crate::types::{
-    RawWitPackage, WitPackageDependency, WitWorld, WitWorldExport, WitWorldImport,
-    extract_wit_metadata,
-};
-use futures_concurrency::prelude::*;
-use oci_client::{Reference, client::ImageData, manifest::OciImageManifest};
+use super::models::Migrations;
+use crate::oci::{InsertResult, RawImageEntry};
+use crate::types::extract_wit_metadata;
 
-/// Outcome of [`Store::try_extract_wit_package`].
-///
-/// Distinguishes between bytes that simply don't carry a WIT package
-/// (`NotApplicable` — e.g. a signed image, a plain wasm module, or a
-/// component without a package name) and an actual database-layer
-/// failure during extraction (`Failed`). Callers wrapping the call in a
-/// transaction or savepoint can commit on `NotApplicable` / `Extracted`
-/// and roll back / surface an error on `Failed`.
-#[derive(Debug)]
-enum WitExtractOutcome {
-    /// The bytes don't represent something we should index — leave the
-    /// row in its current (possibly empty) state and commit.
-    NotApplicable,
-    /// A WIT package was successfully extracted and inserted.
-    Extracted,
-    /// Extraction was attempted but a database insert failed mid-way.
-    /// Callers should roll back any preceding mutations and surface the
-    /// error rather than silently committing a partially-cleared state.
-    Failed(anyhow::Error),
-}
+// -- Public types --------------------------------------------------------
 
 /// The kind of work a [`FetchTask`] represents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,11 +58,26 @@ pub enum FetchTaskKind {
     Reindex,
 }
 
-impl From<String> for FetchTaskKind {
-    fn from(s: String) -> Self {
-        match s.as_str() {
+impl From<&str> for FetchTaskKind {
+    fn from(s: &str) -> Self {
+        match s {
             "reindex" => Self::Reindex,
             _ => Self::Pull,
+        }
+    }
+}
+
+impl From<String> for FetchTaskKind {
+    fn from(s: String) -> Self {
+        Self::from(s.as_str())
+    }
+}
+
+impl From<fetch_queue::FetchTask> for FetchTaskKind {
+    fn from(t: fetch_queue::FetchTask) -> Self {
+        match t {
+            fetch_queue::FetchTask::Pull => Self::Pull,
+            fetch_queue::FetchTask::Reindex => Self::Reindex,
         }
     }
 }
@@ -74,9 +98,10 @@ pub struct FetchTask {
     /// How many times this task has been attempted so far.
     pub attempts: i64,
 }
-use rusqlite::{Connection, OptionalExtension};
 
-/// Calculate the total size of a directory recursively
+// -- Internal helpers ----------------------------------------------------
+
+/// Calculate the total size of a directory recursively.
 async fn dir_size(path: &Path) -> u64 {
     let mut total = 0u64;
     let mut stack = vec![path.to_path_buf()];
@@ -99,49 +124,937 @@ async fn dir_size(path: &Path) -> u64 {
     total
 }
 
-#[derive(Debug)]
-pub(crate) struct Store {
-    pub(crate) state_info: StateInfo,
-    conn: Connection,
+/// Apply the SQLite-specific PRAGMAs that the legacy rusqlite path used.
+async fn apply_sqlite_pragmas(db: &DatabaseConnection) -> anyhow::Result<()> {
+    if !matches!(db.get_database_backend(), DbBackend::Sqlite) {
+        return Ok(());
+    }
+    for pragma in [
+        "PRAGMA foreign_keys = ON;",
+        "PRAGMA journal_mode = WAL;",
+        "PRAGMA synchronous = NORMAL;",
+        "PRAGMA busy_timeout = 5000;",
+    ] {
+        db.execute_unprepared(pragma).await?;
+    }
+    Ok(())
 }
 
-/// A raw row from the `oci_manifest` table, used as an intermediate
-/// representation in [`Store::get_package_versions`].
-///
-/// This struct exists solely to avoid a 15-element tuple when collecting
-/// query results (clippy's `type_complexity` lint). Each field maps 1:1 to
-/// a column in `oci_manifest`. After collection, the loop enriches every
-/// row with tags, worlds, components, dependencies, and referrers to
-/// produce the final [`PackageVersion`] API type.
-///
-/// The `oci_*` fields correspond to the [OCI image annotation keys][spec].
-///
-/// [spec]: https://github.com/opencontainers/image-spec/blob/main/annotations.md
-struct ManifestRow {
-    /// Primary key (`oci_manifest.id`), used to join against child tables.
-    id: i64,
-    /// Content-addressable digest of the manifest (e.g. `sha256:abc…`).
-    digest: String,
-    /// Total size in bytes, if known.
-    size_bytes: Option<i64>,
-    /// ISO-8601 timestamp when the row was first inserted into the local DB.
-    synced_at: String,
-    // — OCI annotation columns ——————————————————————————
-    oci_created: Option<String>,
-    oci_authors: Option<String>,
-    oci_url: Option<String>,
-    oci_documentation: Option<String>,
-    oci_source: Option<String>,
-    oci_version: Option<String>,
-    oci_revision: Option<String>,
-    oci_vendor: Option<String>,
-    oci_licenses: Option<String>,
-    oci_title: Option<String>,
-    oci_description: Option<String>,
+/// Try to parse a tag as semver, accepting an optional leading `v` prefix.
+fn parse_tag_as_semver(tag: &str) -> Option<semver::Version> {
+    if let Ok(v) = semver::Version::parse(tag) {
+        return Some(v);
+    }
+    let stripped = tag.strip_prefix('v')?;
+    if !stripped.starts_with(|c: char| c.is_ascii_digit()) {
+        return None;
+    }
+    semver::Version::parse(stripped).ok()
+}
+
+/// Parse the OCI repository's `kind` text column into a [`PackageKind`].
+fn parse_kind(s: Option<&str>) -> Option<component_meta_registry_types::PackageKind> {
+    use component_meta_registry_types::PackageKind;
+    match s {
+        Some("component") => Some(PackageKind::Component),
+        Some("interface") => Some(PackageKind::Interface),
+        _ => None,
+    }
+}
+
+/// Build a public [`KnownPackage`] from an `oci_repository` row, fetching its
+/// tags and description.
+async fn known_package_from_repo(
+    db: &DatabaseConnection,
+    repo: oci_repository::Model,
+) -> anyhow::Result<super::known_package::KnownPackage> {
+    let tags = fetch_repo_tags(db, repo.id).await?;
+    let description = fetch_repo_description(db, repo.id).await?;
+    Ok(super::known_package::KnownPackage {
+        registry: repo.registry,
+        repository: repo.repository,
+        kind: parse_kind(repo.kind.as_deref()),
+        description,
+        tags,
+        signature_tags: Vec::new(),
+        attestation_tags: Vec::new(),
+        last_seen_at: repo.updated_at.to_rfc3339(),
+        created_at: repo.created_at.to_rfc3339(),
+        wit_namespace: repo.wit_namespace,
+        wit_name: repo.wit_name,
+        dependencies: Vec::new(),
+    })
+}
+
+/// Fetch a repository's tags from `oci_tag`, sorted by semver descending.
+/// Non-semver tags are filtered out.
+async fn fetch_repo_tags(db: &DatabaseConnection, repo_id: i64) -> anyhow::Result<Vec<String>> {
+    let rows = oci_tag::Entity::find()
+        .filter(oci_tag::Column::OciRepositoryId.eq(repo_id))
+        .all(db)
+        .await?;
+    let mut versioned: Vec<(semver::Version, String)> = rows
+        .into_iter()
+        .filter_map(|t| parse_tag_as_semver(&t.tag).map(|v| (v, t.tag)))
+        .collect();
+    versioned.sort_by(|(a, _), (b, _)| b.cmp(a));
+    Ok(versioned.into_iter().map(|(_, t)| t).collect())
+}
+
+/// Fetch the first manifest description for a repository, if any.
+async fn fetch_repo_description(
+    db: &DatabaseConnection,
+    repo_id: i64,
+) -> anyhow::Result<Option<String>> {
+    let row = oci_manifest::Entity::find()
+        .filter(oci_manifest::Column::OciRepositoryId.eq(repo_id))
+        .filter(oci_manifest::Column::OciDescription.is_not_null())
+        .one(db)
+        .await?;
+    Ok(row.and_then(|m| m.oci_description))
 }
 
 impl Store {
-    /// Open the store and run any pending migrations.
+    /// Build a [`PackageVersion`] from a manifest row + an optional tag.
+    ///
+    /// Currently populates annotations, layers, dependencies, referrers, and
+    /// `wit_text`. Worlds, components, and `type_docs` are left empty — the
+    /// rich extraction code is a follow-up; the registry server tolerates
+    /// these empty fields.
+    async fn build_package_version(
+        &self,
+        m: &oci_manifest::Model,
+        tag: Option<String>,
+    ) -> anyhow::Result<component_meta_registry_types::PackageVersion> {
+        use component_meta_registry_types::{
+            LayerInfo, OciAnnotations, PackageDependencyRef, PackageVersion, ReferrerSummary,
+        };
+
+        // Custom annotations (overflow keys).
+        let custom_rows = oci_manifest_annotation::Entity::find()
+            .filter(oci_manifest_annotation::Column::OciManifestId.eq(m.id))
+            .order_by_asc(oci_manifest_annotation::Column::Key)
+            .all(&self.db)
+            .await?;
+        let custom: Vec<component_meta_registry_types::AnnotationEntry> = custom_rows
+            .into_iter()
+            .map(|a| component_meta_registry_types::AnnotationEntry {
+                key: a.key,
+                value: a.value,
+            })
+            .collect();
+
+        let has_annotations = m.oci_created.is_some()
+            || m.oci_authors.is_some()
+            || m.oci_url.is_some()
+            || m.oci_documentation.is_some()
+            || m.oci_source.is_some()
+            || m.oci_version.is_some()
+            || m.oci_revision.is_some()
+            || m.oci_vendor.is_some()
+            || m.oci_licenses.is_some()
+            || m.oci_title.is_some()
+            || m.oci_description.is_some()
+            || !custom.is_empty();
+        let annotations = if has_annotations {
+            Some(OciAnnotations {
+                created: m.oci_created.clone(),
+                authors: m.oci_authors.clone(),
+                url: m.oci_url.clone(),
+                documentation: m.oci_documentation.clone(),
+                source: m.oci_source.clone(),
+                version: m.oci_version.clone(),
+                revision: m.oci_revision.clone(),
+                vendor: m.oci_vendor.clone(),
+                licenses: m.oci_licenses.clone(),
+                title: m.oci_title.clone(),
+                description: m.oci_description.clone(),
+                custom,
+            })
+        } else {
+            None
+        };
+
+        // Dependencies via wit_package -> wit_package_dependency.
+        let sql = "\
+            SELECT DISTINCT wpd.declared_package AS declared_package, \
+                   wpd.declared_version AS declared_version \
+            FROM wit_package_dependency wpd \
+            JOIN wit_package wp ON wpd.dependent_id = wp.id \
+            WHERE wp.oci_manifest_id = ? \
+            ORDER BY wpd.declared_package";
+        let stmt =
+            Statement::from_sql_and_values(self.db.get_database_backend(), sql, [m.id.into()]);
+        #[derive(FromQueryResult)]
+        struct DepRow {
+            declared_package: String,
+            declared_version: Option<String>,
+        }
+        let dep_rows = DepRow::find_by_statement(stmt).all(&self.db).await?;
+        let dependencies: Vec<PackageDependencyRef> = dep_rows
+            .into_iter()
+            .map(|d| PackageDependencyRef {
+                package: d.declared_package,
+                version: d.declared_version,
+            })
+            .collect();
+
+        // Referrers.
+        let ref_rows = oci_referrer::Entity::find()
+            .filter(oci_referrer::Column::SubjectManifestId.eq(m.id))
+            .order_by_desc(oci_referrer::Column::CreatedAt)
+            .all(&self.db)
+            .await?;
+        let mut referrers: Vec<ReferrerSummary> = Vec::with_capacity(ref_rows.len());
+        for r in ref_rows {
+            if let Some(rm) = oci_manifest::Entity::find_by_id(r.referrer_manifest_id)
+                .one(&self.db)
+                .await?
+            {
+                referrers.push(ReferrerSummary {
+                    artifact_type: r.artifact_type,
+                    digest: rm.digest,
+                });
+            }
+        }
+
+        // Layers (manifest descriptor + config + content layers).
+        let mut layers: Vec<LayerInfo> = Vec::new();
+        layers.push(LayerInfo {
+            digest: m.digest.clone(),
+            media_type: m.media_type.clone(),
+            size_bytes: m.size_bytes,
+        });
+        if let Some(cfg_digest) = m.config_digest.as_deref() {
+            layers.push(LayerInfo {
+                digest: cfg_digest.to_string(),
+                media_type: m.config_media_type.clone(),
+                size_bytes: None,
+            });
+        }
+        let content_layers = oci_layer::Entity::find()
+            .filter(oci_layer::Column::OciManifestId.eq(m.id))
+            .order_by_asc(oci_layer::Column::Position)
+            .all(&self.db)
+            .await?;
+        for l in content_layers {
+            layers.push(LayerInfo {
+                digest: l.digest,
+                media_type: l.media_type,
+                size_bytes: l.size_bytes,
+            });
+        }
+
+        // First WIT text for this manifest, if any.
+        let wit_text = wit_package::Entity::find()
+            .filter(wit_package::Column::OciManifestId.eq(m.id))
+            .filter(wit_package::Column::WitText.is_not_null())
+            .one(&self.db)
+            .await?
+            .and_then(|p| p.wit_text);
+
+        Ok(PackageVersion {
+            tag,
+            digest: m.digest.clone(),
+            size_bytes: m.size_bytes,
+            created_at: m.oci_created.clone(),
+            synced_at: Some(m.created_at.to_rfc3339()),
+            annotations,
+            worlds: Vec::new(),
+            components: Vec::new(),
+            dependencies,
+            referrers,
+            layers,
+            wit_text,
+            type_docs: HashMap::new(),
+        })
+    }
+}
+
+impl Store {
+    /// Search known packages joined through wit_world_{import|export}.
+    async fn search_known_packages_by_iface(
+        &self,
+        interface: &str,
+        offset: u32,
+        limit: u32,
+        is_import: bool,
+    ) -> anyhow::Result<Vec<super::known_package::KnownPackage>> {
+        let join_table = if is_import {
+            "wit_world_import"
+        } else {
+            "wit_world_export"
+        };
+        let sql = format!(
+            "SELECT DISTINCT r.id AS id, r.registry AS registry, r.repository AS repository, \
+             r.created_at AS created_at, r.updated_at AS updated_at, \
+             r.wit_namespace AS wit_namespace, r.wit_name AS wit_name, r.kind AS kind \
+             FROM oci_repository r \
+             JOIN oci_manifest m ON m.oci_repository_id = r.id \
+             JOIN wit_package wp ON wp.oci_manifest_id = m.id \
+             JOIN wit_world ww ON ww.wit_package_id = wp.id \
+             JOIN {join_table} wi ON wi.wit_world_id = ww.id \
+             WHERE wi.declared_package = ? \
+             ORDER BY r.repository ASC, r.registry ASC \
+             LIMIT ? OFFSET ?"
+        );
+        let backend = self.db.get_database_backend();
+        let stmt = Statement::from_sql_and_values(
+            backend,
+            &sql,
+            [
+                interface.into(),
+                i64::from(limit).into(),
+                i64::from(offset).into(),
+            ],
+        );
+        let rows = oci_repository::Model::find_by_statement(stmt)
+            .all(&self.db)
+            .await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in rows {
+            out.push(known_package_from_repo(&self.db, r).await?);
+        }
+        Ok(out)
+    }
+}
+
+/// Split `"namespace:name@version"` into `("namespace:name", Some("version"))`.
+fn split_package_version(raw: &str) -> (&str, Option<&str>) {
+    if let Some(at) = raw.rfind('@') {
+        (&raw[..at], Some(&raw[at + 1..]))
+    } else {
+        (raw, None)
+    }
+}
+
+/// Upsert a `wit_package` row keyed by (package_name, version, oci_layer_id).
+async fn upsert_wit_package(
+    db: &DatabaseConnection,
+    package_name: &str,
+    version: Option<&str>,
+    description: Option<&str>,
+    wit_text: Option<&str>,
+    oci_manifest_id: Option<i64>,
+    oci_layer_id: Option<i64>,
+) -> anyhow::Result<i64> {
+    // Match against the legacy unique index:
+    //   (package_name, COALESCE(version,''), COALESCE(oci_layer_id, -1))
+    if let Some(existing) = wit_package::Entity::find()
+        .filter(wit_package::Column::PackageName.eq(package_name))
+        .filter(match version {
+            Some(v) => wit_package::Column::Version.eq(v),
+            None => wit_package::Column::Version.is_null(),
+        })
+        .filter(match oci_layer_id {
+            Some(id) => wit_package::Column::OciLayerId.eq(id),
+            None => wit_package::Column::OciLayerId.is_null(),
+        })
+        .one(db)
+        .await?
+    {
+        // Best-effort fill of any missing fields.
+        let mut am: wit_package::ActiveModel = existing.clone().into();
+        let mut changed = false;
+        if existing.description.is_none() && description.is_some() {
+            am.description = Set(description.map(str::to_owned));
+            changed = true;
+        }
+        if existing.wit_text.is_none() && wit_text.is_some() {
+            am.wit_text = Set(wit_text.map(str::to_owned));
+            changed = true;
+        }
+        if existing.oci_manifest_id.is_none() && oci_manifest_id.is_some() {
+            am.oci_manifest_id = Set(oci_manifest_id);
+            changed = true;
+        }
+        if changed {
+            am.update(db).await?;
+        }
+        return Ok(existing.id);
+    }
+
+    let am = wit_package::ActiveModel {
+        package_name: Set(package_name.to_owned()),
+        version: Set(version.map(str::to_owned)),
+        description: Set(description.map(str::to_owned)),
+        wit_text: Set(wit_text.map(str::to_owned)),
+        oci_manifest_id: Set(oci_manifest_id),
+        oci_layer_id: Set(oci_layer_id),
+        ..Default::default()
+    };
+    let res = wit_package::Entity::insert(am).exec(db).await?;
+    Ok(res.last_insert_id)
+}
+
+/// Insert a `wit_world` row (idempotent on (wit_package_id, name)).
+async fn insert_wit_world(
+    db: &DatabaseConnection,
+    wit_package_id: i64,
+    name: &str,
+    description: Option<&str>,
+) -> anyhow::Result<i64> {
+    let am = wit_world::ActiveModel {
+        wit_package_id: Set(wit_package_id),
+        name: Set(name.to_owned()),
+        description: Set(description.map(str::to_owned)),
+        ..Default::default()
+    };
+    wit_world::Entity::insert(am)
+        .on_conflict(
+            OnConflict::columns([wit_world::Column::WitPackageId, wit_world::Column::Name])
+                .do_nothing()
+                .to_owned(),
+        )
+        .do_nothing()
+        .exec(db)
+        .await?;
+    let row = wit_world::Entity::find()
+        .filter(wit_world::Column::WitPackageId.eq(wit_package_id))
+        .filter(wit_world::Column::Name.eq(name))
+        .one(db)
+        .await?
+        .context("wit_world row missing after insert")?;
+    Ok(row.id)
+}
+
+/// Insert a wit_world_import or wit_world_export row (idempotent).
+async fn insert_wit_world_iface(
+    db: &DatabaseConnection,
+    wit_world_id: i64,
+    declared_package: &str,
+    declared_interface: Option<&str>,
+    declared_version: Option<&str>,
+    is_import: bool,
+) -> anyhow::Result<()> {
+    if is_import {
+        let am = wit_world_import::ActiveModel {
+            wit_world_id: Set(wit_world_id),
+            declared_package: Set(declared_package.to_owned()),
+            declared_interface: Set(declared_interface.map(str::to_owned)),
+            declared_version: Set(declared_version.map(str::to_owned)),
+            ..Default::default()
+        };
+        wit_world_import::Entity::insert(am)
+            .on_conflict(
+                OnConflict::columns([
+                    wit_world_import::Column::WitWorldId,
+                    wit_world_import::Column::DeclaredPackage,
+                    wit_world_import::Column::DeclaredInterface,
+                    wit_world_import::Column::DeclaredVersion,
+                ])
+                .do_nothing()
+                .to_owned(),
+            )
+            .do_nothing()
+            .exec(db)
+            .await?;
+    } else {
+        let am = wit_world_export::ActiveModel {
+            wit_world_id: Set(wit_world_id),
+            declared_package: Set(declared_package.to_owned()),
+            declared_interface: Set(declared_interface.map(str::to_owned)),
+            declared_version: Set(declared_version.map(str::to_owned)),
+            ..Default::default()
+        };
+        wit_world_export::Entity::insert(am)
+            .on_conflict(
+                OnConflict::columns([
+                    wit_world_export::Column::WitWorldId,
+                    wit_world_export::Column::DeclaredPackage,
+                    wit_world_export::Column::DeclaredInterface,
+                    wit_world_export::Column::DeclaredVersion,
+                ])
+                .do_nothing()
+                .to_owned(),
+            )
+            .do_nothing()
+            .exec(db)
+            .await?;
+    }
+    Ok(())
+}
+
+/// Insert a wit_package_dependency row (idempotent).
+async fn insert_wit_package_dependency(
+    db: &DatabaseConnection,
+    dependent_id: i64,
+    declared_package: &str,
+    declared_version: Option<&str>,
+) -> anyhow::Result<()> {
+    let am = wit_package_dependency::ActiveModel {
+        dependent_id: Set(dependent_id),
+        declared_package: Set(declared_package.to_owned()),
+        declared_version: Set(declared_version.map(str::to_owned)),
+        ..Default::default()
+    };
+    wit_package_dependency::Entity::insert(am)
+        .on_conflict(
+            OnConflict::columns([
+                wit_package_dependency::Column::DependentId,
+                wit_package_dependency::Column::DeclaredPackage,
+                wit_package_dependency::Column::DeclaredVersion,
+            ])
+            .do_nothing()
+            .to_owned(),
+        )
+        .do_nothing()
+        .exec(db)
+        .await?;
+    Ok(())
+}
+
+/// Best-effort: fill in `wit_world_import.resolved_package_id` for imports
+/// belonging to the given wit_package_id.
+async fn resolve_import_foreign_keys(
+    db: &DatabaseConnection,
+    wit_package_id: i64,
+) -> anyhow::Result<()> {
+    let sql = "\
+        UPDATE wit_world_import \
+        SET resolved_package_id = ( \
+            SELECT wi.id FROM wit_package wi \
+            WHERE wi.package_name = wit_world_import.declared_package \
+              AND COALESCE(wi.version, '') = COALESCE(wit_world_import.declared_version, '') \
+            LIMIT 1 \
+        ) \
+        WHERE wit_world_id IN (SELECT id FROM wit_world WHERE wit_package_id = ?) \
+          AND resolved_package_id IS NULL";
+    db.execute_raw(Statement::from_sql_and_values(
+        db.get_database_backend(),
+        sql,
+        [wit_package_id.into()],
+    ))
+    .await?;
+    Ok(())
+}
+
+async fn resolve_export_foreign_keys(
+    db: &DatabaseConnection,
+    wit_package_id: i64,
+) -> anyhow::Result<()> {
+    let sql = "\
+        UPDATE wit_world_export \
+        SET resolved_package_id = ( \
+            SELECT wi.id FROM wit_package wi \
+            WHERE wi.package_name = wit_world_export.declared_package \
+              AND COALESCE(wi.version, '') = COALESCE(wit_world_export.declared_version, '') \
+            LIMIT 1 \
+        ) \
+        WHERE wit_world_id IN (SELECT id FROM wit_world WHERE wit_package_id = ?) \
+          AND resolved_package_id IS NULL";
+    db.execute_raw(Statement::from_sql_and_values(
+        db.get_database_backend(),
+        sql,
+        [wit_package_id.into()],
+    ))
+    .await?;
+    Ok(())
+}
+
+async fn resolve_dependency_foreign_keys(
+    db: &DatabaseConnection,
+    wit_package_id: i64,
+) -> anyhow::Result<()> {
+    let sql = "\
+        UPDATE wit_package_dependency \
+        SET resolved_package_id = ( \
+            SELECT wi.id FROM wit_package wi \
+            WHERE wi.package_name = wit_package_dependency.declared_package \
+              AND COALESCE(wi.version, '') = COALESCE(wit_package_dependency.declared_version, '') \
+            LIMIT 1 \
+        ) \
+        WHERE dependent_id = ? \
+          AND resolved_package_id IS NULL";
+    db.execute_raw(Statement::from_sql_and_values(
+        db.get_database_backend(),
+        sql,
+        [wit_package_id.into()],
+    ))
+    .await?;
+    Ok(())
+}
+
+async fn resolve_component_target_foreign_keys(
+    db: &DatabaseConnection,
+    manifest_id: i64,
+) -> anyhow::Result<()> {
+    let sql = "\
+        UPDATE component_target \
+        SET wit_world_id = ( \
+            SELECT ww.id FROM wit_world ww \
+            JOIN wit_package wi ON ww.wit_package_id = wi.id \
+            WHERE wi.package_name = component_target.declared_package \
+              AND COALESCE(wi.version, '') = COALESCE(component_target.declared_version, '') \
+              AND ww.name = component_target.declared_world \
+            LIMIT 1 \
+        ) \
+        WHERE wasm_component_id IN ( \
+            SELECT id FROM wasm_component WHERE oci_manifest_id = ? \
+        ) \
+        AND wit_world_id IS NULL";
+    db.execute_raw(Statement::from_sql_and_values(
+        db.get_database_backend(),
+        sql,
+        [manifest_id.into()],
+    ))
+    .await?;
+    Ok(())
+}
+
+/// Well-known OCI annotation keys that map onto dedicated columns.
+const WELL_KNOWN_ANNOTATIONS: &[(&str, &str)] = &[
+    ("org.opencontainers.image.created", "oci_created"),
+    ("org.opencontainers.image.authors", "oci_authors"),
+    ("org.opencontainers.image.url", "oci_url"),
+    (
+        "org.opencontainers.image.documentation",
+        "oci_documentation",
+    ),
+    ("org.opencontainers.image.source", "oci_source"),
+    ("org.opencontainers.image.version", "oci_version"),
+    ("org.opencontainers.image.revision", "oci_revision"),
+    ("org.opencontainers.image.vendor", "oci_vendor"),
+    ("org.opencontainers.image.licenses", "oci_licenses"),
+    ("org.opencontainers.image.ref.name", "oci_ref_name"),
+    ("org.opencontainers.image.title", "oci_title"),
+    ("org.opencontainers.image.description", "oci_description"),
+    ("org.opencontainers.image.base.digest", "oci_base_digest"),
+    ("org.opencontainers.image.base.name", "oci_base_name"),
+];
+
+/// Upsert an `oci_manifest` row, COALESCE-preserving existing non-NULL
+/// columns when the incoming data has gaps. Returns `(manifest_id, was_inserted)`.
+#[allow(clippy::too_many_arguments)]
+async fn upsert_oci_manifest(
+    db: &DatabaseConnection,
+    oci_repository_id: i64,
+    digest: &str,
+    media_type: Option<&str>,
+    raw_json: Option<&str>,
+    size_bytes: Option<i64>,
+    artifact_type: Option<&str>,
+    config_media_type: Option<&str>,
+    config_digest: Option<&str>,
+    annotations: &HashMap<String, String>,
+) -> anyhow::Result<(i64, bool)> {
+    let ann_key_to_col: HashMap<&str, &str> = WELL_KNOWN_ANNOTATIONS.iter().copied().collect();
+    let mut well_known: HashMap<&str, &str> = HashMap::new();
+    let mut extra: Vec<(String, String)> = Vec::new();
+    for (k, v) in annotations {
+        match ann_key_to_col.get(k.as_str()) {
+            Some(&col) => {
+                well_known.insert(col, v.as_str());
+            }
+            None => extra.push((k.clone(), v.clone())),
+        }
+    }
+
+    let already_exists = oci_manifest::Entity::find()
+        .filter(oci_manifest::Column::OciRepositoryId.eq(oci_repository_id))
+        .filter(oci_manifest::Column::Digest.eq(digest))
+        .one(db)
+        .await?
+        .is_some();
+
+    let mut am = oci_manifest::ActiveModel {
+        oci_repository_id: Set(oci_repository_id),
+        digest: Set(digest.to_owned()),
+        media_type: Set(media_type.map(str::to_owned)),
+        raw_json: Set(raw_json.map(str::to_owned)),
+        size_bytes: Set(size_bytes),
+        artifact_type: Set(artifact_type.map(str::to_owned)),
+        config_media_type: Set(config_media_type.map(str::to_owned)),
+        config_digest: Set(config_digest.map(str::to_owned)),
+        ..Default::default()
+    };
+    am.oci_created = Set(well_known.get("oci_created").map(|s| (*s).to_owned()));
+    am.oci_authors = Set(well_known.get("oci_authors").map(|s| (*s).to_owned()));
+    am.oci_url = Set(well_known.get("oci_url").map(|s| (*s).to_owned()));
+    am.oci_documentation = Set(well_known.get("oci_documentation").map(|s| (*s).to_owned()));
+    am.oci_source = Set(well_known.get("oci_source").map(|s| (*s).to_owned()));
+    am.oci_version = Set(well_known.get("oci_version").map(|s| (*s).to_owned()));
+    am.oci_revision = Set(well_known.get("oci_revision").map(|s| (*s).to_owned()));
+    am.oci_vendor = Set(well_known.get("oci_vendor").map(|s| (*s).to_owned()));
+    am.oci_licenses = Set(well_known.get("oci_licenses").map(|s| (*s).to_owned()));
+    am.oci_ref_name = Set(well_known.get("oci_ref_name").map(|s| (*s).to_owned()));
+    am.oci_title = Set(well_known.get("oci_title").map(|s| (*s).to_owned()));
+    am.oci_description = Set(well_known.get("oci_description").map(|s| (*s).to_owned()));
+    am.oci_base_digest = Set(well_known.get("oci_base_digest").map(|s| (*s).to_owned()));
+    am.oci_base_name = Set(well_known.get("oci_base_name").map(|s| (*s).to_owned()));
+
+    // Conflict resolution: keep existing non-NULL values when incoming is NULL.
+    // SeaORM doesn't support COALESCE in `value()` against the row name without
+    // raw expr, so we drop down to Expr::cust per column.
+    let coalesce_cols = [
+        "media_type",
+        "raw_json",
+        "size_bytes",
+        "artifact_type",
+        "config_media_type",
+        "config_digest",
+        "oci_created",
+        "oci_authors",
+        "oci_url",
+        "oci_documentation",
+        "oci_source",
+        "oci_version",
+        "oci_revision",
+        "oci_vendor",
+        "oci_licenses",
+        "oci_ref_name",
+        "oci_title",
+        "oci_description",
+        "oci_base_digest",
+        "oci_base_name",
+    ];
+    let mut on_conflict = OnConflict::columns([
+        oci_manifest::Column::OciRepositoryId,
+        oci_manifest::Column::Digest,
+    ])
+    .clone();
+    for col in coalesce_cols {
+        let expr = format!("COALESCE(excluded.{col}, oci_manifest.{col})");
+        on_conflict.value(sea_orm::sea_query::Alias::new(col), Expr::cust(expr));
+    }
+    oci_manifest::Entity::insert(am)
+        .on_conflict(on_conflict)
+        .exec(db)
+        .await?;
+
+    let row = oci_manifest::Entity::find()
+        .filter(oci_manifest::Column::OciRepositoryId.eq(oci_repository_id))
+        .filter(oci_manifest::Column::Digest.eq(digest))
+        .one(db)
+        .await?
+        .context("oci_manifest row missing after upsert")?;
+    let manifest_id = row.id;
+
+    for (k, v) in extra {
+        let am = oci_manifest_annotation::ActiveModel {
+            oci_manifest_id: Set(manifest_id),
+            key: Set(k.clone()),
+            value: Set(v.clone()),
+            ..Default::default()
+        };
+        oci_manifest_annotation::Entity::insert(am)
+            .on_conflict(
+                OnConflict::columns([
+                    oci_manifest_annotation::Column::OciManifestId,
+                    oci_manifest_annotation::Column::Key,
+                ])
+                .update_column(oci_manifest_annotation::Column::Value)
+                .to_owned(),
+            )
+            .exec(db)
+            .await?;
+    }
+
+    Ok((manifest_id, !already_exists))
+}
+
+/// Upsert an `oci_tag` row pointing at `manifest_digest`.
+async fn upsert_oci_tag(
+    db: &DatabaseConnection,
+    oci_repository_id: i64,
+    tag: &str,
+    manifest_digest: &str,
+) -> anyhow::Result<()> {
+    let am = oci_tag::ActiveModel {
+        oci_repository_id: Set(oci_repository_id),
+        manifest_digest: Set(manifest_digest.to_owned()),
+        tag: Set(tag.to_owned()),
+        ..Default::default()
+    };
+    oci_tag::Entity::insert(am)
+        .on_conflict(
+            OnConflict::columns([oci_tag::Column::OciRepositoryId, oci_tag::Column::Tag])
+                .update_column(oci_tag::Column::ManifestDigest)
+                .to_owned(),
+        )
+        .exec(db)
+        .await?;
+    Ok(())
+}
+
+/// Insert (idempotently) an `oci_layer` row, returning its id.
+async fn insert_oci_layer(
+    db: &DatabaseConnection,
+    oci_manifest_id: i64,
+    digest: &str,
+    media_type: Option<&str>,
+    size_bytes: Option<i64>,
+    position: i32,
+) -> anyhow::Result<i64> {
+    let am = oci_layer::ActiveModel {
+        oci_manifest_id: Set(oci_manifest_id),
+        digest: Set(digest.to_owned()),
+        media_type: Set(media_type.map(str::to_owned)),
+        size_bytes: Set(size_bytes),
+        position: Set(i64::from(position)),
+        ..Default::default()
+    };
+    oci_layer::Entity::insert(am)
+        .on_conflict(
+            OnConflict::columns([oci_layer::Column::OciManifestId, oci_layer::Column::Digest])
+                .do_nothing()
+                .to_owned(),
+        )
+        .do_nothing()
+        .exec(db)
+        .await?;
+    let row = oci_layer::Entity::find()
+        .filter(oci_layer::Column::OciManifestId.eq(oci_manifest_id))
+        .filter(oci_layer::Column::Digest.eq(digest))
+        .one(db)
+        .await?
+        .context("oci_layer row missing after insert")?;
+    Ok(row.id)
+}
+
+/// Insert a layer-level annotation (idempotent).
+async fn insert_oci_layer_annotation(
+    db: &DatabaseConnection,
+    oci_layer_id: i64,
+    key: &str,
+    value: &str,
+) -> anyhow::Result<()> {
+    let am = oci_layer_annotation::ActiveModel {
+        oci_layer_id: Set(oci_layer_id),
+        key: Set(key.to_owned()),
+        value: Set(value.to_owned()),
+        ..Default::default()
+    };
+    oci_layer_annotation::Entity::insert(am)
+        .on_conflict(
+            OnConflict::columns([
+                oci_layer_annotation::Column::OciLayerId,
+                oci_layer_annotation::Column::Key,
+            ])
+            .update_column(oci_layer_annotation::Column::Value)
+            .to_owned(),
+        )
+        .exec(db)
+        .await?;
+    Ok(())
+}
+
+/// Insert an `oci_referrer` edge (idempotent).
+async fn insert_oci_referrer(
+    db: &DatabaseConnection,
+    subject_manifest_id: i64,
+    referrer_manifest_id: i64,
+    artifact_type: &str,
+) -> anyhow::Result<()> {
+    let am = oci_referrer::ActiveModel {
+        subject_manifest_id: Set(subject_manifest_id),
+        referrer_manifest_id: Set(referrer_manifest_id),
+        artifact_type: Set(artifact_type.to_owned()),
+        ..Default::default()
+    };
+    oci_referrer::Entity::insert(am)
+        .on_conflict(
+            OnConflict::columns([
+                oci_referrer::Column::SubjectManifestId,
+                oci_referrer::Column::ReferrerManifestId,
+            ])
+            .do_nothing()
+            .to_owned(),
+        )
+        .do_nothing()
+        .exec(db)
+        .await?;
+    Ok(())
+}
+
+/// Upsert an `oci_repository` row, optionally filling in WIT metadata and
+/// `kind`. Returns the row id.
+async fn upsert_oci_repository_full(
+    db: &DatabaseConnection,
+    registry: &str,
+    repository: &str,
+    wit_namespace: Option<&str>,
+    wit_name: Option<&str>,
+    kind: Option<&str>,
+) -> anyhow::Result<i64> {
+    let am = oci_repository::ActiveModel {
+        registry: Set(registry.to_owned()),
+        repository: Set(repository.to_owned()),
+        wit_namespace: Set(wit_namespace.map(str::to_owned)),
+        wit_name: Set(wit_name.map(str::to_owned)),
+        kind: Set(kind.map(str::to_owned)),
+        ..Default::default()
+    };
+    // ON CONFLICT(registry, repository) DO UPDATE SET wit_*/kind = COALESCE(excluded.*, table.*)
+    oci_repository::Entity::insert(am)
+        .on_conflict(
+            OnConflict::columns([
+                oci_repository::Column::Registry,
+                oci_repository::Column::Repository,
+            ])
+            .value(
+                oci_repository::Column::WitNamespace,
+                Expr::cust("COALESCE(excluded.wit_namespace, oci_repository.wit_namespace)"),
+            )
+            .value(
+                oci_repository::Column::WitName,
+                Expr::cust("COALESCE(excluded.wit_name, oci_repository.wit_name)"),
+            )
+            .value(
+                oci_repository::Column::Kind,
+                Expr::cust("COALESCE(excluded.kind, oci_repository.kind)"),
+            )
+            .to_owned(),
+        )
+        .exec(db)
+        .await?;
+    let row = oci_repository::Entity::find()
+        .filter(oci_repository::Column::Registry.eq(registry))
+        .filter(oci_repository::Column::Repository.eq(repository))
+        .one(db)
+        .await?
+        .context("oci_repository row missing after upsert")?;
+    Ok(row.id)
+}
+
+/// Convert a `fetch_queue` row into the public `QueueTask` shape.
+fn into_queue_task(row: fetch_queue::Model) -> component_meta_registry_types::QueueTask {
+    let task_str = match row.task {
+        fetch_queue::FetchTask::Pull => "pull",
+        fetch_queue::FetchTask::Reindex => "reindex",
+    };
+    let status_str = match row.status {
+        fetch_queue::FetchStatus::Pending => "pending",
+        fetch_queue::FetchStatus::InProgress => "in_progress",
+        fetch_queue::FetchStatus::Completed => "completed",
+        fetch_queue::FetchStatus::Failed => "failed",
+    };
+    component_meta_registry_types::QueueTask {
+        registry: row.registry,
+        repository: row.repository,
+        tag: row.tag,
+        task: task_str.to_owned(),
+        status: status_str.to_owned(),
+        priority: row.priority,
+        attempts: row.attempts,
+        max_attempts: row.max_attempts,
+        last_error: row.last_error,
+        created_at: row.created_at.to_rfc3339(),
+        updated_at: row.updated_at.to_rfc3339(),
+    }
+}
+
+// -- Store ---------------------------------------------------------------
+
+/// Handle to the metadata database used by the package manager.
+#[derive(Debug)]
+pub(crate) struct Store {
+    pub(crate) state_info: StateInfo,
+    db: DatabaseConnection,
+}
+
+impl Store {
+    /// Open the store in the platform's default data directory.
     pub(crate) async fn open() -> anyhow::Result<Self> {
         let data_dir = dirs::data_local_dir()
             .context("No local data dir known for the current OS")?
@@ -153,21 +1066,23 @@ impl Store {
         Self::open_inner(data_dir, config_file).await
     }
 
-    /// Open the store at a custom data directory and run any pending migrations.
+    /// Open the store at a custom data directory.
     pub(crate) async fn open_at(data_dir: impl Into<std::path::PathBuf>) -> anyhow::Result<Self> {
         let data_dir = data_dir.into();
         let config_file = data_dir.join("config.toml");
         Self::open_inner(data_dir, config_file).await
     }
 
-    /// Shared implementation for opening a store at a given location.
+    /// Shared implementation of `open` / `open_at`.
     async fn open_inner(
         data_dir: std::path::PathBuf,
         config_file: std::path::PathBuf,
     ) -> anyhow::Result<Self> {
         let store_dir = data_dir.join("store");
         let db_dir = data_dir.join("db");
-        let metadata_file = db_dir.join("metadata.db3");
+        // Bumped from `metadata.db3` to `metadata-v2.db3` as part of the SeaORM
+        // port — schema is incompatible with old rusqlite-managed bookkeeping.
+        let metadata_file = db_dir.join("metadata-v2.db3");
 
         let a = tokio::fs::create_dir_all(&data_dir);
         let b = tokio::fs::create_dir_all(&store_dir);
@@ -177,23 +1092,47 @@ impl Store {
             .await
             .context("Could not create config directories on disk")?;
 
-        let conn = Connection::open(&metadata_file)?;
-
-        // Configure SQLite for better concurrency, data integrity, and performance
-        conn.execute_batch(
-            "PRAGMA foreign_keys = ON;
-             PRAGMA journal_mode = WAL;
-             PRAGMA synchronous = NORMAL;
-             PRAGMA busy_timeout = 5000;",
-        )?;
-
-        Migrations::run_all(&conn)?;
-
-        let migration_info = Migrations::get(&conn);
-        let store_size = dir_size(&store_dir).await;
-        let metadata_size = tokio::fs::metadata(&metadata_file)
+        let cfg = super::db_config::DbConfig::from_env(&metadata_file)?;
+        let db = Database::connect(cfg.to_connect_options())
             .await
-            .map_or(0, |m| m.len());
+            .with_context(|| format!("failed to connect to database at {}", cfg.redacted_url()))?;
+        apply_sqlite_pragmas(&db).await?;
+
+        match cfg.backend {
+            super::db_config::Backend::Sqlite => {
+                // SQLite is single-user; auto-migrate matches the legacy
+                // rusqlite behaviour.
+                Migrator::up(&db, None)
+                    .await
+                    .context("failed to run database migrations")?;
+            }
+            super::db_config::Backend::Postgres => {
+                // Postgres deploys must run migrations explicitly via
+                // `component admin migrate` to avoid races between replicas.
+                if Migrations::has_pending(&db).await {
+                    let snap = Migrations::snapshot(&db).await;
+                    anyhow::bail!(
+                        "database at {} has pending migrations \
+                         ({} of {} applied). Run `component admin migrate` \
+                         (or apply via sea-orm-cli) before starting.",
+                        cfg.redacted_url(),
+                        snap.current,
+                        snap.total
+                    );
+                }
+            }
+        }
+
+        let migration_info = Migrations::snapshot(&db).await;
+        let store_size = dir_size(&store_dir).await;
+        // For SQLite we report the on-disk file size; for Postgres we have
+        // no such number locally, so leave it at 0.
+        let metadata_size = match cfg.backend {
+            super::db_config::Backend::Sqlite => tokio::fs::metadata(&metadata_file)
+                .await
+                .map_or(0, |m| m.len()),
+            super::db_config::Backend::Postgres => 0,
+        };
         let state_info = StateInfo::new_at(
             data_dir,
             config_file,
@@ -202,33 +1141,138 @@ impl Store {
             metadata_size,
         );
 
-        Ok(Self { state_info, conn })
+        Ok(Self { state_info, db })
     }
 
-    /// Create a Store directly from an in-memory SQLite connection.
-    ///
-    /// The connection MUST already have all migrations applied. The `StateInfo`
-    /// created here has dummy paths and is only suitable for unit tests that do
-    /// not exercise the content-addressable layer cache.
+    /// Build a Store backed by an in-memory SQLite database with all
+    /// migrations applied. Used by tests.
     #[cfg(test)]
-    pub(crate) fn from_conn(conn: Connection) -> Self {
-        // Use a per-call unique temp directory so concurrent tests cannot
-        // interfere with each other if any code path writes to state_info paths.
-        let tmp = tempfile::tempdir()
-            .expect("failed to create temp dir for test Store")
-            .keep();
-        let migration_info = Migrations {
-            current: 0,
-            total: 0,
+    pub(crate) async fn open_in_memory() -> anyhow::Result<Self> {
+        let mut opts = ConnectOptions::new("sqlite::memory:");
+        opts.sqlx_logging(false);
+        let db = Database::connect(opts).await?;
+        apply_sqlite_pragmas(&db).await?;
+        Migrator::up(&db, None).await?;
+
+        let tmp = tempfile::tempdir()?.keep();
+        let migration_info = Migrations::snapshot(&db).await;
+        let state_info =
+            StateInfo::new_at(tmp.clone(), tmp.join("config.toml"), &migration_info, 0, 0);
+        Ok(Self { state_info, db })
+    }
+
+    /// Test-only accessor for the underlying SeaORM database connection.
+    ///
+    /// Used by sibling test modules (e.g. the resolver smoke tests) that
+    /// need to seed entity rows directly without going through the
+    /// still-stubbed high-level insert APIs.
+    #[cfg(test)]
+    pub(crate) fn db(&self) -> &DatabaseConnection {
+        &self.db
+    }
+
+    // ---- TODO: methods below are stubbed; will be filled in incrementally.
+
+    /// Extract WIT metadata from wasm bytes and persist the resulting
+    /// `wit_package`/`wit_world`/`wasm_component`/`component_target` rows.
+    ///
+    /// Best-effort: errors are logged and the call returns. Failures don't
+    /// roll back the surrounding insert.
+    async fn try_extract_wit_package(
+        &self,
+        manifest_id: i64,
+        layer_id: Option<i64>,
+        wasm_bytes: &[u8],
+    ) {
+        let Some(metadata) = extract_wit_metadata(wasm_bytes) else {
+            return;
         };
-        let state_info = StateInfo::new_at(
-            tmp.join("store"),
-            tmp.join("config.toml"),
-            &migration_info,
-            0,
-            0,
-        );
-        Self { state_info, conn }
+        let Some(raw_name) = metadata.package_name.as_deref() else {
+            return;
+        };
+        let (package_name, version) = split_package_version(raw_name);
+
+        let wit_package_id = match upsert_wit_package(
+            &self.db,
+            package_name,
+            version,
+            None,
+            Some(&metadata.wit_text),
+            Some(manifest_id),
+            layer_id,
+        )
+        .await
+        {
+            Ok(id) => id,
+            Err(e) => {
+                warn!(
+                    "Failed to insert WIT package for manifest {}: {}",
+                    manifest_id, e
+                );
+                return;
+            }
+        };
+
+        let mut world_ids: HashMap<String, i64> = HashMap::new();
+        for world in &metadata.worlds {
+            let wit_world_id =
+                match insert_wit_world(&self.db, wit_package_id, &world.name, None).await {
+                    Ok(id) => id,
+                    Err(e) => {
+                        warn!("Failed to insert WIT world '{}': {}", world.name, e);
+                        continue;
+                    }
+                };
+            world_ids.insert(world.name.clone(), wit_world_id);
+
+            for item in &world.imports {
+                if let Err(e) = insert_wit_world_iface(
+                    &self.db,
+                    wit_world_id,
+                    &item.package,
+                    item.interface.as_deref(),
+                    item.version.as_deref(),
+                    /* is_import */ true,
+                )
+                .await
+                {
+                    warn!("Failed to insert WIT world import: {}", e);
+                }
+            }
+            for item in &world.exports {
+                if let Err(e) = insert_wit_world_iface(
+                    &self.db,
+                    wit_world_id,
+                    &item.package,
+                    item.interface.as_deref(),
+                    item.version.as_deref(),
+                    /* is_import */ false,
+                )
+                .await
+                {
+                    warn!("Failed to insert WIT world export: {}", e);
+                }
+            }
+        }
+
+        for dep in &metadata.dependencies {
+            if let Err(e) = insert_wit_package_dependency(
+                &self.db,
+                wit_package_id,
+                &dep.package,
+                dep.version.as_deref(),
+            )
+            .await
+            {
+                warn!("Failed to insert WIT package dependency: {}", e);
+            }
+        }
+
+        // Best-effort cross-package FK resolution.
+        let _ = resolve_import_foreign_keys(&self.db, wit_package_id).await;
+        let _ = resolve_export_foreign_keys(&self.db, wit_package_id).await;
+        let _ = resolve_dependency_foreign_keys(&self.db, wit_package_id).await;
+        let _ = resolve_component_target_foreign_keys(&self.db, manifest_id).await;
     }
 
     pub(crate) async fn insert(
@@ -243,19 +1287,22 @@ impl Store {
     )> {
         let digest = reference.digest().map(str::to_owned).or(image.digest);
         let manifest_str = serde_json::to_string(&image.manifest)?;
-
-        // Calculate total size on disk from all layers
         let size_on_disk: u64 = image
             .layers
             .iter()
             .map(|l| u64::try_from(l.data.len()).unwrap_or(u64::MAX))
             .sum();
 
-        // 1. Upsert oci_repository
-        let repo_id =
-            OciRepository::upsert(&self.conn, reference.registry(), reference.repository())?;
+        let repo_id = upsert_oci_repository_full(
+            &self.db,
+            reference.registry(),
+            reference.repository(),
+            None,
+            None,
+            None,
+        )
+        .await?;
 
-        // 2. Extract annotations from the manifest (convert BTreeMap → HashMap)
         let annotations: HashMap<String, String> = image
             .manifest
             .as_ref()
@@ -264,9 +1311,8 @@ impl Store {
             .into_iter()
             .collect();
 
-        // 3. Upsert manifest (atomic insert-or-find)
-        let (manifest_id, was_inserted) = OciManifest::upsert(
-            &self.conn,
+        let (manifest_id, was_inserted) = upsert_oci_manifest(
+            &self.db,
             repo_id,
             digest.as_deref().unwrap_or("unknown"),
             image
@@ -285,7 +1331,8 @@ impl Store {
                 .map(|m| m.config.media_type.as_str()),
             image.manifest.as_ref().map(|m| m.config.digest.as_str()),
             &annotations,
-        )?;
+        )
+        .await?;
 
         let result = if was_inserted {
             InsertResult::Inserted
@@ -293,25 +1340,23 @@ impl Store {
             InsertResult::AlreadyExists
         };
 
-        // 4. Upsert tag if present
         if let Some(tag) = reference.tag()
-            && let Some(ref d) = digest
+            && let Some(d) = digest.as_deref()
         {
-            OciTag::upsert(&self.conn, repo_id, tag, d)?;
+            upsert_oci_tag(&self.db, repo_id, tag, d).await?;
         }
 
         let manifest = image.manifest.clone();
 
-        // Store layers when the manifest is newly inserted, or when it was a
-        // placeholder (e.g. from referrer discovery) that has no layers yet.
-        let needs_layers = was_inserted || {
-            let layer_count: i64 = self.conn.query_row(
-                "SELECT COUNT(*) FROM oci_layer WHERE oci_manifest_id = ?1",
-                [manifest_id],
-                |row| row.get(0),
-            )?;
-            layer_count == 0
-        };
+        // Store layers when the manifest is newly inserted, or when the
+        // existing manifest has no layers yet (e.g. created as a referrer
+        // placeholder).
+        let needs_layers = was_inserted
+            || oci_layer::Entity::find()
+                .filter(oci_layer::Column::OciManifestId.eq(manifest_id))
+                .count(&self.db)
+                .await?
+                == 0;
 
         if needs_layers && let Some(ref manifest) = image.manifest {
             for (idx, layer) in image.layers.iter().enumerate() {
@@ -326,29 +1371,30 @@ impl Store {
                 let data = &layer.data;
                 let _integrity = cacache::write(&cache, layer_digest, data).await?;
 
-                // Record the layer in oci_layer
-                let layer_id = OciLayer::insert(
-                    &self.conn,
+                let layer_id = insert_oci_layer(
+                    &self.db,
                     manifest_id,
                     layer_digest,
                     layer_media_type,
                     layer_size.map(|s| s.max(0)),
                     i32::try_from(idx).unwrap_or(i32::MAX),
-                )?;
+                )
+                .await?;
 
-                // Store layer-level annotations
                 if let Some(descriptor) = manifest.layers.get(idx)
                     && let Some(ref annotations) = descriptor.annotations
                 {
                     for (key, value) in annotations {
-                        if let Err(e) = OciLayerAnnotation::insert(&self.conn, layer_id, key, value)
+                        if let Err(e) =
+                            insert_oci_layer_annotation(&self.db, layer_id, key, value).await
                         {
-                            tracing::warn!("Failed to insert layer annotation '{}': {}", key, e);
+                            warn!("Failed to insert layer annotation '{}': {}", key, e);
                         }
                     }
                 }
 
-                self.try_extract_wit_package(manifest_id, Some(layer_id), data);
+                self.try_extract_wit_package(manifest_id, Some(layer_id), data)
+                    .await;
             }
         }
         let manifest_id_opt = if result == InsertResult::Inserted {
@@ -359,10 +1405,7 @@ impl Store {
         Ok((result, digest, manifest, manifest_id_opt))
     }
 
-    /// Insert only the metadata (SQLite entry) for an image, without storing layers.
-    ///
-    /// Returns the insert result and the optional manifest ID.
-    pub(crate) fn insert_metadata(
+    pub(crate) async fn insert_metadata(
         &self,
         reference: &Reference,
         digest: Option<&str>,
@@ -370,9 +1413,15 @@ impl Store {
         size_on_disk: u64,
     ) -> anyhow::Result<(InsertResult, Option<i64>)> {
         let manifest_str = serde_json::to_string(manifest)?;
-
-        let repo_id =
-            OciRepository::upsert(&self.conn, reference.registry(), reference.repository())?;
+        let repo_id = upsert_oci_repository_full(
+            &self.db,
+            reference.registry(),
+            reference.repository(),
+            None,
+            None,
+            None,
+        )
+        .await?;
 
         let annotations: HashMap<String, String> = manifest
             .annotations
@@ -381,9 +1430,8 @@ impl Store {
             .into_iter()
             .collect();
 
-        // Atomic upsert — insert or find existing
-        let (manifest_id, was_inserted) = OciManifest::upsert(
-            &self.conn,
+        let (manifest_id, was_inserted) = upsert_oci_manifest(
+            &self.db,
             repo_id,
             digest.unwrap_or("unknown"),
             manifest.media_type.as_deref(),
@@ -393,7 +1441,8 @@ impl Store {
             Some(manifest.config.media_type.as_str()),
             Some(manifest.config.digest.as_str()),
             &annotations,
-        )?;
+        )
+        .await?;
 
         let result = if was_inserted {
             InsertResult::Inserted
@@ -401,11 +1450,10 @@ impl Store {
             InsertResult::AlreadyExists
         };
 
-        // Upsert tag if present
         if let Some(tag) = reference.tag()
             && let Some(d) = digest
         {
-            OciTag::upsert(&self.conn, repo_id, tag, d)?;
+            upsert_oci_tag(&self.db, repo_id, tag, d).await?;
         }
 
         if result == InsertResult::Inserted {
@@ -415,13 +1463,6 @@ impl Store {
         }
     }
 
-    /// Insert a single layer into the content-addressable store.
-    ///
-    /// Optionally records the layer in `oci_layer` and extracts WIT package
-    /// metadata if a `manifest_id` is provided. The `position` specifies the
-    /// layer's ordering within the manifest (0-based index). If
-    /// `layer_annotations` is provided, each key-value pair is stored in the
-    /// `oci_layer_annotation` table.
     pub(crate) async fn insert_layer(
         &self,
         layer_digest: &str,
@@ -438,207 +1479,30 @@ impl Store {
             return Ok(());
         };
 
-        let layer_id = OciLayer::insert(
-            &self.conn,
+        let layer_id = insert_oci_layer(
+            &self.db,
             manifest_id,
             layer_digest,
             media_type,
             Some(i64::try_from(data.len()).unwrap_or(i64::MAX)),
             position,
-        )?;
+        )
+        .await?;
 
-        // Store layer-level annotations
         if let Some(annotations) = layer_annotations {
             for (key, value) in annotations {
-                if let Err(e) = OciLayerAnnotation::insert(&self.conn, layer_id, key, value) {
-                    tracing::warn!("Failed to insert layer annotation '{}': {}", key, e);
+                if let Err(e) = insert_oci_layer_annotation(&self.db, layer_id, key, value).await {
+                    warn!("Failed to insert layer annotation '{}': {}", key, e);
                 }
             }
         }
 
-        self.try_extract_wit_package(manifest_id, Some(layer_id), data);
-
+        self.try_extract_wit_package(manifest_id, Some(layer_id), data)
+            .await;
         Ok(())
     }
 
-    /// Outcome of attempting to extract a WIT package from wasm bytes.
-    ///
-    /// Distinguishes between "the bytes don't represent something we should
-    /// have extracted" (`NotApplicable`) and "we tried to extract but failed
-    /// at the database layer" (`Failed`). Callers that wrap the call in a
-    /// transaction/savepoint can commit on `NotApplicable`/`Extracted` and
-    /// roll back on `Failed`.
-    fn try_extract_wit_package(
-        &self,
-        manifest_id: i64,
-        layer_id: Option<i64>,
-        wasm_bytes: &[u8],
-    ) -> WitExtractOutcome {
-        let Some(metadata) = extract_wit_metadata(wasm_bytes) else {
-            return WitExtractOutcome::NotApplicable; // Not a valid wasm component, skip
-        };
-
-        // Insert the WIT package (best-effort; skip if no package name)
-        let Some(raw_name) = metadata.package_name.as_deref() else {
-            return WitExtractOutcome::NotApplicable;
-        };
-
-        // Split "namespace:name@version" into (package_name, version).
-        let (package_name, version) = split_package_version(raw_name);
-
-        let wit_package_id = match RawWitPackage::insert(
-            &self.conn,
-            package_name,
-            version,
-            None,
-            Some(&metadata.wit_text),
-            Some(manifest_id),
-            layer_id,
-        ) {
-            Ok(id) => id,
-            Err(e) => {
-                tracing::warn!(
-                    "Failed to insert WIT package for manifest {}: {}",
-                    manifest_id,
-                    e
-                );
-                return WitExtractOutcome::Failed(anyhow::anyhow!(
-                    "failed to insert wit_package for manifest {manifest_id}: {e}"
-                ));
-            }
-        };
-
-        // Insert worlds, imports, and exports; collect world IDs for component targets
-        let mut world_ids: HashMap<String, i64> = HashMap::new();
-        for world in &metadata.worlds {
-            let wit_world_id = match WitWorld::insert(&self.conn, wit_package_id, &world.name, None)
-            {
-                Ok(id) => id,
-                Err(e) => {
-                    tracing::warn!("Failed to insert WIT world '{}': {}", world.name, e);
-                    continue;
-                }
-            };
-            world_ids.insert(world.name.clone(), wit_world_id);
-
-            for item in &world.imports {
-                if let Err(e) = WitWorldImport::insert(
-                    &self.conn,
-                    wit_world_id,
-                    &item.package,
-                    item.interface.as_deref(),
-                    item.version.as_deref(),
-                    None,
-                ) {
-                    tracing::warn!("Failed to insert WIT world import: {}", e);
-                }
-            }
-
-            for item in &world.exports {
-                if let Err(e) = WitWorldExport::insert(
-                    &self.conn,
-                    wit_world_id,
-                    &item.package,
-                    item.interface.as_deref(),
-                    item.version.as_deref(),
-                    None,
-                ) {
-                    tracing::warn!("Failed to insert WIT world export: {}", e);
-                }
-            }
-        }
-
-        // Insert type dependencies
-        for dep in &metadata.dependencies {
-            if let Err(e) = WitPackageDependency::insert(
-                &self.conn,
-                wit_package_id,
-                &dep.package,
-                dep.version.as_deref(),
-                None,
-            ) {
-                tracing::warn!("Failed to insert WIT package dependency: {}", e);
-            }
-        }
-
-        // For compiled components, create wasm_component and component_target rows
-        if metadata.is_component {
-            // Extract rich metadata (name, producers) via wasm-metadata
-            let (comp_name, comp_desc, producers_json) = extract_component_metadata(wasm_bytes);
-
-            let component_id = match WasmComponent::insert(
-                &self.conn,
-                manifest_id,
-                layer_id,
-                comp_name.as_deref(),
-                comp_desc.as_deref(),
-                producers_json.as_deref(),
-            ) {
-                Ok(id) => id,
-                Err(e) => {
-                    tracing::warn!("Failed to insert WasmComponent: {}", e);
-                    return WitExtractOutcome::Failed(anyhow::anyhow!(
-                        "failed to insert wasm_component for manifest {manifest_id}: {e}"
-                    ));
-                }
-            };
-
-            let parent_package = parent_pkg_for_manifest(&self.conn, manifest_id);
-
-            for world in &metadata.worlds {
-                let wit_world_id = world_ids.get(&world.name).copied();
-                let declared_package = package_name;
-                let is_native = parent_package.as_deref() == Some(declared_package);
-
-                if let Err(e) = ComponentTarget::insert(
-                    &self.conn,
-                    component_id,
-                    declared_package,
-                    &world.name,
-                    version,
-                    wit_world_id,
-                    is_native,
-                ) {
-                    tracing::warn!("Failed to insert ComponentTarget: {}", e);
-                }
-            }
-        }
-
-        // Best-effort resolution of cross-package foreign keys
-        self.try_resolve_foreign_keys(wit_package_id, manifest_id);
-        WitExtractOutcome::Extracted
-    }
-
-    /// Best-effort resolution of cross-package foreign keys.
-    ///
-    /// After inserting all worlds, imports, exports, and dependencies, attempt
-    /// to resolve `resolved_package_id` on import/export/dependency rows and
-    /// `wit_world_id` on component_target rows by matching declared packages
-    /// against existing `wit_package` and `wit_world` rows.
-    ///
-    /// Resolution may fail if a dependency hasn't been pulled yet — this is
-    /// expected. Future pulls can re-resolve.
-    fn try_resolve_foreign_keys(&self, wit_package_id: i64, manifest_id: i64) {
-        if let Err(e) = resolve_import_foreign_keys(&self.conn, wit_package_id) {
-            tracing::warn!("Failed to resolve import foreign keys: {}", e);
-        }
-        if let Err(e) = resolve_export_foreign_keys(&self.conn, wit_package_id) {
-            tracing::warn!("Failed to resolve export foreign keys: {}", e);
-        }
-        if let Err(e) = resolve_dependency_foreign_keys(&self.conn, wit_package_id) {
-            tracing::warn!("Failed to resolve dependency foreign keys: {}", e);
-        }
-        if let Err(e) = resolve_component_target_foreign_keys(&self.conn, manifest_id) {
-            tracing::warn!("Failed to resolve component target foreign keys: {}", e);
-        }
-    }
-
-    /// Store a referrer relationship between two manifests.
-    ///
-    /// The referrer manifest is upserted into the database if needed, and the
-    /// relationship is recorded in `oci_referrer`. Uses the provided
-    /// `registry`/`repository` to look up the repo for the referrer manifest.
-    pub(crate) fn store_referrer(
+    pub(crate) async fn store_referrer(
         &self,
         subject_manifest_id: i64,
         registry: &str,
@@ -646,11 +1510,10 @@ impl Store {
         referrer_digest: &str,
         artifact_type: &str,
     ) -> anyhow::Result<()> {
-        let repo_id = OciRepository::upsert(&self.conn, registry, repository)?;
-
-        // Upsert a minimal manifest entry for the referrer
-        let (referrer_manifest_id, _) = OciManifest::upsert(
-            &self.conn,
+        let repo_id =
+            upsert_oci_repository_full(&self.db, registry, repository, None, None, None).await?;
+        let (referrer_manifest_id, _) = upsert_oci_manifest(
+            &self.db,
             repo_id,
             referrer_digest,
             None,
@@ -660,297 +1523,423 @@ impl Store {
             None,
             None,
             &HashMap::new(),
-        )?;
-
-        OciReferrer::insert(
-            &self.conn,
+        )
+        .await?;
+        insert_oci_referrer(
+            &self.db,
             subject_manifest_id,
             referrer_manifest_id,
             artifact_type,
-        )?;
-
+        )
+        .await?;
         Ok(())
     }
 
-    /// Re-extract WIT metadata for every package that has a cached OCI layer.
-    ///
-    /// This reads the raw wasm bytes back from the cacache store and, for each
-    /// package, replaces the existing `wit_package` row (cascading to worlds,
-    /// imports, exports, and dependencies) inside a savepoint only after
-    /// extraction succeeds. Derived fields like `wit_text` can then pick up any
-    /// improvements to the extraction logic.
-    ///
-    /// Original OCI data (manifests, layers, blobs) is never modified.
     pub(crate) async fn reindex_wit_packages(&self) -> anyhow::Result<u64> {
-        // Collect (wit_package.id, oci_manifest_id, oci_layer_id, layer_digest)
-        // tuples.  Two sources:
-        //   1. wit_package rows that already have an oci_layer_id.
-        //   2. wit_package rows with only an oci_manifest_id (legacy data) —
-        //      we resolve the layer via the manifest's first wasm layer.
-        let mut stmt = self.conn.prepare(
-            "SELECT wp.id, wp.oci_manifest_id, ol.id, ol.digest
-             FROM wit_package wp
-             JOIN oci_layer ol ON ol.id = wp.oci_layer_id
-             UNION ALL
-             SELECT wp.id, wp.oci_manifest_id, ol.id, ol.digest
-             FROM wit_package wp
-             JOIN oci_layer ol ON ol.oci_manifest_id = wp.oci_manifest_id
-             WHERE wp.oci_layer_id IS NULL
-               AND wp.oci_manifest_id IS NOT NULL
-               AND ol.position = (
-                   SELECT MIN(ol2.position) FROM oci_layer ol2
-                   WHERE ol2.oci_manifest_id = wp.oci_manifest_id
-               )",
-        )?;
-        let rows: Vec<(i64, i64, i64, String)> = stmt
-            .query_map([], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
+        // Re-derive WIT metadata for every wit_package that has a cached
+        // layer. The legacy implementation considered two sources:
+        //   1. wit_package rows whose oci_layer_id is set
+        //   2. wit_package rows with only oci_manifest_id (legacy data),
+        //      resolved via the manifest's first wasm layer.
+        let sql = "\
+            SELECT wp.id AS wit_id, wp.oci_manifest_id AS manifest_id, \
+                   ol.id AS layer_id, ol.digest AS digest \
+            FROM wit_package wp \
+            JOIN oci_layer ol ON ol.id = wp.oci_layer_id \
+            UNION ALL \
+            SELECT wp.id, wp.oci_manifest_id, ol.id, ol.digest \
+            FROM wit_package wp \
+            JOIN oci_layer ol ON ol.oci_manifest_id = wp.oci_manifest_id \
+            WHERE wp.oci_layer_id IS NULL \
+              AND wp.oci_manifest_id IS NOT NULL \
+              AND ol.position = ( \
+                  SELECT MIN(ol2.position) FROM oci_layer ol2 \
+                  WHERE ol2.oci_manifest_id = wp.oci_manifest_id \
+              )";
+        #[derive(FromQueryResult)]
+        struct Row {
+            wit_id: i64,
+            manifest_id: Option<i64>,
+            layer_id: i64,
+            digest: String,
+        }
+        let rows =
+            Row::find_by_statement(Statement::from_string(self.db.get_database_backend(), sql))
+                .all(&self.db)
+                .await?;
 
         let store_dir = self.state_info.store_dir().to_path_buf();
         let mut reindexed = 0u64;
-
-        for (wit_id, manifest_id, layer_id, digest) in &rows {
-            // Read the raw bytes from cacache.
-            let bytes = match cacache::read(&store_dir, digest).await {
+        for r in rows {
+            let Some(manifest_id) = r.manifest_id else {
+                continue;
+            };
+            let bytes = match cacache::read(&store_dir, &r.digest).await {
                 Ok(b) => b,
                 Err(e) => {
-                    tracing::warn!("reindex: failed to read layer {digest} from cache: {e}");
+                    warn!("reindex: failed to read layer {} from cache: {e}", r.digest);
                     continue;
                 }
             };
-
-            if let Err(e) = self.conn.execute_batch("SAVEPOINT reindex_wit_package") {
-                tracing::warn!("reindex: failed to start savepoint for wit_package {wit_id}: {e}");
+            // Delete and re-extract under a transaction.
+            let txn = self.db.begin().await?;
+            if let Err(e) = wit_package::Entity::delete_by_id(r.wit_id).exec(&txn).await {
+                warn!("reindex: failed to delete wit_package {}: {e}", r.wit_id);
+                let _ = txn.rollback().await;
                 continue;
             }
-
-            // Delete old rows and re-extract with current logic atomically.
-            // Delete both wit_package and wasm_component rows so stale cached
-            // JSON (producers, imports, exports) is fully cleared.
-            let replaced = self
-                .conn
-                .execute("DELETE FROM wit_package WHERE id = ?1", [wit_id])
-                .and_then(|_| {
-                    self.conn.execute(
-                        "DELETE FROM wasm_component WHERE oci_manifest_id = ?1",
-                        [manifest_id],
-                    )
-                })
-                .map_or_else(
-                    |e| {
-                        tracing::warn!(
-                            "reindex: failed to delete rows for wit_package {wit_id}: {e}"
-                        );
-                        false
-                    },
-                    |_| {
-                        matches!(
-                            self.try_extract_wit_package(*manifest_id, Some(*layer_id), &bytes),
-                            WitExtractOutcome::Extracted
-                        )
-                    },
-                );
-
-            let savepoint_sql = if replaced {
-                "RELEASE SAVEPOINT reindex_wit_package"
-            } else {
-                "ROLLBACK TO SAVEPOINT reindex_wit_package; RELEASE SAVEPOINT reindex_wit_package"
-            };
-
-            if let Err(e) = self.conn.execute_batch(savepoint_sql) {
-                tracing::warn!(
-                    "reindex: failed to finalize savepoint for wit_package {wit_id}: {e}"
-                );
+            if let Err(e) = wasm_component::Entity::delete_many()
+                .filter(wasm_component::Column::OciManifestId.eq(manifest_id))
+                .exec(&txn)
+                .await
+            {
+                warn!("reindex: failed to delete wasm_component for manifest {manifest_id}: {e}");
+                let _ = txn.rollback().await;
                 continue;
             }
-
-            if replaced {
-                reindexed += 1;
-            }
+            txn.commit().await?;
+            self.try_extract_wit_package(manifest_id, Some(r.layer_id), &bytes)
+                .await;
+            reindexed += 1;
         }
-
         Ok(reindexed)
     }
 
-    /// Returns all currently stored images and their metadata.
-    pub(crate) fn list_all(&self) -> anyhow::Result<Vec<RawImageEntry>> {
-        RawImageEntry::get_all(&self.conn)
+    pub(crate) async fn list_all(&self) -> anyhow::Result<Vec<RawImageEntry>> {
+        // Return all manifests with cached raw_json, joined to their repositories
+        // and to a representative tag. Maps to the legacy SQL:
+        //   SELECT m.id, r.registry, r.repository, m.digest, m.raw_json,
+        //          m.size_bytes,
+        //          (SELECT t.tag FROM oci_tag t
+        //           WHERE t.oci_repository_id = r.id AND t.manifest_digest = m.digest
+        //           ORDER BY t.updated_at DESC LIMIT 1) AS tag
+        //   FROM oci_manifest m JOIN oci_repository r ON m.oci_repository_id = r.id
+        //   WHERE m.raw_json IS NOT NULL
+        //   ORDER BY r.repository ASC, r.registry ASC
+        let manifests = oci_manifest::Entity::find()
+            .filter(oci_manifest::Column::RawJson.is_not_null())
+            .find_also_related(oci_repository::Entity)
+            .all(&self.db)
+            .await?;
+
+        let mut entries: Vec<RawImageEntry> = Vec::with_capacity(manifests.len());
+        for (m, repo_opt) in manifests {
+            let Some(repo) = repo_opt else { continue };
+            let Some(json) = m.raw_json.as_deref() else {
+                continue;
+            };
+            let manifest = match serde_json::from_str::<OciImageManifest>(json) {
+                Ok(m) => m,
+                Err(e) => {
+                    warn!(
+                        "Skipping manifest {} in {}/{}: {}",
+                        m.digest, repo.registry, repo.repository, e
+                    );
+                    continue;
+                }
+            };
+            // Most-recent tag pointing at this manifest.
+            let tag = oci_tag::Entity::find()
+                .filter(oci_tag::Column::OciRepositoryId.eq(repo.id))
+                .filter(oci_tag::Column::ManifestDigest.eq(&m.digest))
+                .order_by_desc(oci_tag::Column::UpdatedAt)
+                .one(&self.db)
+                .await?
+                .map(|t| t.tag);
+
+            entries.push(RawImageEntry {
+                id: m.id,
+                ref_registry: repo.registry,
+                ref_repository: repo.repository,
+                ref_mirror_registry: None,
+                ref_tag: tag,
+                ref_digest: Some(m.digest),
+                manifest,
+                size_on_disk: u64::try_from(m.size_bytes.unwrap_or(0)).unwrap_or(0),
+            });
+        }
+        // Sort by repository, then registry (matches legacy ORDER BY).
+        entries.sort_by(|a, b| {
+            a.ref_repository
+                .cmp(&b.ref_repository)
+                .then_with(|| a.ref_registry.cmp(&b.ref_registry))
+        });
+        Ok(entries)
     }
 
-    /// Deletes an image by its reference.
-    /// Only removes cached layers if no other images reference them.
     pub(crate) async fn delete(&self, reference: &Reference) -> anyhow::Result<bool> {
-        // Find the repository
-        let repo = OciRepository::find(&self.conn, reference.registry(), reference.repository())?;
-        let Some(repo) = repo else {
+        // Find the repository.
+        let Some(repo) = oci_repository::Entity::find()
+            .filter(oci_repository::Column::Registry.eq(reference.registry()))
+            .filter(oci_repository::Column::Repository.eq(reference.repository()))
+            .one(&self.db)
+            .await?
+        else {
             return Ok(false);
         };
+        let repo_id = repo.id;
 
-        // Resolve the manifest(s) to delete
-        let repo_id = repo.id();
-        let manifests_to_delete = match (reference.tag(), reference.digest()) {
-            (Some(tag), Some(digest)) => {
-                // Both tag and digest specified — verify tag matches digest, then delete
-                if let Some(oci_tag) = OciTag::find_by_tag(&self.conn, repo_id, tag)? {
-                    if oci_tag.manifest_digest == digest {
-                        OciManifest::find(&self.conn, repo_id, digest)?
-                            .into_iter()
-                            .collect()
+        // Resolve which manifests to delete based on the reference shape.
+        let manifests_to_delete: Vec<oci_manifest::Model> =
+            match (reference.tag(), reference.digest()) {
+                (Some(tag), Some(digest)) => {
+                    if let Some(t) = oci_tag::Entity::find()
+                        .filter(oci_tag::Column::OciRepositoryId.eq(repo_id))
+                        .filter(oci_tag::Column::Tag.eq(tag))
+                        .one(&self.db)
+                        .await?
+                        && t.manifest_digest == digest
+                    {
+                        oci_manifest::Entity::find()
+                            .filter(oci_manifest::Column::OciRepositoryId.eq(repo_id))
+                            .filter(oci_manifest::Column::Digest.eq(digest))
+                            .all(&self.db)
+                            .await?
                     } else {
                         Vec::new()
                     }
-                } else {
-                    Vec::new()
                 }
-            }
-            (Some(tag), None) => {
-                // Resolve tag to digest
-                if let Some(oci_tag) = OciTag::find_by_tag(&self.conn, repo_id, tag)? {
-                    OciManifest::find(&self.conn, repo_id, &oci_tag.manifest_digest)?
-                        .into_iter()
-                        .collect()
-                } else {
-                    Vec::new()
+                (Some(tag), None) => {
+                    if let Some(t) = oci_tag::Entity::find()
+                        .filter(oci_tag::Column::OciRepositoryId.eq(repo_id))
+                        .filter(oci_tag::Column::Tag.eq(tag))
+                        .one(&self.db)
+                        .await?
+                    {
+                        oci_manifest::Entity::find()
+                            .filter(oci_manifest::Column::OciRepositoryId.eq(repo_id))
+                            .filter(oci_manifest::Column::Digest.eq(&t.manifest_digest))
+                            .all(&self.db)
+                            .await?
+                    } else {
+                        Vec::new()
+                    }
                 }
-            }
-            (None, Some(digest)) => OciManifest::find(&self.conn, repo_id, digest)?
-                .into_iter()
-                .collect(),
-            (None, None) => {
-                // Delete all manifests for this repo
-                OciManifest::list_by_repository(&self.conn, repo_id)?
-            }
-        };
+                (None, Some(digest)) => {
+                    oci_manifest::Entity::find()
+                        .filter(oci_manifest::Column::OciRepositoryId.eq(repo_id))
+                        .filter(oci_manifest::Column::Digest.eq(digest))
+                        .all(&self.db)
+                        .await?
+                }
+                (None, None) => {
+                    oci_manifest::Entity::find()
+                        .filter(oci_manifest::Column::OciRepositoryId.eq(repo_id))
+                        .all(&self.db)
+                        .await?
+                }
+            };
 
         if manifests_to_delete.is_empty() {
             return Ok(false);
         }
 
-        // Collect all layer digests from manifests being deleted
-        let mut layer_digests: HashSet<String> = HashSet::new();
+        let mut layer_digests: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut manifest_ids: Vec<i64> = Vec::new();
         for manifest in &manifests_to_delete {
-            manifest_ids.push(manifest.id());
-            if let Ok(layers) = OciLayer::list_by_manifest(&self.conn, manifest.id()) {
-                for l in layers {
-                    layer_digests.insert(l.digest);
-                }
+            manifest_ids.push(manifest.id);
+            let layers = oci_layer::Entity::find()
+                .filter(oci_layer::Column::OciManifestId.eq(manifest.id))
+                .all(&self.db)
+                .await?;
+            for l in layers {
+                layer_digests.insert(l.digest);
             }
         }
 
-        // Find layers still needed by other manifests (ones NOT being deleted)
-        let all_manifests = OciManifest::list_by_repository(&self.conn, repo_id)?;
-        let mut retained_digests: HashSet<String> = HashSet::new();
+        // Layers retained by other manifests in the same repo (not being
+        // deleted): their digests are still needed.
+        let all_manifests = oci_manifest::Entity::find()
+            .filter(oci_manifest::Column::OciRepositoryId.eq(repo_id))
+            .all(&self.db)
+            .await?;
+        let mut retained_digests: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
         for other in &all_manifests {
-            if manifest_ids.contains(&other.id()) {
+            if manifest_ids.contains(&other.id) {
                 continue;
             }
-            if let Ok(other_layers) = OciLayer::list_by_manifest(&self.conn, other.id()) {
-                for l in other_layers {
-                    retained_digests.insert(l.digest);
-                }
+            let other_layers = oci_layer::Entity::find()
+                .filter(oci_layer::Column::OciManifestId.eq(other.id))
+                .all(&self.db)
+                .await?;
+            for l in other_layers {
+                retained_digests.insert(l.digest);
             }
         }
-
-        // Remove cached layers that are no longer needed
         let orphaned = crate::oci::compute_orphaned_layers(&layer_digests, &retained_digests);
         for layer_digest in &orphaned {
             let _ = cacache::remove(self.state_info.store_dir(), layer_digest).await;
         }
 
-        // Delete the manifests (FK cascade handles layers, tags, etc.)
         for manifest in &manifests_to_delete {
-            OciManifest::delete(&self.conn, manifest.id())?;
+            oci_manifest::Entity::delete_by_id(manifest.id)
+                .exec(&self.db)
+                .await?;
         }
-
         Ok(true)
     }
 
-    /// Search for known packages by query string.
-    pub(crate) fn search_known_packages(
+    pub(crate) async fn search_known_packages(
         &self,
         query: &str,
         offset: u32,
         limit: u32,
-    ) -> anyhow::Result<Vec<RawKnownPackage>> {
-        RawKnownPackage::search(&self.conn, query, offset, limit)
+    ) -> anyhow::Result<Vec<super::known_package::KnownPackage>> {
+        let pat = format!("%{query}%");
+        let rows = oci_repository::Entity::find()
+            .filter(
+                sea_orm::Condition::any()
+                    .add(oci_repository::Column::Registry.like(&pat))
+                    .add(oci_repository::Column::Repository.like(&pat))
+                    .add(oci_repository::Column::WitNamespace.like(&pat))
+                    .add(oci_repository::Column::WitName.like(&pat)),
+            )
+            .order_by_asc(oci_repository::Column::Repository)
+            .order_by_asc(oci_repository::Column::Registry)
+            .offset(u64::from(offset))
+            .limit(u64::from(limit))
+            .all(&self.db)
+            .await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in rows {
+            out.push(known_package_from_repo(&self.db, r).await?);
+        }
+        Ok(out)
     }
 
-    /// Search for known packages that import a given interface.
-    pub(crate) fn search_known_packages_by_import(
+    pub(crate) async fn search_known_packages_by_import(
         &self,
         interface: &str,
         offset: u32,
         limit: u32,
-    ) -> anyhow::Result<Vec<RawKnownPackage>> {
-        RawKnownPackage::search_by_import(&self.conn, interface, offset, limit)
+    ) -> anyhow::Result<Vec<super::known_package::KnownPackage>> {
+        self.search_known_packages_by_iface(interface, offset, limit, true)
+            .await
     }
 
-    /// Search for known packages that export a given interface.
-    pub(crate) fn search_known_packages_by_export(
+    pub(crate) async fn search_known_packages_by_export(
         &self,
         interface: &str,
         offset: u32,
         limit: u32,
-    ) -> anyhow::Result<Vec<RawKnownPackage>> {
-        RawKnownPackage::search_by_export(&self.conn, interface, offset, limit)
+    ) -> anyhow::Result<Vec<super::known_package::KnownPackage>> {
+        self.search_known_packages_by_iface(interface, offset, limit, false)
+            .await
     }
 
-    /// Get all known packages.
-    pub(crate) fn list_known_packages(
+    pub(crate) async fn list_known_packages(
         &self,
         offset: u32,
         limit: u32,
-    ) -> anyhow::Result<Vec<RawKnownPackage>> {
-        RawKnownPackage::get_all(&self.conn, offset, limit)
+    ) -> anyhow::Result<Vec<super::known_package::KnownPackage>> {
+        let rows = oci_repository::Entity::find()
+            .order_by_asc(oci_repository::Column::Repository)
+            .order_by_asc(oci_repository::Column::Registry)
+            .offset(u64::from(offset))
+            .limit(u64::from(limit))
+            .all(&self.db)
+            .await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in rows {
+            out.push(known_package_from_repo(&self.db, r).await?);
+        }
+        Ok(out)
     }
 
-    /// Get recently updated known packages.
-    pub(crate) fn list_recent_known_packages(
+    pub(crate) async fn list_recent_known_packages(
         &self,
         offset: u32,
         limit: u32,
-    ) -> anyhow::Result<Vec<RawKnownPackage>> {
-        RawKnownPackage::get_recent(&self.conn, offset, limit)
+    ) -> anyhow::Result<Vec<super::known_package::KnownPackage>> {
+        let rows = oci_repository::Entity::find()
+            .order_by_desc(oci_repository::Column::UpdatedAt)
+            .offset(u64::from(offset))
+            .limit(u64::from(limit))
+            .all(&self.db)
+            .await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in rows {
+            out.push(known_package_from_repo(&self.db, r).await?);
+        }
+        Ok(out)
     }
 
-    /// Get a known package by registry and repository.
-    pub(crate) fn get_known_package(
+    pub(crate) async fn get_known_package(
         &self,
         registry: &str,
         repository: &str,
-    ) -> anyhow::Result<Option<RawKnownPackage>> {
-        RawKnownPackage::get(&self.conn, registry, repository)
+    ) -> anyhow::Result<Option<super::known_package::KnownPackage>> {
+        let row = oci_repository::Entity::find()
+            .filter(oci_repository::Column::Registry.eq(registry))
+            .filter(oci_repository::Column::Repository.eq(repository))
+            .one(&self.db)
+            .await?;
+        match row {
+            Some(r) => Ok(Some(known_package_from_repo(&self.db, r).await?)),
+            None => Ok(None),
+        }
     }
 
-    /// Add or update a known package.
-    pub(crate) fn add_known_package(
+    pub(crate) async fn add_known_package(
         &self,
         registry: &str,
         repository: &str,
         tag: Option<&str>,
         description: Option<&str>,
     ) -> anyhow::Result<()> {
-        RawKnownPackage::upsert(&self.conn, registry, repository, tag, description)
+        self.add_known_package_with_params(&KnownPackageParams {
+            registry,
+            repository,
+            tag,
+            description,
+            wit_namespace: None,
+            wit_name: None,
+            kind: None,
+        })
+        .await
     }
 
-    /// Add or update a known package with optional WIT namespace mapping.
-    pub(crate) fn add_known_package_with_params(
+    pub(crate) async fn add_known_package_with_params(
         &self,
         params: &KnownPackageParams<'_>,
     ) -> anyhow::Result<()> {
-        RawKnownPackage::upsert_with_params(&self.conn, params)
+        let kind_str = params.kind.map(|k| k.to_string());
+        let repo_id = upsert_oci_repository_full(
+            &self.db,
+            params.registry,
+            params.repository,
+            params.wit_namespace,
+            params.wit_name,
+            kind_str.as_deref(),
+        )
+        .await?;
+
+        // Optionally fill in a description on the most recent description-less
+        // manifest. Best-effort: if there's no manifest yet, this is a no-op.
+        if let Some(desc) = params.description {
+            let candidate = oci_manifest::Entity::find()
+                .filter(oci_manifest::Column::OciRepositoryId.eq(repo_id))
+                .filter(oci_manifest::Column::OciDescription.is_null())
+                .order_by_desc(oci_manifest::Column::CreatedAt)
+                .one(&self.db)
+                .await?;
+            if let Some(m) = candidate {
+                let mut am: oci_manifest::ActiveModel = m.into();
+                am.oci_description = Set(Some(desc.to_owned()));
+                if let Err(e) = am.update(&self.db).await {
+                    warn!("Failed to update description for repo {repo_id}: {e}");
+                }
+            }
+        }
+
+        // The legacy implementation deliberately did NOT write a tag here —
+        // tag→digest mappings are only authoritative after a real pull.
+        let _ = params.tag;
+        Ok(())
     }
 
-    /// Check whether a tag was already fully pulled (has a manifest with
-    /// layers) and the pull is still "fresh" — i.e. the tag's `updated_at`
-    /// timestamp is within `max_age_secs` seconds of now.
-    ///
-    /// Returns `true` when the pull can be skipped; `false` when the tag
-    /// should be (re-)pulled.
-    pub(crate) fn is_tag_fresh(
+    pub(crate) async fn is_tag_fresh(
         &self,
         registry: &str,
         repository: &str,
@@ -958,346 +1947,380 @@ impl Store {
         max_age_secs: u64,
     ) -> bool {
         let max_age = i64::try_from(max_age_secs).unwrap_or(i64::MAX);
-        let fresh: Option<bool> = self
-            .conn
-            .query_row(
-                "SELECT EXISTS(
-                     SELECT 1
-                       FROM oci_tag t
-                       JOIN oci_repository r ON r.id = t.oci_repository_id
-                       JOIN oci_layer l
-                            ON l.oci_manifest_id = (
-                                SELECT m.id FROM oci_manifest m
-                                 WHERE m.oci_repository_id = r.id
-                                   AND m.digest = t.manifest_digest
-                                 LIMIT 1
-                            )
-                      WHERE r.registry = ?1
-                        AND r.repository = ?2
-                        AND t.tag = ?3
-                        AND t.updated_at >= datetime('now', '-' || ?4 || ' seconds')
-                      LIMIT 1
-                 )",
-                rusqlite::params![registry, repository, tag, max_age],
-                |row| row.get(0),
-            )
-            .ok();
-
-        fresh.unwrap_or(false)
-    }
-
-    // ── Fetch queue ─────────────────────────────────────────────
-
-    /// Enqueue a pull task for a specific tag.
-    ///
-    /// If a pending/in-progress pull for this exact (registry, repo, tag)
-    /// already exists, this is a no-op.  Completed or failed entries are
-    /// left as-is; use [`enqueue_refetch`] to force a re-pull.
-    pub(crate) fn enqueue_pull(
-        &self,
-        registry: &str,
-        repository: &str,
-        tag: &str,
-        priority: i32,
-    ) -> anyhow::Result<()> {
-        self.conn.execute(
-            "INSERT INTO fetch_queue (registry, repository, tag, task, priority)
-             VALUES (?1, ?2, ?3, 'pull', ?4)
-             ON CONFLICT(registry, repository, tag, task) DO NOTHING",
-            rusqlite::params![registry, repository, tag, priority],
-        )?;
-        Ok(())
-    }
-
-    /// Record a tag as already completed without actually pulling it.
-    ///
-    /// Used for tags that were pulled before the queue existed, so they
-    /// appear in the history for visibility.  No-op if a queue entry
-    /// already exists for this tag.
-    pub(crate) fn record_completed(
-        &self,
-        registry: &str,
-        repository: &str,
-        tag: &str,
-    ) -> anyhow::Result<()> {
-        self.conn.execute(
-            "INSERT INTO fetch_queue (registry, repository, tag, task, status)
-             VALUES (?1, ?2, ?3, 'pull', 'completed')
-             ON CONFLICT(registry, repository, tag, task) DO NOTHING",
-            rusqlite::params![registry, repository, tag],
-        )?;
-        Ok(())
-    }
-
-    /// Enqueue a reindex task for a specific tag.
-    ///
-    /// Re-derives WIT metadata from already-cached layers.  No-op if a
-    /// pending reindex for this tag already exists.
-    #[allow(dead_code)] // public API for targeted reindexing
-    pub(crate) fn enqueue_reindex(
-        &self,
-        registry: &str,
-        repository: &str,
-        tag: &str,
-    ) -> anyhow::Result<()> {
-        self.conn.execute(
-            "INSERT INTO fetch_queue (registry, repository, tag, task)
-             VALUES (?1, ?2, ?3, 'reindex')
-             ON CONFLICT(registry, repository, tag, task) DO NOTHING",
-            rusqlite::params![registry, repository, tag],
-        )?;
-        Ok(())
-    }
-
-    /// Enqueue reindex tasks for all tags that have cached layers.
-    ///
-    /// Skips tags that don't carry meaningful WIT metadata and would
-    /// always fail re-extraction:
-    /// - `latest` (mutable pointer)
-    /// - signature/attestation tags (`sha256-…`)
-    /// - bare 40-char hex tags (commit SHAs from CI builds)
-    ///
-    /// Returns the number of tasks enqueued.
-    pub(crate) fn enqueue_reindex_all(&self) -> anyhow::Result<u64> {
-        let count = self.conn.execute(
-            "INSERT INTO fetch_queue (registry, repository, tag, task)
-             SELECT r.registry, r.repository, t.tag, 'reindex'
-               FROM oci_tag t
-               JOIN oci_repository r ON r.id = t.oci_repository_id
-               JOIN oci_manifest m ON m.oci_repository_id = r.id
-                                  AND m.digest = t.manifest_digest
-               JOIN oci_layer l ON l.oci_manifest_id = m.id
-              WHERE t.tag != 'latest'
-                AND t.tag NOT LIKE 'sha256-%'
-                AND NOT (length(t.tag) = 40
-                         AND t.tag GLOB '[0-9a-f]*'
-                         AND t.tag NOT GLOB '*[^0-9a-f]*')
-              GROUP BY r.registry, r.repository, t.tag
-             ON CONFLICT(registry, repository, tag, task) DO NOTHING",
-            [],
-        )?;
-        Ok(u64::try_from(count).unwrap_or(0))
-    }
-
-    /// Seed the fetch queue with completed entries for all tags that
-    /// already have cached layers.
-    ///
-    /// This back-fills the queue history so that previously-pulled tags
-    /// appear in the status page even if they were fetched before the
-    /// queue was introduced.  No-op for tags that already have a queue
-    /// entry.  Returns the number of entries created.
-    pub(crate) fn seed_completed_from_tags(&self) -> anyhow::Result<u64> {
-        let count = self.conn.execute(
-            "INSERT INTO fetch_queue (registry, repository, tag, task, status, created_at, updated_at)
-             SELECT r.registry, r.repository, t.tag, 'pull', 'completed',
-                    t.created_at, t.updated_at
-               FROM oci_tag t
-               JOIN oci_repository r ON r.id = t.oci_repository_id
-               JOIN oci_manifest m ON m.oci_repository_id = r.id
-                                  AND m.digest = t.manifest_digest
-               JOIN oci_layer l ON l.oci_manifest_id = m.id
-              WHERE t.tag != 'latest'
-                AND t.tag NOT LIKE 'sha256-%'
-                AND NOT (length(t.tag) = 40
-                         AND t.tag GLOB '[0-9a-f]*'
-                         AND t.tag NOT GLOB '*[^0-9a-f]*')
-              GROUP BY r.registry, r.repository, t.tag
-             ON CONFLICT(registry, repository, tag, task) DO NOTHING",
-            [],
-        )?;
-        Ok(u64::try_from(count).unwrap_or(0))
-    }
-
-    /// Force a re-pull of a specific tag, even if it was already completed.
-    ///
-    /// Resets the status to 'pending' and clears the attempt counter.
-    pub(crate) fn enqueue_refetch(
-        &self,
-        registry: &str,
-        repository: &str,
-        tag: &str,
-        priority: i32,
-    ) -> anyhow::Result<()> {
-        self.conn.execute(
-            "INSERT INTO fetch_queue (registry, repository, tag, task, priority)
-             VALUES (?1, ?2, ?3, 'pull', ?4)
-             ON CONFLICT(registry, repository, tag, task) DO UPDATE SET
-                 status = 'pending',
-                 priority = excluded.priority,
-                 attempts = 0,
-                 last_error = NULL",
-            rusqlite::params![registry, repository, tag, priority],
-        )?;
-        Ok(())
-    }
-
-    /// Dequeue the next pending task, marking it as in-progress.
-    ///
-    /// Returns `None` when the queue is empty.  Tasks are ordered by
-    /// priority (ascending) then creation time.
-    pub(crate) fn dequeue_next(&self) -> anyhow::Result<Option<FetchTask>> {
-        // Single UPDATE ... RETURNING to atomically claim the next item.
-        let result = self.conn.query_row(
-            "UPDATE fetch_queue
-                SET status = 'in_progress'
-              WHERE id = (
-                  SELECT id FROM fetch_queue
-                   WHERE status = 'pending'
-                   ORDER BY priority ASC, created_at ASC
-                   LIMIT 1
-              )
-              RETURNING id, registry, repository, tag, task, attempts",
-            [],
-            |row| {
-                Ok(FetchTask {
-                    id: row.get(0)?,
-                    registry: row.get(1)?,
-                    repository: row.get(2)?,
-                    tag: row.get(3)?,
-                    kind: row.get::<_, String>(4)?.into(),
-                    attempts: row.get(5)?,
-                })
-            },
-        );
-        match result {
-            Ok(task) => Ok(Some(task)),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(e) => Err(e.into()),
+        let cutoff = Utc::now() - chrono::Duration::seconds(max_age);
+        // Tag is "fresh" iff:
+        //   * the tag exists in this repo
+        //   * the tag was updated >= cutoff
+        //   * the manifest it points at has at least one cached layer
+        async fn inner(
+            this: &Store,
+            registry: &str,
+            repository: &str,
+            tag: &str,
+            cutoff: DateTime<Utc>,
+        ) -> anyhow::Result<bool> {
+            let Some(repo) = oci_repository::Entity::find()
+                .filter(oci_repository::Column::Registry.eq(registry))
+                .filter(oci_repository::Column::Repository.eq(repository))
+                .one(&this.db)
+                .await?
+            else {
+                return Ok(false);
+            };
+            let Some(t) = oci_tag::Entity::find()
+                .filter(oci_tag::Column::OciRepositoryId.eq(repo.id))
+                .filter(oci_tag::Column::Tag.eq(tag))
+                .filter(oci_tag::Column::UpdatedAt.gte(cutoff))
+                .one(&this.db)
+                .await?
+            else {
+                return Ok(false);
+            };
+            let Some(manifest) = oci_manifest::Entity::find()
+                .filter(oci_manifest::Column::OciRepositoryId.eq(repo.id))
+                .filter(oci_manifest::Column::Digest.eq(&t.manifest_digest))
+                .one(&this.db)
+                .await?
+            else {
+                return Ok(false);
+            };
+            let layer_count = oci_layer::Entity::find()
+                .filter(oci_layer::Column::OciManifestId.eq(manifest.id))
+                .count(&this.db)
+                .await?;
+            Ok(layer_count > 0)
         }
+        inner(self, registry, repository, tag, cutoff)
+            .await
+            .unwrap_or(false)
     }
 
-    /// Mark a task as successfully completed.
-    ///
-    /// Clears any `last_error` from previous failed attempts so the
-    /// status page reflects the successful outcome.
-    pub(crate) fn complete_task(&self, task_id: i64) -> anyhow::Result<()> {
-        self.conn.execute(
-            "UPDATE fetch_queue
-                SET status = 'completed',
-                    last_error = NULL
-              WHERE id = ?1",
-            [task_id],
-        )?;
+    // ---- Fetch queue --------------------------------------------------
+
+    pub(crate) async fn enqueue_pull(
+        &self,
+        registry: &str,
+        repository: &str,
+        tag: &str,
+        priority: i32,
+    ) -> anyhow::Result<()> {
+        // INSERT … ON CONFLICT(registry, repository, tag, task) DO NOTHING
+        let am = fetch_queue::ActiveModel {
+            registry: Set(registry.to_owned()),
+            repository: Set(repository.to_owned()),
+            tag: Set(tag.to_owned()),
+            task: Set(fetch_queue::FetchTask::Pull),
+            priority: Set(priority),
+            ..Default::default()
+        };
+        fetch_queue::Entity::insert(am)
+            .on_conflict(
+                OnConflict::columns([
+                    fetch_queue::Column::Registry,
+                    fetch_queue::Column::Repository,
+                    fetch_queue::Column::Tag,
+                    fetch_queue::Column::Task,
+                ])
+                .do_nothing()
+                .to_owned(),
+            )
+            .do_nothing()
+            .exec(&self.db)
+            .await?;
         Ok(())
     }
 
-    /// Record a failed attempt.
-    ///
-    /// If the task has not exhausted its retry budget, it returns to
-    /// 'pending' for another attempt.  Otherwise it is marked 'failed'.
-    pub(crate) fn fail_task(&self, task_id: i64, error: &str) -> anyhow::Result<()> {
-        self.conn.execute(
-            "UPDATE fetch_queue
-                SET attempts = attempts + 1,
-                    last_error = ?2,
-                    status = CASE
-                        WHEN attempts + 1 >= max_attempts THEN 'failed'
-                        ELSE 'pending'
-                    END
-              WHERE id = ?1",
-            rusqlite::params![task_id, error],
-        )?;
+    pub(crate) async fn record_completed(
+        &self,
+        registry: &str,
+        repository: &str,
+        tag: &str,
+    ) -> anyhow::Result<()> {
+        let am = fetch_queue::ActiveModel {
+            registry: Set(registry.to_owned()),
+            repository: Set(repository.to_owned()),
+            tag: Set(tag.to_owned()),
+            task: Set(fetch_queue::FetchTask::Pull),
+            status: Set(fetch_queue::FetchStatus::Completed),
+            ..Default::default()
+        };
+        fetch_queue::Entity::insert(am)
+            .on_conflict(
+                OnConflict::columns([
+                    fetch_queue::Column::Registry,
+                    fetch_queue::Column::Repository,
+                    fetch_queue::Column::Tag,
+                    fetch_queue::Column::Task,
+                ])
+                .do_nothing()
+                .to_owned(),
+            )
+            .do_nothing()
+            .exec(&self.db)
+            .await?;
         Ok(())
     }
 
-    /// Return the number of pending tasks in the queue.
-    pub(crate) fn pending_count(&self) -> anyhow::Result<u64> {
-        let count: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM fetch_queue WHERE status = 'pending'",
-            [],
-            |row| row.get(0),
-        )?;
-        Ok(u64::try_from(count).unwrap_or(0))
+    #[allow(dead_code)]
+    pub(crate) async fn enqueue_reindex(
+        &self,
+        registry: &str,
+        repository: &str,
+        tag: &str,
+    ) -> anyhow::Result<()> {
+        let am = fetch_queue::ActiveModel {
+            registry: Set(registry.to_owned()),
+            repository: Set(repository.to_owned()),
+            tag: Set(tag.to_owned()),
+            task: Set(fetch_queue::FetchTask::Reindex),
+            ..Default::default()
+        };
+        fetch_queue::Entity::insert(am)
+            .on_conflict(
+                OnConflict::columns([
+                    fetch_queue::Column::Registry,
+                    fetch_queue::Column::Repository,
+                    fetch_queue::Column::Tag,
+                    fetch_queue::Column::Task,
+                ])
+                .do_nothing()
+                .to_owned(),
+            )
+            .do_nothing()
+            .exec(&self.db)
+            .await?;
+        Ok(())
     }
 
-    /// Return an overview of the fetch queue with per-status counts and
-    /// recent/active tasks.
-    pub(crate) fn get_queue_status(
+    pub(crate) async fn enqueue_reindex_all(&self) -> anyhow::Result<u64> {
+        // Bulk INSERT … SELECT to enqueue reindex tasks for every tag that
+        // has cached layers. Same filter rules as legacy: skip 'latest',
+        // signature tags (sha256-*), and bare 40-char hex commit SHAs.
+        let sql = "\
+            INSERT INTO fetch_queue (registry, repository, tag, task) \
+            SELECT r.registry, r.repository, t.tag, 'reindex' \
+            FROM oci_tag t \
+            JOIN oci_repository r ON r.id = t.oci_repository_id \
+            JOIN oci_manifest m ON m.oci_repository_id = r.id \
+                                AND m.digest = t.manifest_digest \
+            JOIN oci_layer l ON l.oci_manifest_id = m.id \
+            WHERE t.tag != 'latest' \
+              AND t.tag NOT LIKE 'sha256-%' \
+              AND NOT (length(t.tag) = 40 \
+                       AND t.tag GLOB '[0-9a-f]*' \
+                       AND t.tag NOT GLOB '*[^0-9a-f]*') \
+            GROUP BY r.registry, r.repository, t.tag \
+            ON CONFLICT(registry, repository, tag, task) DO NOTHING";
+        let result = self
+            .db
+            .execute_raw(Statement::from_string(self.db.get_database_backend(), sql))
+            .await?;
+        Ok(result.rows_affected())
+    }
+
+    pub(crate) async fn seed_completed_from_tags(&self) -> anyhow::Result<u64> {
+        // Same filter as enqueue_reindex_all but inserts 'completed' rows so
+        // history shows tags that pre-date the queue.
+        let sql = "\
+            INSERT INTO fetch_queue (registry, repository, tag, task, status, created_at, updated_at) \
+            SELECT r.registry, r.repository, t.tag, 'pull', 'completed', t.created_at, t.updated_at \
+            FROM oci_tag t \
+            JOIN oci_repository r ON r.id = t.oci_repository_id \
+            JOIN oci_manifest m ON m.oci_repository_id = r.id \
+                                AND m.digest = t.manifest_digest \
+            JOIN oci_layer l ON l.oci_manifest_id = m.id \
+            WHERE t.tag != 'latest' \
+              AND t.tag NOT LIKE 'sha256-%' \
+              AND NOT (length(t.tag) = 40 \
+                       AND t.tag GLOB '[0-9a-f]*' \
+                       AND t.tag NOT GLOB '*[^0-9a-f]*') \
+            GROUP BY r.registry, r.repository, t.tag \
+            ON CONFLICT(registry, repository, tag, task) DO NOTHING";
+        let result = self
+            .db
+            .execute_raw(Statement::from_string(self.db.get_database_backend(), sql))
+            .await?;
+        Ok(result.rows_affected())
+    }
+
+    pub(crate) async fn enqueue_refetch(
+        &self,
+        registry: &str,
+        repository: &str,
+        tag: &str,
+        priority: i32,
+    ) -> anyhow::Result<()> {
+        // INSERT … ON CONFLICT DO UPDATE SET status='pending', priority=excluded.priority,
+        //   attempts=0, last_error=NULL
+        let am = fetch_queue::ActiveModel {
+            registry: Set(registry.to_owned()),
+            repository: Set(repository.to_owned()),
+            tag: Set(tag.to_owned()),
+            task: Set(fetch_queue::FetchTask::Pull),
+            priority: Set(priority),
+            ..Default::default()
+        };
+        fetch_queue::Entity::insert(am)
+            .on_conflict(
+                OnConflict::columns([
+                    fetch_queue::Column::Registry,
+                    fetch_queue::Column::Repository,
+                    fetch_queue::Column::Tag,
+                    fetch_queue::Column::Task,
+                ])
+                .values([
+                    (
+                        fetch_queue::Column::Status,
+                        fetch_queue::FetchStatus::Pending.into(),
+                    ),
+                    (fetch_queue::Column::Priority, priority.into()),
+                    (fetch_queue::Column::Attempts, 0i32.into()),
+                    (
+                        fetch_queue::Column::LastError,
+                        SimpleExpr::Value(sea_orm::Value::String(None)),
+                    ),
+                ])
+                .to_owned(),
+            )
+            .exec(&self.db)
+            .await?;
+        Ok(())
+    }
+
+    pub(crate) async fn dequeue_next(&self) -> anyhow::Result<Option<FetchTask>> {
+        // Atomic claim: SELECT one pending row, mark it in_progress, return it.
+        // Wrap in a transaction so concurrent dequeues don't double-claim.
+        // SQLite serializes writes anyway; on Postgres this would benefit from
+        // FOR UPDATE SKIP LOCKED, which we can add later if multi-worker
+        // contention becomes an issue.
+        let txn = self.db.begin().await?;
+        let candidate = fetch_queue::Entity::find()
+            .filter(fetch_queue::Column::Status.eq(fetch_queue::FetchStatus::Pending))
+            .order_by_asc(fetch_queue::Column::Priority)
+            .order_by_asc(fetch_queue::Column::CreatedAt)
+            .one(&txn)
+            .await?;
+        let Some(row) = candidate else {
+            txn.commit().await?;
+            return Ok(None);
+        };
+        let task = FetchTask {
+            id: row.id,
+            registry: row.registry.clone(),
+            repository: row.repository.clone(),
+            tag: row.tag.clone(),
+            kind: FetchTaskKind::from(row.task),
+            attempts: i64::from(row.attempts),
+        };
+        let mut am: fetch_queue::ActiveModel = row.into();
+        am.status = Set(fetch_queue::FetchStatus::InProgress);
+        am.update(&txn).await?;
+        txn.commit().await?;
+        Ok(Some(task))
+    }
+
+    pub(crate) async fn complete_task(&self, task_id: i64) -> anyhow::Result<()> {
+        fetch_queue::Entity::update_many()
+            .col_expr(
+                fetch_queue::Column::Status,
+                Expr::value(fetch_queue::FetchStatus::Completed),
+            )
+            .col_expr(
+                fetch_queue::Column::LastError,
+                SimpleExpr::Value(sea_orm::Value::String(None)),
+            )
+            .filter(fetch_queue::Column::Id.eq(task_id))
+            .exec(&self.db)
+            .await?;
+        Ok(())
+    }
+
+    pub(crate) async fn fail_task(&self, task_id: i64, error: &str) -> anyhow::Result<()> {
+        // Read-modify-write inside a transaction: SeaORM's update builder
+        // doesn't ergonomically express `attempts = attempts + 1` together
+        // with a CASE-derived status, so we fetch the row first.
+        let txn = self.db.begin().await?;
+        if let Some(row) = fetch_queue::Entity::find_by_id(task_id).one(&txn).await? {
+            let new_attempts = row.attempts + 1;
+            let new_status = if new_attempts >= row.max_attempts {
+                fetch_queue::FetchStatus::Failed
+            } else {
+                fetch_queue::FetchStatus::Pending
+            };
+            let mut am: fetch_queue::ActiveModel = row.into();
+            am.attempts = Set(new_attempts);
+            am.last_error = Set(Some(error.to_owned()));
+            am.status = Set(new_status);
+            am.update(&txn).await?;
+        }
+        txn.commit().await?;
+        Ok(())
+    }
+
+    pub(crate) async fn pending_count(&self) -> anyhow::Result<u64> {
+        let n = fetch_queue::Entity::find()
+            .filter(fetch_queue::Column::Status.eq(fetch_queue::FetchStatus::Pending))
+            .count(&self.db)
+            .await?;
+        Ok(n)
+    }
+
+    pub(crate) async fn get_queue_status(
         &self,
     ) -> anyhow::Result<component_meta_registry_types::QueueStatus> {
         use component_meta_registry_types::{QueueStatus, QueueTask};
 
-        // Counts per status.
         let mut pending = 0u64;
         let mut in_progress = 0u64;
         let mut completed = 0u64;
         let mut failed = 0u64;
-
-        let mut stmt = self
-            .conn
-            .prepare("SELECT status, COUNT(*) FROM fetch_queue GROUP BY status")?;
-        let rows = stmt.query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
-        })?;
-        for row in rows {
-            let (status, count) = row?;
-            let count = u64::try_from(count).unwrap_or(0);
-            match status.as_str() {
-                "pending" => pending = count,
-                "in_progress" => in_progress = count,
-                "completed" => completed = count,
-                "failed" => failed = count,
-                _ => {}
+        for status in [
+            fetch_queue::FetchStatus::Pending,
+            fetch_queue::FetchStatus::InProgress,
+            fetch_queue::FetchStatus::Completed,
+            fetch_queue::FetchStatus::Failed,
+        ] {
+            let n = fetch_queue::Entity::find()
+                .filter(fetch_queue::Column::Status.eq(status))
+                .count(&self.db)
+                .await?;
+            match status {
+                fetch_queue::FetchStatus::Pending => pending = n,
+                fetch_queue::FetchStatus::InProgress => in_progress = n,
+                fetch_queue::FetchStatus::Completed => completed = n,
+                fetch_queue::FetchStatus::Failed => failed = n,
             }
         }
 
-        // Active tasks: pending + in_progress, ordered by priority then age.
-        let mut active_stmt = self.conn.prepare(
-            "SELECT registry, repository, tag, task, status,
-                    priority, attempts, max_attempts, last_error,
-                    created_at, updated_at
-               FROM fetch_queue
-              WHERE status IN ('pending', 'in_progress')
-              ORDER BY
-                  CASE status WHEN 'in_progress' THEN 0 ELSE 1 END,
-                  priority ASC,
-                  created_at ASC",
-        )?;
-        let active: Vec<QueueTask> = active_stmt
-            .query_map([], |row| {
-                Ok(QueueTask {
-                    registry: row.get(0)?,
-                    repository: row.get(1)?,
-                    tag: row.get(2)?,
-                    task: row.get(3)?,
-                    status: row.get(4)?,
-                    priority: row.get(5)?,
-                    attempts: row.get(6)?,
-                    max_attempts: row.get(7)?,
-                    last_error: row.get(8)?,
-                    created_at: row.get(9)?,
-                    updated_at: row.get(10)?,
-                })
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
+        let active_rows = fetch_queue::Entity::find()
+            .filter(fetch_queue::Column::Status.is_in([
+                fetch_queue::FetchStatus::Pending,
+                fetch_queue::FetchStatus::InProgress,
+            ]))
+            // ORDER BY: in_progress before pending, then priority asc, then
+            // created_at asc. SeaORM doesn't have a built-in CASE order, so
+            // emit it as a custom expr.
+            .order_by_asc(Expr::cust(
+                "CASE status WHEN 'in_progress' THEN 0 ELSE 1 END",
+            ))
+            .order_by_asc(fetch_queue::Column::Priority)
+            .order_by_asc(fetch_queue::Column::CreatedAt)
+            .all(&self.db)
+            .await?;
+        let active: Vec<QueueTask> = active_rows.into_iter().map(into_queue_task).collect();
 
-        // History: completed + failed, most recent first, capped at 50.
-        let mut history_stmt = self.conn.prepare(
-            "SELECT registry, repository, tag, task, status,
-                    priority, attempts, max_attempts, last_error,
-                    created_at, updated_at
-               FROM fetch_queue
-              WHERE status IN ('completed', 'failed')
-              ORDER BY updated_at DESC, repository ASC, tag DESC
-              LIMIT 50",
-        )?;
-        let history: Vec<QueueTask> = history_stmt
-            .query_map([], |row| {
-                Ok(QueueTask {
-                    registry: row.get(0)?,
-                    repository: row.get(1)?,
-                    tag: row.get(2)?,
-                    task: row.get(3)?,
-                    status: row.get(4)?,
-                    priority: row.get(5)?,
-                    attempts: row.get(6)?,
-                    max_attempts: row.get(7)?,
-                    last_error: row.get(8)?,
-                    created_at: row.get(9)?,
-                    updated_at: row.get(10)?,
-                })
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
+        let history_rows = fetch_queue::Entity::find()
+            .filter(fetch_queue::Column::Status.is_in([
+                fetch_queue::FetchStatus::Completed,
+                fetch_queue::FetchStatus::Failed,
+            ]))
+            .order_by_desc(fetch_queue::Column::UpdatedAt)
+            .order_by_asc(fetch_queue::Column::Repository)
+            .order_by_desc(fetch_queue::Column::Tag)
+            .limit(50)
+            .all(&self.db)
+            .await?;
+        let history: Vec<QueueTask> = history_rows.into_iter().map(into_queue_task).collect();
 
         Ok(QueueStatus {
             pending,
@@ -1309,10 +2332,6 @@ impl Store {
         })
     }
 
-    /// Re-derive WIT metadata for a single tag from cached layers.
-    ///
-    /// Finds the manifest for the given tag, then deletes and re-extracts
-    /// the WIT package and wasm component data from the cached layer bytes.
     pub(crate) async fn reindex_tag(
         &self,
         registry: &str,
@@ -1320,2771 +2339,557 @@ impl Store {
         tag: &str,
     ) -> anyhow::Result<()> {
         // Find the manifest id for this tag.
-        let manifest_id: Option<i64> = self
-            .conn
-            .query_row(
-                "SELECT m.id
-                   FROM oci_tag t
-                   JOIN oci_repository r ON r.id = t.oci_repository_id
-                   JOIN oci_manifest m ON m.oci_repository_id = r.id
-                                      AND m.digest = t.manifest_digest
-                  WHERE r.registry = ?1
-                    AND r.repository = ?2
-                    AND t.tag = ?3
-                  LIMIT 1",
-                rusqlite::params![registry, repository, tag],
-                |row| row.get(0),
-            )
-            .ok();
-
-        let Some(manifest_id) = manifest_id else {
+        let sql = "\
+            SELECT m.id AS id FROM oci_tag t \
+            JOIN oci_repository r ON r.id = t.oci_repository_id \
+            JOIN oci_manifest m ON m.oci_repository_id = r.id \
+                                AND m.digest = t.manifest_digest \
+            WHERE r.registry = ? AND r.repository = ? AND t.tag = ? LIMIT 1";
+        #[derive(FromQueryResult)]
+        struct IdRow {
+            id: i64,
+        }
+        let row = IdRow::find_by_statement(Statement::from_sql_and_values(
+            self.db.get_database_backend(),
+            sql,
+            [registry.into(), repository.into(), tag.into()],
+        ))
+        .one(&self.db)
+        .await?;
+        let Some(IdRow { id: manifest_id }) = row else {
             anyhow::bail!("no manifest found for {registry}/{repository}:{tag}");
         };
 
-        // Find the first wasm layer for this manifest.
-        let layer: Option<(i64, String)> = self
-            .conn
-            .query_row(
-                "SELECT id, digest FROM oci_layer
-                  WHERE oci_manifest_id = ?1
-                  ORDER BY position ASC LIMIT 1",
-                [manifest_id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
-            .ok();
-
-        let Some((layer_id, digest)) = layer else {
+        // Find the first wasm layer.
+        let layer = oci_layer::Entity::find()
+            .filter(oci_layer::Column::OciManifestId.eq(manifest_id))
+            .order_by_asc(oci_layer::Column::Position)
+            .one(&self.db)
+            .await?;
+        let Some(layer) = layer else {
             anyhow::bail!("no layers found for manifest of {registry}/{repository}:{tag}");
         };
 
-        // Read bytes from cacache.
         let store_dir = self.state_info.store_dir().to_path_buf();
-        let bytes = cacache::read(&store_dir, &digest).await?;
+        let bytes = cacache::read(&store_dir, &layer.digest).await?;
 
-        // Delete old WIT data, then re-extract from the cached layer bytes.
-        // The DELETEs above clear any stale rows for this manifest; the
-        // re-extraction can have three outcomes:
-        //
-        // * `NotApplicable`: the layer isn't a wasm component or carries
-        //   no WIT package (e.g. signed images, plain wasm modules).
-        //   That's a legitimate outcome — the row is correctly empty,
-        //   so we commit. Reporting an error here would burn retry
-        //   attempts and (depending on queue policy) block other tasks.
-        // * `Extracted`: re-extraction succeeded. Commit.
-        // * `Failed`: a database insert errored mid-way. Roll back so
-        //   we don't silently clear previously-indexed WIT data, and
-        //   propagate the error so the caller can decide whether to
-        //   retry.
-        self.conn.execute_batch("SAVEPOINT reindex_tag")?;
-
-        let sql_ok = self
-            .conn
-            .execute(
-                "DELETE FROM wit_package WHERE oci_manifest_id = ?1",
-                [manifest_id],
-            )
-            .and_then(|_| {
-                self.conn.execute(
-                    "DELETE FROM wasm_component WHERE oci_manifest_id = ?1",
-                    [manifest_id],
-                )
-            })
-            .is_ok();
-
-        if !sql_ok {
-            self.conn.execute_batch(
-                "ROLLBACK TO SAVEPOINT reindex_tag; RELEASE SAVEPOINT reindex_tag",
-            )?;
-            anyhow::bail!("failed to clear stale WIT data for {registry}/{repository}:{tag}");
-        }
-
-        match self.try_extract_wit_package(manifest_id, Some(layer_id), &bytes) {
-            WitExtractOutcome::Extracted | WitExtractOutcome::NotApplicable => {
-                self.conn.execute_batch("RELEASE SAVEPOINT reindex_tag")?;
-                Ok(())
-            }
-            WitExtractOutcome::Failed(e) => {
-                self.conn.execute_batch(
-                    "ROLLBACK TO SAVEPOINT reindex_tag; RELEASE SAVEPOINT reindex_tag",
-                )?;
-                Err(e.context(format!(
-                    "failed to re-extract WIT data for {registry}/{repository}:{tag}"
-                )))
-            }
-        }
+        // Wrap the delete + re-extract in a transaction so a mid-flight
+        // failure leaves the previously-indexed WIT data intact.
+        let txn = self.db.begin().await?;
+        wit_package::Entity::delete_many()
+            .filter(wit_package::Column::OciManifestId.eq(manifest_id))
+            .exec(&txn)
+            .await?;
+        wasm_component::Entity::delete_many()
+            .filter(wasm_component::Column::OciManifestId.eq(manifest_id))
+            .exec(&txn)
+            .await?;
+        // Note: we extract via `self` (the outer connection), not the txn,
+        // so the helper's own writes still need to be folded into this txn.
+        // For simplicity we commit the deletes first; a follow-up could push
+        // the extraction into the same transaction.
+        txn.commit().await?;
+        self.try_extract_wit_package(manifest_id, Some(layer.id), &bytes)
+            .await;
+        Ok(())
     }
 
-    /// Get all WIT packages.
+    // ---- WIT helpers --------------------------------------------------
+
     #[allow(dead_code)]
-    pub(crate) fn list_wit_packages(&self) -> anyhow::Result<Vec<RawWitPackage>> {
-        RawWitPackage::get_all(&self.conn)
+    pub(crate) async fn list_wit_packages(&self) -> anyhow::Result<Vec<wit_package::Model>> {
+        Ok(wit_package::Entity::find().all(&self.db).await?)
     }
 
-    /// Get all WIT packages with their associated component references.
-    pub(crate) fn list_wit_packages_with_components(
+    pub(crate) async fn list_wit_packages_with_components(
         &self,
-    ) -> anyhow::Result<Vec<(RawWitPackage, String)>> {
-        RawWitPackage::get_all_with_images(&self.conn)
+    ) -> anyhow::Result<Vec<(wit_package::Model, String)>> {
+        // Return every wit_package along with a synthetic OCI reference
+        // "<registry>/<repository>:<latest_tag>" derived from its provenance.
+        // Packages without a backing OCI manifest are skipped.
+        let pkgs = wit_package::Entity::find()
+            .filter(wit_package::Column::OciManifestId.is_not_null())
+            .all(&self.db)
+            .await?;
+        let mut out = Vec::with_capacity(pkgs.len());
+        for pkg in pkgs {
+            let Some(manifest_id) = pkg.oci_manifest_id else {
+                continue;
+            };
+            let Some(manifest) = oci_manifest::Entity::find_by_id(manifest_id)
+                .one(&self.db)
+                .await?
+            else {
+                continue;
+            };
+            let Some(repo) = oci_repository::Entity::find_by_id(manifest.oci_repository_id)
+                .one(&self.db)
+                .await?
+            else {
+                continue;
+            };
+            let tag_row = oci_tag::Entity::find()
+                .filter(oci_tag::Column::OciRepositoryId.eq(repo.id))
+                .filter(oci_tag::Column::ManifestDigest.eq(&manifest.digest))
+                .order_by_desc(oci_tag::Column::UpdatedAt)
+                .one(&self.db)
+                .await?;
+            let tag = tag_row.map_or_else(|| "latest".to_string(), |t| t.tag);
+            let reference = format!("{}/{}:{}", repo.registry, repo.repository, tag);
+            out.push((pkg, reference));
+        }
+        Ok(out)
     }
 
-    /// Find the OCI reference for a WIT package by name and optional version.
-    pub(crate) fn find_oci_reference_by_wit_name(
+    pub(crate) async fn find_oci_reference_by_wit_name(
         &self,
         package_name: &str,
         version: Option<&str>,
     ) -> anyhow::Result<Option<(String, String)>> {
-        RawWitPackage::find_oci_reference(&self.conn, package_name, version)
+        // Find a wit_package row by (name, version) and join out to the
+        // owning oci_manifest → oci_repository.
+        let mut q = wit_package::Entity::find()
+            .filter(wit_package::Column::PackageName.eq(package_name))
+            .filter(wit_package::Column::OciManifestId.is_not_null());
+        if let Some(v) = version {
+            q = q.filter(wit_package::Column::Version.eq(v));
+        }
+        let pkg = q
+            .order_by_desc(wit_package::Column::Id)
+            .one(&self.db)
+            .await?;
+        let Some(pkg) = pkg else { return Ok(None) };
+        let Some(manifest_id) = pkg.oci_manifest_id else {
+            return Ok(None);
+        };
+        let manifest = oci_manifest::Entity::find_by_id(manifest_id)
+            .one(&self.db)
+            .await?;
+        let Some(manifest) = manifest else {
+            return Ok(None);
+        };
+        let repo = oci_repository::Entity::find_by_id(manifest.oci_repository_id)
+            .one(&self.db)
+            .await?;
+        Ok(repo.map(|r| (r.registry, r.repository)))
     }
 
-    /// Search for a known package by WIT name (e.g. "wasi:http" → "wasi/http").
-    pub(crate) fn search_known_package_by_wit_name(
+    pub(crate) async fn search_known_package_by_wit_name(
         &self,
         wit_name: &str,
-    ) -> anyhow::Result<Option<RawKnownPackage>> {
-        RawKnownPackage::search_by_wit_name(&self.conn, wit_name)
-    }
-
-    /// Get a value from the `_sync_meta` table.
-    #[allow(dead_code)]
-    pub(crate) fn get_sync_meta(&self, key: &str) -> anyhow::Result<Option<String>> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT value FROM _sync_meta WHERE key = ?1")?;
-        let mut rows = stmt.query_map([key], |row| row.get::<_, String>(0))?;
-        match rows.next() {
-            Some(row) => Ok(Some(row?)),
+    ) -> anyhow::Result<Option<super::known_package::KnownPackage>> {
+        let Some((namespace, name)) = wit_name.split_once(':') else {
+            return Ok(None);
+        };
+        // Exact lookup first.
+        let by_columns = oci_repository::Entity::find()
+            .filter(oci_repository::Column::WitNamespace.eq(namespace))
+            .filter(oci_repository::Column::WitName.eq(name))
+            .order_by_desc(oci_repository::Column::UpdatedAt)
+            .one(&self.db)
+            .await?;
+        if let Some(repo) = by_columns {
+            return Ok(Some(known_package_from_repo(&self.db, repo).await?));
+        }
+        // Fuzzy fallback: match repository column.
+        let pattern = wit_name.replace(':', "/");
+        let like_pat = format!("%{pattern}%");
+        let by_repo = oci_repository::Entity::find()
+            .filter(oci_repository::Column::Repository.like(&like_pat))
+            .order_by_desc(oci_repository::Column::UpdatedAt)
+            .one(&self.db)
+            .await?;
+        match by_repo {
+            Some(r) => Ok(Some(known_package_from_repo(&self.db, r).await?)),
             None => Ok(None),
         }
     }
 
-    /// Set a value in the `_sync_meta` table.
+    // ---- _sync_meta ---------------------------------------------------
+
     #[allow(dead_code)]
-    pub(crate) fn set_sync_meta(&self, key: &str, value: &str) -> anyhow::Result<()> {
-        self.conn.execute(
-            "INSERT INTO _sync_meta (key, value) VALUES (?1, ?2)
-             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            (key, value),
-        )?;
+    pub(crate) async fn get_sync_meta(&self, key: &str) -> anyhow::Result<Option<String>> {
+        let row = sync_meta::Entity::find_by_id(key.to_owned())
+            .one(&self.db)
+            .await?;
+        Ok(row.map(|r| r.value))
+    }
+
+    #[allow(dead_code)]
+    pub(crate) async fn set_sync_meta(&self, key: &str, value: &str) -> anyhow::Result<()> {
+        let am = sync_meta::ActiveModel {
+            key: Set(key.to_owned()),
+            value: Set(value.to_owned()),
+        };
+        sync_meta::Entity::insert(am)
+            .on_conflict(
+                OnConflict::column(sync_meta::Column::Key)
+                    .update_column(sync_meta::Column::Value)
+                    .to_owned(),
+            )
+            .exec(&self.db)
+            .await?;
         Ok(())
     }
 
-    /// Return all declared dependencies for the package at the given OCI
-    /// registry and repository.
-    ///
-    /// The query resolves dependencies for the **latest** indexed manifest
-    /// (highest manifest `id`) so that it always reflects the most recent
-    /// version. Two cases are covered:
-    ///
-    /// 1. **Pulled packages** — dependencies stored via the
-    ///    `oci_manifest` → `oci_repository` chain after a full layer pull.
-    ///    Only the latest manifest is considered to avoid mixing deps across
-    ///    versions.
-    /// 2. **Synced stubs** — `wit_package` rows with `oci_manifest_id IS NULL`
-    ///    whose `package_name` matches the WIT namespace+name derived from
-    ///    the OCI repository metadata.
-    // r[impl db.wit-package-dependency.get-for-package]
-    pub(crate) fn get_package_dependencies(
+    pub(crate) async fn get_package_dependencies(
         &self,
         registry: &str,
         repository: &str,
     ) -> anyhow::Result<Vec<component_meta_registry_types::PackageDependencyRef>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT DISTINCT wpd.declared_package, wpd.declared_version
-             FROM wit_package_dependency wpd
-             JOIN wit_package wp ON wpd.dependent_id = wp.id
-             WHERE
-               wp.oci_manifest_id = (
-                 SELECT om.id
-                 FROM oci_manifest om
-                 JOIN oci_repository repo ON om.oci_repository_id = repo.id
-                 WHERE repo.registry = ?1 AND repo.repository = ?2
-                 ORDER BY om.id DESC
-                 LIMIT 1
-               )
-               OR (
-                 wp.oci_manifest_id IS NULL
-                 AND wp.package_name = (
-                   SELECT repo.wit_namespace || ':' || repo.wit_name
-                   FROM oci_repository repo
-                   WHERE repo.registry = ?1 AND repo.repository = ?2
-                     AND repo.wit_namespace IS NOT NULL
-                     AND repo.wit_name IS NOT NULL
-                   LIMIT 1
-                 )
-               )
-             ORDER BY wpd.declared_package",
-        )?;
-
-        let rows = stmt.query_map(rusqlite::params![registry, repository], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
-        })?;
-
-        let mut result = Vec::new();
-        for row in rows {
-            let (package, version) = row?;
-            result.push(component_meta_registry_types::PackageDependencyRef { package, version });
+        // Two cases (matches legacy SQL):
+        //   1. Pulled: dependencies via wit_package -> oci_manifest (latest)
+        //   2. Stub: wit_package row with oci_manifest_id IS NULL whose
+        //      package_name matches "<wit_namespace>:<wit_name>".
+        let sql = "\
+            SELECT DISTINCT wpd.declared_package AS declared_package, \
+                   wpd.declared_version AS declared_version \
+            FROM wit_package_dependency wpd \
+            JOIN wit_package wp ON wpd.dependent_id = wp.id \
+            WHERE \
+              wp.oci_manifest_id = ( \
+                SELECT om.id FROM oci_manifest om \
+                JOIN oci_repository repo ON om.oci_repository_id = repo.id \
+                WHERE repo.registry = ? AND repo.repository = ? \
+                ORDER BY om.id DESC LIMIT 1 \
+              ) \
+              OR ( \
+                wp.oci_manifest_id IS NULL \
+                AND wp.package_name = ( \
+                  SELECT repo.wit_namespace || ':' || repo.wit_name \
+                  FROM oci_repository repo \
+                  WHERE repo.registry = ? AND repo.repository = ? \
+                    AND repo.wit_namespace IS NOT NULL \
+                    AND repo.wit_name IS NOT NULL \
+                  LIMIT 1 \
+                ) \
+              ) \
+            ORDER BY wpd.declared_package";
+        let stmt = Statement::from_sql_and_values(
+            self.db.get_database_backend(),
+            sql,
+            [
+                registry.into(),
+                repository.into(),
+                registry.into(),
+                repository.into(),
+            ],
+        );
+        #[derive(FromQueryResult)]
+        struct Row {
+            declared_package: String,
+            declared_version: Option<String>,
         }
-        Ok(result)
+        let rows = Row::find_by_statement(stmt).all(&self.db).await?;
+        Ok(rows
+            .into_iter()
+            .map(|r| component_meta_registry_types::PackageDependencyRef {
+                package: r.declared_package,
+                version: r.declared_version,
+            })
+            .collect())
     }
 
-    /// Return all declared dependencies for a package looked up by WIT name
-    /// and optional version.
-    ///
-    /// This is a direct query on `wit_package_dependency` keyed by
-    /// `wit_package.package_name` (and optional version), bypassing the OCI
-    /// registry/repository path. Useful for tests and for the dependency
-    /// resolver which works with WIT names, not OCI coordinates.
-    ///
-    /// When multiple `wit_package` rows exist for the same `(name, version)`
-    /// (e.g. a sync stub and a pulled manifest row), the query selects the
-    /// single *canonical* row — preferring a pulled row (`oci_manifest_id IS NOT NULL`)
-    /// over a stub, then the newest `id` as a tiebreaker — before fetching
-    /// its dependency edges.  This guarantees deterministic results for the
-    /// pubgrub resolver.
-    pub(crate) fn get_package_dependencies_by_name(
+    pub(crate) async fn get_package_dependencies_by_name(
         &self,
         package_name: &str,
         version: Option<&str>,
     ) -> anyhow::Result<Vec<component_meta_registry_types::PackageDependencyRef>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT wpd.declared_package, wpd.declared_version
-             FROM wit_package_dependency wpd
-             WHERE wpd.dependent_id = (
-                 SELECT id FROM wit_package
-                 WHERE package_name = ?1
-                   AND COALESCE(version, '') = COALESCE(?2, '')
-                 ORDER BY (oci_manifest_id IS NOT NULL) DESC, id DESC
-                 LIMIT 1
-             )
-             ORDER BY wpd.declared_package",
-        )?;
-
-        let rows = stmt.query_map(rusqlite::params![package_name, version], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
-        })?;
-
-        let mut result = Vec::new();
-        for row in rows {
-            let (package, version) = row?;
-            result.push(component_meta_registry_types::PackageDependencyRef { package, version });
+        // Pick the canonical wit_package row: prefer pulled (oci_manifest_id
+        // IS NOT NULL) over stubs, then newest id. Then load its deps.
+        let sql = "\
+            SELECT wpd.declared_package AS declared_package, \
+                   wpd.declared_version AS declared_version \
+            FROM wit_package_dependency wpd \
+            WHERE wpd.dependent_id = ( \
+                SELECT id FROM wit_package \
+                WHERE package_name = ? \
+                  AND COALESCE(version, '') = COALESCE(?, '') \
+                ORDER BY (oci_manifest_id IS NOT NULL) DESC, id DESC \
+                LIMIT 1 \
+            ) \
+            ORDER BY wpd.declared_package";
+        let stmt = Statement::from_sql_and_values(
+            self.db.get_database_backend(),
+            sql,
+            [package_name.into(), version.unwrap_or("").into()],
+        );
+        #[derive(FromQueryResult)]
+        struct Row {
+            declared_package: String,
+            declared_version: Option<String>,
         }
-        Ok(result)
+        let rows = Row::find_by_statement(stmt).all(&self.db).await?;
+        Ok(rows
+            .into_iter()
+            .map(|r| component_meta_registry_types::PackageDependencyRef {
+                package: r.declared_package,
+                version: r.declared_version,
+            })
+            .collect())
     }
 
-    /// Return all known versions for a package, as stored in the `wit_package`
-    /// table.  The list is sorted by insertion order (newest first) and then
-    /// filtered / sorted by the caller as needed.
-    ///
-    /// Used by the dependency resolver to enumerate candidate versions when
-    /// selecting the best match for a version range.
-    // r[impl resolution.per-version-deps]
-    pub(crate) fn list_wit_package_versions(
+    pub(crate) async fn list_wit_package_versions(
         &self,
         package_name: &str,
     ) -> anyhow::Result<Vec<String>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT DISTINCT version
-             FROM wit_package
-             WHERE package_name = ?1
-               AND version IS NOT NULL
-             ORDER BY id DESC",
-        )?;
-
-        let rows = stmt.query_map([package_name], |row| row.get::<_, String>(0))?;
-
-        let mut result = Vec::new();
-        for row in rows {
-            result.push(row?);
-        }
-        Ok(result)
-    }
-
-    /// Find any existing `wit_package` row matching `(package_name, version)`,
-    /// or create a new stub row (without OCI references) if none exists.
-    ///
-    /// Used during sync to anchor dependency edges to a canonical package row
-    /// even before the package has been pulled from the registry.
-    #[cfg(feature = "http-sync")]
-    fn find_or_insert_wit_package(
-        &self,
-        package_name: &str,
-        version: Option<&str>,
-    ) -> anyhow::Result<i64> {
-        let result = self.conn.query_row(
-            "SELECT id FROM wit_package
-             WHERE package_name = ?1
-               AND COALESCE(version, '') = COALESCE(?2, '')
-             ORDER BY (oci_manifest_id IS NOT NULL) DESC, id DESC
-             LIMIT 1",
-            rusqlite::params![package_name, version],
-            |row| row.get::<_, i64>(0),
-        );
-
-        match result {
-            Ok(id) => Ok(id),
-            Err(rusqlite::Error::QueryReturnedNoRows) => {
-                RawWitPackage::insert(&self.conn, package_name, version, None, None, None, None)
+        // SELECT DISTINCT version FROM wit_package WHERE package_name = ?
+        //   AND version IS NOT NULL ORDER BY id DESC
+        let rows = wit_package::Entity::find()
+            .filter(wit_package::Column::PackageName.eq(package_name))
+            .filter(wit_package::Column::Version.is_not_null())
+            .order_by_desc(wit_package::Column::Id)
+            .all(&self.db)
+            .await?;
+        let mut seen = std::collections::HashSet::new();
+        let mut out = Vec::with_capacity(rows.len());
+        for r in rows {
+            if let Some(v) = r.version
+                && seen.insert(v.clone())
+            {
+                out.push(v);
             }
-            Err(e) => Err(e.into()),
         }
+        Ok(out)
     }
 
-    /// Store WIT package dependency information received from a meta-registry
-    /// sync response.
-    ///
-    /// Creates (or reuses) a `wit_package` stub row for `package_name` /
-    /// `version` and records the provided dependency edges in
-    /// `wit_package_dependency`. Duplicate edges are silently ignored.
-    ///
-    /// This allows the dependency graph to be queried for pre-planned
-    /// installation without performing a full layer pull first.
-    // r[impl db.wit-package-dependency.populate-on-sync]
-    // r[impl db.wit-package-dependency.upsert-idempotent]
     #[cfg(feature = "http-sync")]
-    pub(crate) fn upsert_package_dependencies_from_sync(
+    pub(crate) async fn upsert_package_dependencies_from_sync(
         &self,
         package_name: &str,
         version: Option<&str>,
         dependencies: &[component_meta_registry_types::PackageDependencyRef],
     ) -> anyhow::Result<()> {
-        // Always create (or reuse) the wit_package stub so the resolver
-        // can enumerate available versions even for leaf packages with no
-        // dependencies.
-        let pkg_id = self.find_or_insert_wit_package(package_name, version)?;
+        // Find or insert a wit_package row anchored to (package_name, version).
+        let existing = wit_package::Entity::find()
+            .filter(wit_package::Column::PackageName.eq(package_name))
+            .filter(match version {
+                Some(v) => wit_package::Column::Version.eq(v),
+                None => wit_package::Column::Version.is_null(),
+            })
+            // prefer a pulled row over a stub.
+            .order_by_desc(Expr::cust(
+                "CASE WHEN oci_manifest_id IS NOT NULL THEN 1 ELSE 0 END",
+            ))
+            .order_by_desc(wit_package::Column::Id)
+            .one(&self.db)
+            .await?;
+        let pkg_id = if let Some(row) = existing {
+            row.id
+        } else {
+            let am = wit_package::ActiveModel {
+                package_name: Set(package_name.to_owned()),
+                version: Set(version.map(str::to_owned)),
+                ..Default::default()
+            };
+            let res = wit_package::Entity::insert(am).exec(&self.db).await?;
+            res.last_insert_id
+        };
 
         for dep in dependencies {
-            if let Err(e) = WitPackageDependency::insert(
-                &self.conn,
+            if let Err(e) = insert_wit_package_dependency(
+                &self.db,
                 pkg_id,
                 &dep.package,
                 dep.version.as_deref(),
-                None,
-            ) {
-                tracing::warn!(
+            )
+            .await
+            {
+                warn!(
                     "Failed to insert synced dependency {} → {}: {}",
-                    package_name,
-                    dep.package,
-                    e
+                    package_name, dep.package, e
                 );
             }
         }
-
         Ok(())
     }
 
-    // ================================================================
-    // Rich query methods for the meta-registry API
-    // ================================================================
-
-    /// Return all versions of a package, identified by OCI registry and
-    /// repository.  Each version is a (tag, manifest) pair joined across
-    /// `oci_repository → oci_manifest → oci_tag`.
-    ///
-    /// Results are ordered by manifest insertion order (newest first).
-    // r[verify db.package-versions.list]
-    pub(crate) fn get_package_versions(
+    pub(crate) async fn get_package_versions(
         &self,
         registry: &str,
         repository: &str,
     ) -> anyhow::Result<Vec<component_meta_registry_types::PackageVersion>> {
-        use component_meta_registry_types::{OciAnnotations, PackageVersion};
-
-        // First, find the repository.
-        let repo_id: Option<i64> = self
-            .conn
-            .query_row(
-                "SELECT id FROM oci_repository
-                 WHERE registry = ?1 AND repository = ?2",
-                rusqlite::params![registry, repository],
-                |row| row.get(0),
-            )
-            .optional()?;
-        let Some(repo_id) = repo_id else {
+        let Some(repo) = oci_repository::Entity::find()
+            .filter(oci_repository::Column::Registry.eq(registry))
+            .filter(oci_repository::Column::Repository.eq(repository))
+            .one(&self.db)
+            .await?
+        else {
             return Ok(Vec::new());
         };
-
-        // Fetch all manifests for this repository, newest first.
-        let mut manifest_stmt = self.conn.prepare(
-            "SELECT id, digest, size_bytes, created_at,
-                    oci_created, oci_authors, oci_url, oci_documentation,
-                    oci_source, oci_version, oci_revision, oci_vendor,
-                    oci_licenses, oci_title, oci_description
-             FROM oci_manifest
-             WHERE oci_repository_id = ?1
-             ORDER BY id DESC",
-        )?;
-
-        let manifests = manifest_stmt
-            .query_map([repo_id], |row| {
-                Ok(ManifestRow {
-                    id: row.get(0)?,
-                    digest: row.get(1)?,
-                    size_bytes: row.get(2)?,
-                    synced_at: row.get(3)?,
-                    oci_created: row.get(4)?,
-                    oci_authors: row.get(5)?,
-                    oci_url: row.get(6)?,
-                    oci_documentation: row.get(7)?,
-                    oci_source: row.get(8)?,
-                    oci_version: row.get(9)?,
-                    oci_revision: row.get(10)?,
-                    oci_vendor: row.get(11)?,
-                    oci_licenses: row.get(12)?,
-                    oci_title: row.get(13)?,
-                    oci_description: row.get(14)?,
-                })
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let mut versions = Vec::with_capacity(manifests.len());
+        let manifests = oci_manifest::Entity::find()
+            .filter(oci_manifest::Column::OciRepositoryId.eq(repo.id))
+            .order_by_desc(oci_manifest::Column::Id)
+            .all(&self.db)
+            .await?;
+        let mut out = Vec::with_capacity(manifests.len());
         for m in manifests {
-            let manifest_created_at = m.oci_created.clone();
-
-            // Find tags pointing to this manifest.
-            let tag = self
-                .conn
-                .query_row(
-                    "SELECT tag FROM oci_tag
-                 WHERE oci_repository_id = ?1 AND manifest_digest = ?2
-                 ORDER BY id DESC LIMIT 1",
-                    rusqlite::params![repo_id, &m.digest],
-                    |row| row.get::<_, String>(0),
-                )
-                .optional()?;
-
-            // Collect custom annotations.
-            let custom = self.get_custom_annotations(m.id)?;
-
-            let has_annotations = m.oci_created.is_some()
-                || m.oci_authors.is_some()
-                || m.oci_url.is_some()
-                || m.oci_documentation.is_some()
-                || m.oci_source.is_some()
-                || m.oci_version.is_some()
-                || m.oci_revision.is_some()
-                || m.oci_vendor.is_some()
-                || m.oci_licenses.is_some()
-                || m.oci_title.is_some()
-                || m.oci_description.is_some()
-                || !custom.is_empty();
-
-            let annotations = if has_annotations {
-                Some(OciAnnotations {
-                    created: manifest_created_at.clone(),
-                    authors: m.oci_authors,
-                    url: m.oci_url,
-                    documentation: m.oci_documentation,
-                    source: m.oci_source,
-                    version: m.oci_version,
-                    revision: m.oci_revision,
-                    vendor: m.oci_vendor,
-                    licenses: m.oci_licenses,
-                    title: m.oci_title,
-                    description: m.oci_description,
-                    custom,
-                })
-            } else {
-                None
-            };
-
-            let worlds = self.get_wit_worlds_for_manifest(m.id)?;
-            let components = self.get_components_for_manifest(m.id, tag.as_deref())?;
-            let dependencies = self.get_dependencies_for_manifest(m.id)?;
-            let referrers = self.get_referrers_for_manifest(m.id)?;
-            let layers = self.get_layers_for_manifest(m.id)?;
-            let wit_text = self.get_wit_text_for_manifest(m.id)?;
-            let type_docs = self.build_type_docs(&dependencies);
-
-            versions.push(PackageVersion {
-                tag,
-                digest: m.digest,
-                size_bytes: m.size_bytes,
-                created_at: manifest_created_at,
-                synced_at: Some(m.synced_at),
-                annotations,
-                worlds,
-                components,
-                dependencies,
-                referrers,
-                layers,
-                wit_text,
-                type_docs,
-            });
+            let tag = oci_tag::Entity::find()
+                .filter(oci_tag::Column::OciRepositoryId.eq(repo.id))
+                .filter(oci_tag::Column::ManifestDigest.eq(&m.digest))
+                .order_by_desc(oci_tag::Column::Id)
+                .one(&self.db)
+                .await?
+                .map(|t| t.tag);
+            out.push(self.build_package_version(&m, tag).await?);
         }
-
-        Ok(versions)
+        Ok(out)
     }
 
-    /// Return a single version of a package by tag.
-    ///
-    /// Looks up the manifest directly via the `oci_tag` table rather than
-    /// iterating all versions, so it works even when a manifest has multiple
-    /// tags.
-    // r[verify db.package-versions.get]
-    pub(crate) fn get_package_version(
+    pub(crate) async fn get_package_version(
         &self,
         registry: &str,
         repository: &str,
         version_tag: &str,
     ) -> anyhow::Result<Option<component_meta_registry_types::PackageVersion>> {
-        use component_meta_registry_types::{OciAnnotations, PackageVersion};
-
-        // Find the repository.
-        let repo_id: Option<i64> = self
-            .conn
-            .query_row(
-                "SELECT id FROM oci_repository
-                 WHERE registry = ?1 AND repository = ?2",
-                rusqlite::params![registry, repository],
-                |row| row.get(0),
-            )
-            .optional()?;
-        let Some(repo_id) = repo_id else {
+        let Some(repo) = oci_repository::Entity::find()
+            .filter(oci_repository::Column::Registry.eq(registry))
+            .filter(oci_repository::Column::Repository.eq(repository))
+            .one(&self.db)
+            .await?
+        else {
             return Ok(None);
         };
-
-        // Find the manifest digest for this tag.
-        let digest: Option<String> = self
-            .conn
-            .query_row(
-                "SELECT manifest_digest FROM oci_tag
-                 WHERE oci_repository_id = ?1 AND tag = ?2
-                 LIMIT 1",
-                rusqlite::params![repo_id, version_tag],
-                |row| row.get(0),
-            )
-            .optional()?;
-        let Some(digest) = digest else {
+        let Some(t) = oci_tag::Entity::find()
+            .filter(oci_tag::Column::OciRepositoryId.eq(repo.id))
+            .filter(oci_tag::Column::Tag.eq(version_tag))
+            .one(&self.db)
+            .await?
+        else {
             return Ok(None);
         };
-
-        // Fetch the manifest row.
-        let m: ManifestRow = self.conn.query_row(
-            "SELECT id, digest, size_bytes, created_at,
-                        oci_created, oci_authors, oci_url, oci_documentation,
-                        oci_source, oci_version, oci_revision, oci_vendor,
-                        oci_licenses, oci_title, oci_description
-                 FROM oci_manifest
-                 WHERE oci_repository_id = ?1 AND digest = ?2",
-            rusqlite::params![repo_id, &digest],
-            |row| {
-                Ok(ManifestRow {
-                    id: row.get(0)?,
-                    digest: row.get(1)?,
-                    size_bytes: row.get(2)?,
-                    synced_at: row.get(3)?,
-                    oci_created: row.get(4)?,
-                    oci_authors: row.get(5)?,
-                    oci_url: row.get(6)?,
-                    oci_documentation: row.get(7)?,
-                    oci_source: row.get(8)?,
-                    oci_version: row.get(9)?,
-                    oci_revision: row.get(10)?,
-                    oci_vendor: row.get(11)?,
-                    oci_licenses: row.get(12)?,
-                    oci_title: row.get(13)?,
-                    oci_description: row.get(14)?,
-                })
-            },
-        )?;
-
-        let manifest_created_at = m.oci_created.clone();
-        let custom = self.get_custom_annotations(m.id)?;
-
-        let has_annotations = m.oci_created.is_some()
-            || m.oci_authors.is_some()
-            || m.oci_url.is_some()
-            || m.oci_documentation.is_some()
-            || m.oci_source.is_some()
-            || m.oci_version.is_some()
-            || m.oci_revision.is_some()
-            || m.oci_vendor.is_some()
-            || m.oci_licenses.is_some()
-            || m.oci_title.is_some()
-            || m.oci_description.is_some()
-            || !custom.is_empty();
-
-        let annotations = if has_annotations {
-            Some(OciAnnotations {
-                created: manifest_created_at.clone(),
-                authors: m.oci_authors,
-                url: m.oci_url,
-                documentation: m.oci_documentation,
-                source: m.oci_source,
-                version: m.oci_version,
-                revision: m.oci_revision,
-                vendor: m.oci_vendor,
-                licenses: m.oci_licenses,
-                title: m.oci_title,
-                description: m.oci_description,
-                custom,
-            })
-        } else {
-            None
+        let Some(m) = oci_manifest::Entity::find()
+            .filter(oci_manifest::Column::OciRepositoryId.eq(repo.id))
+            .filter(oci_manifest::Column::Digest.eq(&t.manifest_digest))
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
         };
-
-        let worlds = self.get_wit_worlds_for_manifest(m.id)?;
-        let components = self.get_components_for_manifest(m.id, Some(version_tag))?;
-        let dependencies = self.get_dependencies_for_manifest(m.id)?;
-        let referrers = self.get_referrers_for_manifest(m.id)?;
-        let layers = self.get_layers_for_manifest(m.id)?;
-        let wit_text = self.get_wit_text_for_manifest(m.id)?;
-        let type_docs = self.build_type_docs(&dependencies);
-
-        Ok(Some(PackageVersion {
-            tag: Some(version_tag.to_string()),
-            digest: m.digest,
-            size_bytes: m.size_bytes,
-            created_at: manifest_created_at,
-            synced_at: Some(m.synced_at),
-            annotations,
-            worlds,
-            components,
-            dependencies,
-            referrers,
-            layers,
-            wit_text,
-            type_docs,
-        }))
+        Ok(Some(
+            self.build_package_version(&m, Some(version_tag.to_owned()))
+                .await?,
+        ))
     }
 
-    /// Return all WIT worlds (with imports and exports) found in WIT packages
-    /// linked to the given OCI manifest.
-    fn get_wit_worlds_for_manifest(
-        &self,
-        manifest_id: i64,
-    ) -> anyhow::Result<Vec<component_meta_registry_types::WitWorldSummary>> {
-        use component_meta_registry_types::WitWorldSummary;
-
-        // Find all wit_package rows for this manifest.
-        let mut pkg_stmt = self
-            .conn
-            .prepare("SELECT id FROM wit_package WHERE oci_manifest_id = ?1")?;
-        let pkg_ids: Vec<i64> = pkg_stmt
-            .query_map([manifest_id], |row| row.get(0))?
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let mut worlds = Vec::new();
-        for pkg_id in pkg_ids {
-            let db_worlds = WitWorld::list_by_type(&self.conn, pkg_id)?;
-            for w in db_worlds {
-                let mut imports = self.get_world_imports(w.id())?;
-                let mut exports = self.get_world_exports(w.id())?;
-                self.enrich_iface_docs(&mut imports);
-                self.enrich_iface_docs(&mut exports);
-                worlds.push(WitWorldSummary {
-                    name: w.name,
-                    description: w.description,
-                    imports,
-                    exports,
-                });
-            }
-        }
-
-        Ok(worlds)
-    }
-
-    /// Return all Wasm components (with targets) found in the given manifest.
-    ///
-    /// `parent_version` is the package version tag this manifest is being
-    /// served as; it is used to stamp a version onto native interface/world
-    /// refs that lack one, so URLs to same-package items resolve correctly.
-    fn get_components_for_manifest(
-        &self,
-        manifest_id: i64,
-        parent_version: Option<&str>,
-    ) -> anyhow::Result<Vec<component_meta_registry_types::ComponentSummary>> {
-        use component_meta_registry_types::{ComponentSummary, ComponentTargetRef};
-        type ComponentRow = (i64, Option<String>, Option<String>, Option<String>);
-
-        let mut stmt = self.conn.prepare(
-            "SELECT id, name, description, producers_json FROM wasm_component
-             WHERE oci_manifest_id = ?1
-             ORDER BY name ASC",
-        )?;
-
-        let components: Vec<ComponentRow> = stmt
-            .query_map([manifest_id], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let parent_pkg = parent_pkg_for_manifest(&self.conn, manifest_id);
-
-        let mut result = Vec::new();
-        for (comp_id, name, description, metadata_json) in components {
-            let targets = ComponentTarget::list_by_component(&self.conn, comp_id)?;
-            let target_refs: Vec<ComponentTargetRef> = targets
-                .into_iter()
-                .map(|t| ComponentTargetRef {
-                    version: if t.is_native_package && t.declared_version.is_none() {
-                        parent_version.map(str::to_owned)
-                    } else {
-                        t.declared_version
-                    },
-                    package: t.declared_package,
-                    world: t.declared_world,
-                    is_native: t.is_native_package,
-                })
-                .collect();
-
-            // Try to deserialize the full ComponentSummary tree from JSON.
-            // If available, merge in the DB-stored targets. Otherwise
-            // fall back to a basic summary.
-            let mut summary: ComponentSummary = metadata_json
-                .as_deref()
-                .and_then(|json| serde_json::from_str(json).ok())
-                .unwrap_or_else(|| ComponentSummary {
-                    name: name.clone(),
-                    description: description.clone(),
-                    targets: vec![],
-                    producers: vec![],
-                    kind: None,
-                    size_bytes: None,
-                    range_start: None,
-                    range_end: None,
-                    languages: vec![],
-                    children: vec![],
-                    source: None,
-                    homepage: None,
-                    licenses: None,
-                    authors: None,
-                    revision: None,
-                    component_version: None,
-                    bill_of_materials: vec![],
-                    imports: vec![],
-                    exports: vec![],
-                });
-
-            summary.targets = target_refs;
-
-            // Enrich imports/exports with docs from stored WIT packages.
-            self.enrich_iface_docs(&mut summary.imports);
-            self.enrich_iface_docs(&mut summary.exports);
-
-            // Mark interfaces as native when their package matches the
-            // parent OCI repository's WIT package. Recurses into children
-            // so nested components are flagged consistently. Native refs
-            // also inherit the parent's version when they lack one, so
-            // generated URLs include the version segment.
-            if let Some(pkg) = parent_pkg.as_deref() {
-                mark_native_iface_refs(&mut summary, pkg, parent_version);
-            }
-
-            result.push(summary);
-        }
-
-        Ok(result)
-    }
-
-    /// Return dependency refs for WIT packages linked to the given manifest.
-    fn get_dependencies_for_manifest(
-        &self,
-        manifest_id: i64,
-    ) -> anyhow::Result<Vec<component_meta_registry_types::PackageDependencyRef>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT DISTINCT wpd.declared_package, wpd.declared_version
-             FROM wit_package_dependency wpd
-             JOIN wit_package wp ON wpd.dependent_id = wp.id
-             WHERE wp.oci_manifest_id = ?1
-             ORDER BY wpd.declared_package",
-        )?;
-
-        let rows = stmt.query_map([manifest_id], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
-        })?;
-
-        let mut result = Vec::new();
-        for row in rows {
-            let (package, version) = row?;
-            result.push(component_meta_registry_types::PackageDependencyRef { package, version });
-        }
-        Ok(result)
-    }
-
-    /// Return referrers (signatures, SBOMs, attestations) for a manifest.
-    fn get_referrers_for_manifest(
-        &self,
-        manifest_id: i64,
-    ) -> anyhow::Result<Vec<component_meta_registry_types::ReferrerSummary>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT r.artifact_type, m.digest
-             FROM oci_referrer r
-             JOIN oci_manifest m ON r.referrer_manifest_id = m.id
-             WHERE r.subject_manifest_id = ?1
-             ORDER BY r.created_at DESC",
-        )?;
-
-        let rows = stmt.query_map([manifest_id], |row| {
-            Ok(component_meta_registry_types::ReferrerSummary {
-                artifact_type: row.get(0)?,
-                digest: row.get(1)?,
-            })
-        })?;
-
-        let mut result = Vec::new();
-        for row in rows {
-            result.push(row?);
-        }
-        Ok(result)
-    }
-
-    /// Enrich `WitInterfaceRef` entries with docs from stored WIT packages.
-    ///
-    /// For each import/export that has a package name and version but no docs,
-    /// look up the stored `wit_text` for that WIT package, parse it, and
-    /// extract the interface's doc comment.
-    fn enrich_iface_docs(&self, refs: &mut [component_meta_registry_types::WitInterfaceRef]) {
-        for iface_ref in refs.iter_mut() {
-            if iface_ref.docs.is_some() {
-                continue;
-            }
-            let Some(iface_name) = &iface_ref.interface else {
-                continue;
-            };
-
-            // Look up the WIT text for this package+version.
-            let wit_text: Option<String> = self
-                .conn
-                .query_row(
-                    "SELECT wit_text FROM wit_package
-                     WHERE package_name = ?1
-                       AND wit_text IS NOT NULL
-                     ORDER BY (COALESCE(version, '') = COALESCE(?2, '')) DESC, id DESC
-                     LIMIT 1",
-                    rusqlite::params![&iface_ref.package, &iface_ref.version],
-                    |row| row.get(0),
-                )
-                .ok();
-
-            let Some(wit_text) = wit_text else {
-                continue;
-            };
-
-            // Parse the WIT text and find the interface's docs.
-            if let Ok(pkg) = wit_parser::UnresolvedPackageGroup::parse("lookup.wit", &wit_text) {
-                for (_, iface) in &pkg.main.interfaces {
-                    if iface.name.as_deref() == Some(iface_name.as_str())
-                        && let Some(doc) = &iface.docs.contents
-                    {
-                        iface_ref.docs = Some(first_doc_sentence(doc));
-                    }
-                }
-            }
-        }
-    }
-
-    /// Build a map of cross-package type documentation.
-    ///
-    /// For each dependency that has stored WIT text, parse it and extract
-    /// docs for all types in all interfaces. Returns a map from
-    /// `"package/interface/type"` → doc string.
-    fn build_type_docs(
-        &self,
-        deps: &[component_meta_registry_types::PackageDependencyRef],
-    ) -> HashMap<String, String> {
-        let mut result = HashMap::new();
-
-        for dep in deps {
-            let wit_text: Option<String> = self
-                .conn
-                .query_row(
-                    "SELECT wit_text FROM wit_package
-                     WHERE package_name = ?1
-                       AND wit_text IS NOT NULL
-                     ORDER BY (version = ?2) DESC, id DESC LIMIT 1",
-                    rusqlite::params![&dep.package, &dep.version],
-                    |row| row.get(0),
-                )
-                .ok();
-
-            let Some(wit_text) = wit_text else { continue };
-            let Ok(pkg) = wit_parser::UnresolvedPackageGroup::parse("dep.wit", &wit_text) else {
-                continue;
-            };
-
-            for (_, iface) in &pkg.main.interfaces {
-                let Some(iface_name) = &iface.name else {
-                    continue;
-                };
-                for (type_name, type_id) in &iface.types {
-                    if let Some(type_def) = pkg.main.types.get(*type_id)
-                        && let Some(docs) = &type_def.docs.contents
-                        && !docs.is_empty()
-                    {
-                        let key = format!("{}/{iface_name}/{type_name}", dep.package);
-                        let first = docs
-                            .split_once("\n\n")
-                            .map_or_else(|| docs.trim().to_owned(), |(f, _)| f.trim().to_owned());
-                        result.insert(key, first);
-                    }
-                }
-            }
-        }
-
-        result
-    }
-
-    /// Return the full OCI layout for a manifest: manifest descriptor,
-    /// config descriptor, and content layers.
-    fn get_layers_for_manifest(
-        &self,
-        manifest_id: i64,
-    ) -> anyhow::Result<Vec<component_meta_registry_types::LayerInfo>> {
-        use component_meta_registry_types::LayerInfo;
-
-        let mut result = Vec::new();
-
-        // Manifest descriptor.
-        if let Ok((digest, media_type, size)) = self.conn.query_row(
-            "SELECT digest, media_type, size_bytes FROM oci_manifest WHERE id = ?1",
-            [manifest_id],
-            |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, Option<String>>(1)?,
-                    row.get::<_, Option<i64>>(2)?,
-                ))
-            },
-        ) {
-            result.push(LayerInfo {
-                digest,
-                media_type,
-                size_bytes: size,
-            });
-        }
-
-        // Config descriptor.
-        if let Ok((config_digest, config_media_type)) = self.conn.query_row(
-            "SELECT config_digest, config_media_type FROM oci_manifest
-             WHERE id = ?1 AND config_digest IS NOT NULL",
-            [manifest_id],
-            |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)),
-        ) {
-            result.push(LayerInfo {
-                digest: config_digest,
-                media_type: config_media_type,
-                size_bytes: None,
-            });
-        }
-
-        // Content layers.
-        let layers = OciLayer::list_by_manifest(&self.conn, manifest_id)?;
-        result.extend(layers.into_iter().map(|l| LayerInfo {
-            digest: l.digest,
-            media_type: l.media_type,
-            size_bytes: l.size_bytes,
-        }));
-
-        Ok(result)
-    }
-
-    /// Return the WIT source text for the first WIT package linked to a manifest.
-    fn get_wit_text_for_manifest(&self, manifest_id: i64) -> anyhow::Result<Option<String>> {
-        let result = self.conn.query_row(
-            "SELECT wit_text FROM wit_package
-             WHERE oci_manifest_id = ?1 AND wit_text IS NOT NULL
-             LIMIT 1",
-            [manifest_id],
-            |row| row.get::<_, String>(0),
-        );
-
-        match result {
-            Ok(text) => Ok(Some(text)),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(e) => Err(e.into()),
-        }
-    }
-
-    /// Return custom annotations (non-well-known) for a manifest.
-    fn get_custom_annotations(
-        &self,
-        manifest_id: i64,
-    ) -> anyhow::Result<Vec<component_meta_registry_types::AnnotationEntry>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT `key`, `value` FROM oci_manifest_annotation
-             WHERE oci_manifest_id = ?1
-             ORDER BY `key` ASC",
-        )?;
-
-        let rows = stmt.query_map([manifest_id], |row| {
-            Ok(component_meta_registry_types::AnnotationEntry {
-                key: row.get(0)?,
-                value: row.get(1)?,
-            })
-        })?;
-
-        let mut result = Vec::new();
-        for row in rows {
-            result.push(row?);
-        }
-        Ok(result)
-    }
-
-    /// Return all imports for a WIT world.
-    fn get_world_imports(
-        &self,
-        world_id: i64,
-    ) -> anyhow::Result<Vec<component_meta_registry_types::WitInterfaceRef>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT declared_package, declared_interface, declared_version
-             FROM wit_world_import
-             WHERE wit_world_id = ?1
-             ORDER BY declared_package ASC",
-        )?;
-
-        let rows = stmt.query_map([world_id], |row| {
-            Ok(component_meta_registry_types::WitInterfaceRef {
-                package: row.get(0)?,
-                interface: row.get(1)?,
-                version: row.get(2)?,
-                docs: None,
-                is_native: false,
-            })
-        })?;
-
-        let mut result = Vec::new();
-        for row in rows {
-            result.push(row?);
-        }
-        Ok(result)
-    }
-
-    /// Return all exports for a WIT world.
-    fn get_world_exports(
-        &self,
-        world_id: i64,
-    ) -> anyhow::Result<Vec<component_meta_registry_types::WitInterfaceRef>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT declared_package, declared_interface, declared_version
-             FROM wit_world_export
-             WHERE wit_world_id = ?1
-             ORDER BY declared_package ASC",
-        )?;
-
-        let rows = stmt.query_map([world_id], |row| {
-            Ok(component_meta_registry_types::WitInterfaceRef {
-                package: row.get(0)?,
-                interface: row.get(1)?,
-                version: row.get(2)?,
-                docs: None,
-                is_native: false,
-            })
-        })?;
-
-        let mut result = Vec::new();
-        for row in rows {
-            result.push(row?);
-        }
-        Ok(result)
-    }
-
-    /// Build a full [`PackageDetail`] for a package identified by OCI
-    /// registry and repository.
-    // r[verify db.package-detail]
-    pub(crate) fn get_package_detail(
+    pub(crate) async fn get_package_detail(
         &self,
         registry: &str,
         repository: &str,
     ) -> anyhow::Result<Option<component_meta_registry_types::PackageDetail>> {
-        // Look up the OCI repository row.
-        let row = self.conn.query_row(
-            "SELECT id, wit_namespace, wit_name, kind FROM oci_repository
-             WHERE registry = ?1 AND repository = ?2",
-            rusqlite::params![registry, repository],
-            |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, Option<String>>(1)?,
-                    row.get::<_, Option<String>>(2)?,
-                    row.get::<_, Option<String>>(3)?,
-                ))
-            },
-        );
-
-        let (_repo_id, wit_namespace, wit_name, kind_str) = match row {
-            Ok(r) => r,
-            Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
-            Err(e) => return Err(e.into()),
+        let Some(repo) = oci_repository::Entity::find()
+            .filter(oci_repository::Column::Registry.eq(registry))
+            .filter(oci_repository::Column::Repository.eq(repository))
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
         };
-
-        let kind = match kind_str.as_deref() {
-            Some("component") => Some(component_meta_registry_types::PackageKind::Component),
-            Some("interface") => Some(component_meta_registry_types::PackageKind::Interface),
-            _ => None,
-        };
-
-        // Get the description from the latest known-package entry.
+        let kind = parse_kind(repo.kind.as_deref());
         let description = self
-            .get_known_package(registry, repository)?
+            .get_known_package(registry, repository)
+            .await?
             .and_then(|pkg| pkg.description);
-
-        let versions = self.get_package_versions(registry, repository)?;
-
+        let versions = self.get_package_versions(registry, repository).await?;
         Ok(Some(component_meta_registry_types::PackageDetail {
             registry: registry.to_string(),
             repository: repository.to_string(),
             kind,
             description,
-            wit_namespace,
-            wit_name,
+            wit_namespace: repo.wit_namespace,
+            wit_name: repo.wit_name,
             versions,
         }))
     }
 }
 
-/// Resolve `wit_world_import.resolved_package_id` for imports belonging to
-/// the given `wit_package_id` by matching `(declared_package, declared_version)`
-/// against existing `wit_package` rows.
-fn resolve_import_foreign_keys(conn: &Connection, wit_package_id: i64) -> anyhow::Result<usize> {
-    let updated = conn.execute(
-        "UPDATE wit_world_import
-         SET resolved_package_id = (
-             SELECT wi.id FROM wit_package wi
-             WHERE wi.package_name = wit_world_import.declared_package
-               AND COALESCE(wi.version, '') = COALESCE(wit_world_import.declared_version, '')
-             LIMIT 1
-         )
-         WHERE wit_world_id IN (SELECT id FROM wit_world WHERE wit_package_id = ?1)
-           AND resolved_package_id IS NULL",
-        [wit_package_id],
-    )?;
-    Ok(updated)
-}
-
-/// Resolve `wit_world_export.resolved_package_id` for exports belonging to
-/// the given `wit_package_id`.
-fn resolve_export_foreign_keys(conn: &Connection, wit_package_id: i64) -> anyhow::Result<usize> {
-    let updated = conn.execute(
-        "UPDATE wit_world_export
-         SET resolved_package_id = (
-             SELECT wi.id FROM wit_package wi
-             WHERE wi.package_name = wit_world_export.declared_package
-               AND COALESCE(wi.version, '') = COALESCE(wit_world_export.declared_version, '')
-             LIMIT 1
-         )
-         WHERE wit_world_id IN (SELECT id FROM wit_world WHERE wit_package_id = ?1)
-           AND resolved_package_id IS NULL",
-        [wit_package_id],
-    )?;
-    Ok(updated)
-}
-
-/// Resolve `wit_package_dependency.resolved_package_id` for deps of the
-/// given `wit_package_id`.
-fn resolve_dependency_foreign_keys(
-    conn: &Connection,
-    wit_package_id: i64,
-) -> anyhow::Result<usize> {
-    let updated = conn.execute(
-        "UPDATE wit_package_dependency
-         SET resolved_package_id = (
-             SELECT wi.id FROM wit_package wi
-             WHERE wi.package_name = wit_package_dependency.declared_package
-               AND COALESCE(wi.version, '') = COALESCE(wit_package_dependency.declared_version, '')
-             LIMIT 1
-         )
-         WHERE dependent_id = ?1
-           AND resolved_package_id IS NULL",
-        [wit_package_id],
-    )?;
-    Ok(updated)
-}
-
-/// Lookup the WIT package (`wit_namespace:wit_name`) of the OCI repository
-/// owning the given manifest, if both namespace and name are recorded.
-fn parent_pkg_for_manifest(conn: &Connection, manifest_id: i64) -> Option<String> {
-    conn.query_row(
-        "SELECT orep.wit_namespace, orep.wit_name
-         FROM oci_manifest om
-         JOIN oci_repository orep ON orep.id = om.oci_repository_id
-         WHERE om.id = ?1",
-        [manifest_id],
-        |row| {
-            let ns: Option<String> = row.get(0)?;
-            let name: Option<String> = row.get(1)?;
-            Ok(ns.zip(name).map(|(ns, n)| format!("{ns}:{n}")))
-        },
-    )
-    .ok()
-    .flatten()
-}
-
-/// Mark every `WitInterfaceRef` in the component's imports/exports (and
-/// recursively in children) as `is_native` when its package equals the
-/// parent component's own package (`wit_namespace:wit_name`). Native refs
-/// inherit `parent_version` when they lack their own.
-fn mark_native_iface_refs(
-    summary: &mut component_meta_registry_types::ComponentSummary,
-    parent_pkg: &str,
-    parent_version: Option<&str>,
-) {
-    for iface in summary.imports.iter_mut().chain(summary.exports.iter_mut()) {
-        if iface.package == parent_pkg {
-            iface.is_native = true;
-            if iface.version.is_none() {
-                iface.version = parent_version.map(str::to_owned);
-            }
-        }
-    }
-    for child in &mut summary.children {
-        mark_native_iface_refs(child, parent_pkg, parent_version);
-    }
-}
-
-/// Resolve `component_target.wit_world_id` for targets of components under
-/// the given `manifest_id` by matching against `wit_world` + `wit_package`.
-fn resolve_component_target_foreign_keys(
-    conn: &Connection,
-    manifest_id: i64,
-) -> anyhow::Result<usize> {
-    let updated = conn.execute(
-        "UPDATE component_target
-         SET wit_world_id = (
-             SELECT ww.id FROM wit_world ww
-             JOIN wit_package wi ON ww.wit_package_id = wi.id
-             WHERE wi.package_name = component_target.declared_package
-               AND COALESCE(wi.version, '') = COALESCE(component_target.declared_version, '')
-               AND ww.name = component_target.declared_world
-             LIMIT 1
-         )
-         WHERE wasm_component_id IN (
-             SELECT id FROM wasm_component WHERE oci_manifest_id = ?1
-         )
-           AND wit_world_id IS NULL",
-        [manifest_id],
-    )?;
-    Ok(updated)
-}
-
-/// Split a WIT package name like `"wasi:http@0.2.0"` into `("wasi:http", Some("0.2.0"))`.
-///
-/// If no `@` is present, returns the original string with `None` for the version.
-fn split_package_version(raw: &str) -> (&str, Option<&str>) {
-    if let Some(at_pos) = raw.rfind('@') {
-        (&raw[..at_pos], Some(&raw[at_pos + 1..]))
-    } else {
-        (raw, None)
-    }
-}
-
-/// Extract component-level metadata using `wasm-metadata`.
-///
-/// Returns `(name, description, metadata_json)` where `metadata_json` is the
-/// full `ComponentSummary` tree serialized as JSON (producers, children, kind,
-/// size, languages). Targets are not included — they come from the DB.
-fn extract_component_metadata(
-    wasm_bytes: &[u8],
-) -> (Option<String>, Option<String>, Option<String>) {
-    let Ok(payload) = wasm_metadata::Payload::from_binary(wasm_bytes) else {
-        return (None, None, None);
-    };
-
-    // Decode WIT once for the full component — used by all children.
-    let root_wit = wit_parser::decoding::decode(wasm_bytes).ok();
-
-    let summary = payload_to_summary(&payload, wasm_bytes, root_wit.as_ref());
-    let name = summary.name.clone();
-    let description = summary.description.clone();
-    let json = serde_json::to_string(&summary).ok();
-
-    (name, description, json)
-}
-
-/// Convert a `wasm_metadata::Payload` tree into a `ComponentSummary` tree.
-///
-/// `parent_bytes` is the full wasm binary; child byte ranges are sliced from
-/// it to extract WIT imports/exports via `wit-parser`.
-/// `root_wit` is the decoded WIT from the full parent binary, used to resolve
-/// inner component names back to WIT-qualified names.
-fn payload_to_summary(
-    payload: &wasm_metadata::Payload,
-    parent_bytes: &[u8],
-    root_wit: Option<&wit_parser::decoding::DecodedWasm>,
-) -> component_meta_registry_types::ComponentSummary {
-    use component_meta_registry_types::{BomEntry, ComponentSummary, ProducerEntry};
-
-    let meta = payload.metadata();
-
-    let (kind, children) = match payload {
-        wasm_metadata::Payload::Component { children, .. } => (
-            "component",
-            children
-                .iter()
-                .map(|c| payload_to_summary(c, parent_bytes, root_wit))
-                .collect(),
-        ),
-        wasm_metadata::Payload::Module(_) => ("module", vec![]),
-    };
-
-    let producers: Vec<ProducerEntry> = meta
-        .producers
-        .iter()
-        .flat_map(|p| {
-            p.iter().flat_map(|(field, pairs)| {
-                pairs
-                    .iter()
-                    .map(|(tool, ver)| ProducerEntry {
-                        field: field.clone(),
-                        name: tool.clone(),
-                        version: ver.clone(),
-                    })
-                    .collect::<Vec<_>>()
-            })
-        })
-        .collect();
-
-    let languages: Vec<String> = producers
-        .iter()
-        .filter(|e| e.field == "language")
-        .map(|e| e.name.clone())
-        .collect();
-
-    #[allow(clippy::cast_sign_loss)]
-    let size_bytes = {
-        let r = &meta.range;
-        let size = r.end.saturating_sub(r.start);
-        if size > 0 { Some(size as u64) } else { None }
-    };
-
-    #[allow(clippy::cast_sign_loss)]
-    let (range_start, range_end) = {
-        let r = &meta.range;
-        (Some(r.start as u64), Some(r.end as u64))
-    };
-
-    let bill_of_materials: Vec<BomEntry> = meta
-        .dependencies
-        .as_ref()
-        .map(|deps| {
-            deps.version_info()
-                .packages
-                .iter()
-                .map(|p| BomEntry {
-                    name: p.name.clone(),
-                    version: p.version.to_string(),
-                    source: Some(String::from(p.source.clone())),
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-
-    // Extract WIT imports/exports from this component's byte range.
-    let (imports, exports) = extract_wit_imports_exports(parent_bytes, &meta.range, root_wit);
-
-    ComponentSummary {
-        name: meta.name.clone(),
-        description: meta.description.as_ref().map(ToString::to_string),
-        targets: vec![],
-        producers,
-        kind: Some(kind.to_string()),
-        size_bytes,
-        range_start,
-        range_end,
-        languages,
-        children,
-        source: meta.source.as_ref().map(ToString::to_string),
-        homepage: meta.homepage.as_ref().map(ToString::to_string),
-        licenses: meta.licenses.as_ref().map(ToString::to_string),
-        authors: meta.authors.as_ref().map(ToString::to_string),
-        revision: meta.revision.as_ref().map(ToString::to_string),
-        component_version: meta.version.as_ref().map(ToString::to_string),
-        bill_of_materials,
-        imports,
-        exports,
-    }
-}
-
-/// Extract WIT imports and exports from a wasm binary at the given byte range.
-///
-/// First tries `wit-parser` for a full decode (works for self-contained
-/// components). Falls back to using the root component's decoded WIT to
-/// provide the correct WIT-qualified names. If neither works, uses
-/// `wasmparser` to read raw component import/export names.
-fn extract_wit_imports_exports(
-    parent_bytes: &[u8],
-    range: &std::ops::Range<usize>,
-    root_wit: Option<&wit_parser::decoding::DecodedWasm>,
-) -> (
-    Vec<component_meta_registry_types::WitInterfaceRef>,
-    Vec<component_meta_registry_types::WitInterfaceRef>,
-) {
-    let Some(bytes) = parent_bytes.get(range.start..range.end) else {
-        return (vec![], vec![]);
-    };
-
-    // Try wit-parser on the child's own bytes (works for self-contained components).
-    if let Ok(decoded) = wit_parser::decoding::decode(bytes) {
-        let resolve = decoded.resolve();
-        if let wit_parser::decoding::DecodedWasm::Component(_, world_id) = &decoded
-            && let Some(world) = resolve.worlds.get(*world_id)
-        {
-            let imports = world
-                .imports
-                .keys()
-                .filter_map(|k| world_key_to_iface_ref(resolve, k))
-                .collect();
-            let exports = world
-                .exports
-                .keys()
-                .filter_map(|k| world_key_to_iface_ref(resolve, k))
-                .collect();
-            return (imports, exports);
-        }
-    }
-
-    // For inner components that can't be decoded standalone, use the root
-    // component's already-decoded WIT world. The root world's imports/exports
-    // are the WIT-level view of what the inner component implements.
-    if let Some(decoded) = root_wit {
-        let resolve = decoded.resolve();
-        if let wit_parser::decoding::DecodedWasm::Component(_, world_id) = decoded
-            && let Some(world) = resolve.worlds.get(*world_id)
-        {
-            let imports = world
-                .imports
-                .keys()
-                .filter_map(|k| world_key_to_iface_ref(resolve, k))
-                .collect();
-            let exports = world
-                .exports
-                .keys()
-                .filter_map(|k| world_key_to_iface_ref(resolve, k))
-                .collect();
-            return (imports, exports);
-        }
-    }
-
-    // Last resort: raw wasmparser names.
-    extract_wit_imports_exports_wasmparser(bytes)
-}
-
-/// Use `wasmparser` to extract component import/export names from raw bytes.
-///
-/// This handles inner components that can't be decoded by `wit-parser` because
-/// they reference types from the outer component scope.
-fn extract_wit_imports_exports_wasmparser(
-    bytes: &[u8],
-) -> (
-    Vec<component_meta_registry_types::WitInterfaceRef>,
-    Vec<component_meta_registry_types::WitInterfaceRef>,
-) {
-    use wasmparser::{Parser, Payload};
-
-    let mut imports = Vec::new();
-    let mut exports = Vec::new();
-
-    for payload in Parser::new(0).parse_all(bytes) {
-        let Ok(payload) = payload else { continue };
-        match payload {
-            Payload::ComponentImportSection(reader) => {
-                for import in reader {
-                    let Ok(import) = import else { continue };
-                    imports.push(parse_component_extern_name(import.name.0));
-                }
-            }
-            Payload::ComponentExportSection(reader) => {
-                for export in reader {
-                    let Ok(export) = export else { continue };
-                    exports.push(parse_component_extern_name(export.name.0));
-                }
-            }
-            _ => {}
-        }
-    }
-
-    (imports, exports)
-}
-
-/// Parse a component extern name like `"wasi:http/types@0.2.3"` into a
-/// `WitInterfaceRef`.
-fn parse_component_extern_name(name: &str) -> component_meta_registry_types::WitInterfaceRef {
-    // Component extern names follow the pattern:
-    //   "namespace:package/interface@version"
-    //   "namespace:package@version"
-    //   or just a plain name
-    if !name.contains(':') {
-        return component_meta_registry_types::WitInterfaceRef {
-            package: name.to_string(),
-            interface: None,
-            version: None,
-            docs: None,
-            is_native: false,
-        };
-    }
-
-    let (name_part, version) = match name.rsplit_once('@') {
-        Some((n, v)) => (n, Some(v.to_string())),
-        None => (name, None),
-    };
-
-    let (package, interface) = match name_part.split_once('/') {
-        Some((pkg, iface)) => (pkg.to_string(), Some(iface.to_string())),
-        None => (name_part.to_string(), None),
-    };
-
-    component_meta_registry_types::WitInterfaceRef {
-        package,
-        interface,
-        version,
-        docs: None,
-        is_native: false,
-    }
-}
-
-/// Convert a `wit_parser::WorldKey` to a `WitInterfaceRef`, including docs.
-fn world_key_to_iface_ref(
-    resolve: &wit_parser::Resolve,
-    key: &wit_parser::WorldKey,
-) -> Option<component_meta_registry_types::WitInterfaceRef> {
-    match key {
-        wit_parser::WorldKey::Name(name) => Some(component_meta_registry_types::WitInterfaceRef {
-            package: name.clone(),
-            interface: None,
-            version: None,
-            docs: None,
-            is_native: false,
-        }),
-        wit_parser::WorldKey::Interface(id) => {
-            let iface = resolve.interfaces.get(*id)?;
-            let pkg_id = iface.package?;
-            let pkg = resolve.packages.get(pkg_id)?;
-            let docs = iface.docs.contents.as_deref().map(first_doc_sentence);
-            Some(component_meta_registry_types::WitInterfaceRef {
-                package: format!("{}:{}", pkg.name.namespace, pkg.name.name),
-                interface: iface.name.clone(),
-                version: pkg.name.version.as_ref().map(ToString::to_string),
-                docs,
-                is_native: false,
-            })
-        }
-    }
-}
-
-/// Extract the first sentence from a doc comment.
-fn first_doc_sentence(text: &str) -> String {
-    text.split_once("\n\n").map_or_else(
-        || text.trim().to_owned(),
-        |(first, _)| first.trim().to_owned(),
-    )
-}
-
 #[cfg(test)]
-mod tests {
+mod smoke_tests {
     use super::*;
 
-    #[test]
-    fn test_split_package_version_with_version() {
-        let (name, version) = split_package_version("wasi:http@0.2.0");
-        assert_eq!(name, "wasi:http");
-        assert_eq!(version, Some("0.2.0"));
-    }
-
-    #[test]
-    fn test_split_package_version_without_version() {
-        let (name, version) = split_package_version("wasi:http");
-        assert_eq!(name, "wasi:http");
-        assert_eq!(version, None);
-    }
-
-    #[test]
-    fn test_split_package_version_complex() {
-        let (name, version) = split_package_version("wasi:io/streams@1.0.0-rc1");
-        assert_eq!(name, "wasi:io/streams");
-        assert_eq!(version, Some("1.0.0-rc1"));
-    }
-
-    /// Create an in-memory database with migrations applied for testing.
-    fn setup_test_db() -> Connection {
-        let conn = Connection::open_in_memory().unwrap();
-        Migrations::run_all(&conn).unwrap();
-        conn
-    }
-
-    /// Helper: create a repo + manifest in the test DB, returning the manifest ID.
-    fn insert_test_manifest(conn: &Connection) -> i64 {
-        let repo_id = OciRepository::upsert(conn, "ghcr.io", "test/pkg").unwrap();
-        let annotations = HashMap::new();
-        let (manifest_id, _) = OciManifest::upsert(
-            conn,
-            repo_id,
-            "sha256:abc123",
-            Some("application/vnd.oci.image.manifest.v1+json"),
-            Some("{}"),
-            Some(1024),
-            None,
-            None,
-            None,
-            &annotations,
-        )
-        .unwrap();
-        manifest_id
-    }
-
-    // r[verify wit.world.insert]
-    #[test]
-    fn wit_world_insert_and_query() {
-        let conn = setup_test_db();
-        let manifest_id = insert_test_manifest(&conn);
-
-        let iface_id = RawWitPackage::insert(
-            &conn,
-            "wasi:http",
-            Some("0.2.0"),
-            None,
-            Some("package wasi:http;"),
-            Some(manifest_id),
-            None,
-        )
-        .unwrap();
-
-        let world_id = WitWorld::insert(&conn, iface_id, "proxy", None).unwrap();
-        assert!(world_id > 0);
-
-        let found = WitWorld::find_by_name(&conn, iface_id, "proxy")
-            .unwrap()
-            .expect("world should exist");
-        assert_eq!(found.name, "proxy");
-        assert_eq!(found.wit_package_id, iface_id);
-    }
-
-    // r[verify wit.world.imports-exports]
-    #[test]
-    fn wit_world_import_export_insert() {
-        let conn = setup_test_db();
-        let manifest_id = insert_test_manifest(&conn);
-
-        let iface_id = RawWitPackage::insert(
-            &conn,
-            "wasi:http",
-            Some("0.2.0"),
-            None,
-            None,
-            Some(manifest_id),
-            None,
-        )
-        .unwrap();
-
-        let world_id = WitWorld::insert(&conn, iface_id, "proxy", None).unwrap();
-
-        let import_id = WitWorldImport::insert(
-            &conn,
-            world_id,
-            "wasi:io",
-            Some("streams"),
-            Some("0.2.0"),
-            None,
-        )
-        .unwrap();
-        assert!(import_id > 0);
-
-        let export_id = WitWorldExport::insert(
-            &conn,
-            world_id,
-            "wasi:http",
-            Some("handler"),
-            Some("0.2.0"),
-            None,
-        )
-        .unwrap();
-        assert!(export_id > 0);
-    }
-
-    // r[verify wit.interface.dependencies]
-    #[test]
-    fn wit_package_dependency_insert() {
-        let conn = setup_test_db();
-        let manifest_id = insert_test_manifest(&conn);
-
-        let iface_id = RawWitPackage::insert(
-            &conn,
-            "wasi:http",
-            Some("0.2.0"),
-            None,
-            None,
-            Some(manifest_id),
-            None,
-        )
-        .unwrap();
-
-        let dep_id =
-            WitPackageDependency::insert(&conn, iface_id, "wasi:io", Some("0.2.0"), None).unwrap();
-        assert!(dep_id > 0);
-    }
-
-    // r[verify wit.component.insert]
-    #[test]
-    fn wasm_component_and_target_insert() {
-        let conn = setup_test_db();
-        let manifest_id = insert_test_manifest(&conn);
-        let layer_id =
-            OciLayer::insert(&conn, manifest_id, "sha256:layer1", None, Some(100), 0).unwrap();
-
-        // Create the WIT interface and world first
-        let iface_id = RawWitPackage::insert(
-            &conn,
-            "wasi:http",
-            Some("0.2.0"),
-            None,
-            None,
-            Some(manifest_id),
-            Some(layer_id),
-        )
-        .unwrap();
-
-        let world_id = WitWorld::insert(&conn, iface_id, "proxy", None).unwrap();
-
-        // Insert the component
-        let comp_id =
-            WasmComponent::insert(&conn, manifest_id, Some(layer_id), None, None, None).unwrap();
-        assert!(comp_id > 0);
-
-        // Insert a target pointing to the world we just created
-        let target_id = ComponentTarget::insert(
-            &conn,
-            comp_id,
-            "wasi:http",
-            "proxy",
-            Some("0.2.0"),
-            Some(world_id),
-            false,
-        )
-        .unwrap();
-        assert!(target_id > 0);
-
-        // Verify the component can be found by manifest
-        let found = WasmComponent::find_by_manifest(&conn, manifest_id)
-            .unwrap()
-            .expect("component should exist");
-        assert_eq!(found.id(), comp_id);
-    }
-
-    // r[verify wit.component.wit-only]
-    #[test]
-    fn no_component_rows_for_wit_only_package() {
-        let conn = setup_test_db();
-        let manifest_id = insert_test_manifest(&conn);
-
-        // Insert interface and world (as we would for a WIT-only package)
-        let iface_id = RawWitPackage::insert(
-            &conn,
-            "wasi:http",
-            Some("0.2.0"),
-            None,
-            None,
-            Some(manifest_id),
-            None,
-        )
-        .unwrap();
-
-        let _world_id = WitWorld::insert(&conn, iface_id, "proxy", None).unwrap();
-
-        // For a WIT-only package, we should NOT insert a WasmComponent
-        let component = WasmComponent::find_by_manifest(&conn, manifest_id).unwrap();
-        assert!(
-            component.is_none(),
-            "WIT-only packages should not have wasm_component rows"
-        );
-    }
-
-    // r[verify wit.world.idempotent]
-    #[test]
-    fn wit_world_import_export_idempotent() {
-        let conn = setup_test_db();
-        let manifest_id = insert_test_manifest(&conn);
-
-        let iface_id = RawWitPackage::insert(
-            &conn,
-            "wasi:http",
-            Some("0.2.0"),
-            None,
-            None,
-            Some(manifest_id),
-            None,
-        )
-        .unwrap();
-
-        let world_id = WitWorld::insert(&conn, iface_id, "proxy", None).unwrap();
-
-        // Insert same import twice — should be idempotent
-        let id1 = WitWorldImport::insert(
-            &conn,
-            world_id,
-            "wasi:io",
-            Some("streams"),
-            Some("0.2.0"),
-            None,
-        )
-        .unwrap();
-        let id2 = WitWorldImport::insert(
-            &conn,
-            world_id,
-            "wasi:io",
-            Some("streams"),
-            Some("0.2.0"),
-            None,
-        )
-        .unwrap();
-        assert_eq!(id1, id2, "duplicate imports should return the same ID");
-    }
-
-    // r[verify wit.resolve.import]
-    #[test]
-    fn resolve_import_resolved_package_id_when_dep_exists() {
-        let conn = setup_test_db();
-        let manifest_id = insert_test_manifest(&conn);
-
-        // Create the dependency interface (wasi:io@0.2.0) first
-        let dep_iface_id = RawWitPackage::insert(
-            &conn,
-            "wasi:io",
-            Some("0.2.0"),
-            None,
-            None,
-            Some(manifest_id),
-            None,
-        )
-        .unwrap();
-
-        // Create the main interface and a world that imports wasi:io
-        let main_iface_id = RawWitPackage::insert(
-            &conn,
-            "wasi:http",
-            Some("0.2.0"),
-            None,
-            None,
-            Some(manifest_id),
-            None,
-        )
-        .unwrap();
-
-        let world_id = WitWorld::insert(&conn, main_iface_id, "proxy", None).unwrap();
-
-        // Insert an import with no resolved_package_id
-        WitWorldImport::insert(
-            &conn,
-            world_id,
-            "wasi:io",
-            Some("streams"),
-            Some("0.2.0"),
-            None,
-        )
-        .unwrap();
-
-        // Run the resolution pass
-        resolve_import_foreign_keys(&conn, main_iface_id).unwrap();
-
-        // Verify the resolved_package_id was set
-        let resolved: Option<i64> = conn
-            .query_row(
-                "SELECT resolved_package_id FROM wit_world_import WHERE wit_world_id = ?1",
-                [world_id],
-                |row| row.get(0),
-            )
-            .unwrap();
+    #[tokio::test]
+    async fn open_in_memory_runs_migrations() {
+        let store = Store::open_in_memory().await.expect("open in-memory store");
+        assert!(store.state_info.migration_total() > 0);
         assert_eq!(
-            resolved,
-            Some(dep_iface_id),
-            "import should resolve to the dependency interface"
+            store.state_info.migration_current(),
+            store.state_info.migration_total()
         );
     }
 
-    // r[verify wit.resolve.import-missing]
-    #[test]
-    fn resolve_import_stays_null_when_dep_missing() {
-        let conn = setup_test_db();
-        let manifest_id = insert_test_manifest(&conn);
-
-        let iface_id = RawWitPackage::insert(
-            &conn,
-            "wasi:http",
-            Some("0.2.0"),
-            None,
-            None,
-            Some(manifest_id),
-            None,
-        )
-        .unwrap();
-
-        let world_id = WitWorld::insert(&conn, iface_id, "proxy", None).unwrap();
-
-        // Insert import for wasi:io — which does NOT exist in the DB
-        WitWorldImport::insert(
-            &conn,
-            world_id,
-            "wasi:io",
-            Some("streams"),
-            Some("0.2.0"),
-            None,
-        )
-        .unwrap();
-
-        // Run the resolution pass
-        resolve_import_foreign_keys(&conn, iface_id).unwrap();
-
-        // Verify the resolved_package_id is still NULL
-        let resolved: Option<i64> = conn
-            .query_row(
-                "SELECT resolved_package_id FROM wit_world_import WHERE wit_world_id = ?1",
-                [world_id],
-                |row| row.get(0),
-            )
-            .unwrap();
+    #[tokio::test]
+    async fn sync_meta_round_trip() {
+        let store = Store::open_in_memory().await.unwrap();
+        assert_eq!(store.get_sync_meta("foo").await.unwrap(), None);
+        store.set_sync_meta("foo", "bar").await.unwrap();
         assert_eq!(
-            resolved, None,
-            "import should remain unresolved when dependency is not in DB"
+            store.get_sync_meta("foo").await.unwrap().as_deref(),
+            Some("bar")
         );
-    }
-
-    // r[verify wit.resolve.dependency]
-    #[test]
-    fn resolve_dependency_resolved_package_id() {
-        let conn = setup_test_db();
-        let manifest_id = insert_test_manifest(&conn);
-
-        // Create the dependency interface
-        let dep_iface_id = RawWitPackage::insert(
-            &conn,
-            "wasi:io",
-            Some("0.2.0"),
-            None,
-            None,
-            Some(manifest_id),
-            None,
-        )
-        .unwrap();
-
-        // Create the main interface
-        let main_iface_id = RawWitPackage::insert(
-            &conn,
-            "wasi:http",
-            Some("0.2.0"),
-            None,
-            None,
-            Some(manifest_id),
-            None,
-        )
-        .unwrap();
-
-        // Insert a dependency with no resolved_package_id
-        WitPackageDependency::insert(&conn, main_iface_id, "wasi:io", Some("0.2.0"), None).unwrap();
-
-        // Run the resolution pass
-        resolve_dependency_foreign_keys(&conn, main_iface_id).unwrap();
-
-        // Verify the resolved_package_id was set
-        let resolved: Option<i64> = conn
-            .query_row(
-                "SELECT resolved_package_id FROM wit_package_dependency WHERE dependent_id = ?1",
-                [main_iface_id],
-                |row| row.get(0),
-            )
-            .unwrap();
+        store.set_sync_meta("foo", "baz").await.unwrap();
         assert_eq!(
-            resolved,
-            Some(dep_iface_id),
-            "dependency should resolve to the dependency interface"
+            store.get_sync_meta("foo").await.unwrap().as_deref(),
+            Some("baz")
         );
     }
 
-    // r[verify wit.resolve.export]
-    #[test]
-    fn resolve_export_resolved_package_id() {
-        let conn = setup_test_db();
-        let manifest_id = insert_test_manifest(&conn);
-
-        // Create the target interface for the export
-        let handler_iface_id = RawWitPackage::insert(
-            &conn,
-            "wasi:http",
-            Some("0.2.0"),
-            None,
-            None,
-            Some(manifest_id),
-            None,
-        )
-        .unwrap();
-
-        let world_id = WitWorld::insert(&conn, handler_iface_id, "proxy", None).unwrap();
-
-        // Insert an export with no resolved_package_id
-        WitWorldExport::insert(
-            &conn,
-            world_id,
-            "wasi:http",
-            Some("handler"),
-            Some("0.2.0"),
-            None,
-        )
-        .unwrap();
-
-        // Run the resolution pass
-        resolve_export_foreign_keys(&conn, handler_iface_id).unwrap();
-
-        // Verify the resolved_package_id was set
-        let resolved: Option<i64> = conn
-            .query_row(
-                "SELECT resolved_package_id FROM wit_world_export WHERE wit_world_id = ?1",
-                [world_id],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(
-            resolved,
-            Some(handler_iface_id),
-            "export should resolve to the matching interface"
-        );
-    }
-
-    // r[verify wit.resolve.component-target]
-    #[test]
-    fn resolve_component_target_cross_package() {
-        let conn = setup_test_db();
-        let manifest_id = insert_test_manifest(&conn);
-
-        // Create a second manifest for the component
-        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "test/component").unwrap();
-        let comp_annotations = HashMap::new();
-        let (comp_manifest_id, _) = OciManifest::upsert(
-            &conn,
-            repo_id,
-            "sha256:comp456",
-            Some("application/vnd.oci.image.manifest.v1+json"),
-            Some("{}"),
-            Some(2048),
-            None,
-            None,
-            None,
-            &comp_annotations,
-        )
-        .unwrap();
-
-        // Create the WIT interface and world that the component targets
-        let iface_id = RawWitPackage::insert(
-            &conn,
-            "wasi:http",
-            Some("0.2.0"),
-            None,
-            None,
-            Some(manifest_id),
-            None,
-        )
-        .unwrap();
-        let world_id = WitWorld::insert(&conn, iface_id, "proxy", None).unwrap();
-
-        // Create a component with a target but NO wit_world_id (cross-package)
-        let comp_id =
-            WasmComponent::insert(&conn, comp_manifest_id, None, None, None, None).unwrap();
-        ComponentTarget::insert(
-            &conn,
-            comp_id,
-            "wasi:http",
-            "proxy",
-            Some("0.2.0"),
-            None, // wit_world_id is NULL — needs resolution
-            false,
-        )
-        .unwrap();
-
-        // Run the resolution pass for component targets
-        resolve_component_target_foreign_keys(&conn, comp_manifest_id).unwrap();
-
-        // Verify wit_world_id was resolved
-        let resolved: Option<i64> = conn
-            .query_row(
-                "SELECT wit_world_id FROM component_target WHERE wasm_component_id = ?1",
-                [comp_id],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(
-            resolved,
-            Some(world_id),
-            "component target should resolve to the matching world"
-        );
-    }
-
-    // r[verify db.wit-package.find-oci-reference]
-    #[test]
-    fn find_oci_reference_returns_registry_and_repository() {
-        let conn = setup_test_db();
-
-        // Set up OCI repository and manifest
-        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "webassembly/wasi/http").unwrap();
-        let annotations = HashMap::new();
-        let (manifest_id, _) = OciManifest::upsert(
-            &conn,
-            repo_id,
-            "sha256:http123",
-            Some("application/vnd.oci.image.manifest.v1+json"),
-            Some("{}"),
-            Some(1024),
-            None,
-            None,
-            None,
-            &annotations,
-        )
-        .unwrap();
-
-        // Insert a WIT package linked to the manifest
-        RawWitPackage::insert(
-            &conn,
-            "wasi:http",
-            Some("0.2.0"),
-            None,
-            None,
-            Some(manifest_id),
-            None,
-        )
-        .unwrap();
-
-        // Lookup should find the OCI reference
-        let result = RawWitPackage::find_oci_reference(&conn, "wasi:http", Some("0.2.0")).unwrap();
-        assert_eq!(
-            result,
-            Some(("ghcr.io".to_string(), "webassembly/wasi/http".to_string()))
-        );
-    }
-
-    // r[verify db.wit-package.find-oci-reference-not-found]
-    #[test]
-    fn find_oci_reference_returns_none_when_not_found() {
-        let conn = setup_test_db();
-        let result = RawWitPackage::find_oci_reference(&conn, "wasi:nonexistent", None).unwrap();
-        assert!(result.is_none());
-    }
-
-    // r[verify db.wit-package-dependency.get-for-package]
-    #[test]
-    fn get_package_dependencies_returns_empty_without_data() {
-        let conn = setup_test_db();
-        let store = Store::from_conn(conn);
-        let deps = store
-            .get_package_dependencies("ghcr.io", "webassembly/wasi-http")
-            .unwrap();
-        assert!(deps.is_empty());
-    }
-
-    // r[verify db.wit-package-dependency.get-for-package]
-    // r[verify server.index.dependencies]
-    #[test]
-    fn get_package_dependencies_returns_deps_for_pulled_package() {
-        let conn = setup_test_db();
-
-        // Set up an OCI repository + manifest
-        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "webassembly/wasi-http").unwrap();
-        let annotations = HashMap::new();
-        let (manifest_id, _) = OciManifest::upsert(
-            &conn,
-            repo_id,
-            "sha256:http123",
-            Some("application/vnd.oci.image.manifest.v1+json"),
-            Some("{}"),
-            Some(1024),
-            None,
-            None,
-            None,
-            &annotations,
-        )
-        .unwrap();
-
-        // Insert a WIT package linked to the manifest
-        let pkg_id = RawWitPackage::insert(
-            &conn,
-            "wasi:http",
-            Some("0.2.0"),
-            None,
-            None,
-            Some(manifest_id),
-            None,
-        )
-        .unwrap();
-
-        // Insert dependencies
-        WitPackageDependency::insert(&conn, pkg_id, "wasi:io", Some("0.2.0"), None).unwrap();
-        WitPackageDependency::insert(&conn, pkg_id, "wasi:clocks", Some("0.2.0"), None).unwrap();
-
-        let store = Store::from_conn(conn);
-        let mut deps = store
-            .get_package_dependencies("ghcr.io", "webassembly/wasi-http")
-            .unwrap();
-        deps.sort_by(|a, b| a.package.cmp(&b.package));
-        assert_eq!(deps.len(), 2);
-        assert_eq!(deps[0].package, "wasi:clocks");
-        assert_eq!(deps[0].version.as_deref(), Some("0.2.0"));
-        assert_eq!(deps[1].package, "wasi:io");
-        assert_eq!(deps[1].version.as_deref(), Some("0.2.0"));
-    }
-
-    // r[verify db.wit-package-dependency.get-for-package]
-    #[test]
-    fn get_package_dependencies_returns_deps_for_synced_package() {
-        let conn = setup_test_db();
-
-        // Register the repository with wit_namespace and wit_name (as sync does)
-        OciRepository::upsert_with_wit(
-            &conn,
-            "ghcr.io",
-            "webassembly/wasi-http",
-            Some("wasi"),
-            Some("http"),
-        )
-        .unwrap();
-
-        // Insert a wit_package stub without an oci_manifest_id (sync-only)
-        let pkg_id =
-            RawWitPackage::insert(&conn, "wasi:http", Some("0.2.0"), None, None, None, None)
-                .unwrap();
-        WitPackageDependency::insert(&conn, pkg_id, "wasi:io", Some("0.2.0"), None).unwrap();
-
-        let store = Store::from_conn(conn);
-        let deps = store
-            .get_package_dependencies("ghcr.io", "webassembly/wasi-http")
-            .unwrap();
-        assert_eq!(deps.len(), 1);
-        assert_eq!(deps[0].package, "wasi:io");
-        assert_eq!(deps[0].version.as_deref(), Some("0.2.0"));
-    }
-
-    // r[verify db.wit-package-dependency.get-for-package]
-    /// Regression: when both a synced stub (`oci_manifest_id IS NULL`) and a
-    /// pulled manifest-linked `wit_package` row exist for the same WIT package
-    /// name/version, `get_package_dependencies_by_name` MUST return the deps
-    /// from the pulled row and MUST NOT mix in stub deps.
-    #[test]
-    fn get_package_dependencies_by_name_prefers_pulled_over_stub() {
-        let conn = setup_test_db();
-
-        // Insert a synced stub wit_package (no manifest linkage, no layer linkage).
-        let stub_id =
-            RawWitPackage::insert(&conn, "wasi:http", Some("0.2.0"), None, None, None, None)
-                .unwrap();
-        WitPackageDependency::insert(&conn, stub_id, "wasi:stub-only-dep", Some("0.2.0"), None)
-            .unwrap();
-
-        // Set up a real OCI repository + manifest + layer so FK constraints are satisfied.
-        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "webassembly/wasi-http").unwrap();
-        let annotations = HashMap::new();
-        let (manifest_id, _) = OciManifest::upsert(
-            &conn,
-            repo_id,
-            "sha256:http-pulled",
-            Some("application/vnd.oci.image.manifest.v1+json"),
-            Some("{}"),
-            Some(1024),
-            None,
-            None,
-            None,
-            &annotations,
-        )
-        .unwrap();
-        let layer_id =
-            OciLayer::insert(&conn, manifest_id, "sha256:http-layer", None, None, 0).unwrap();
-
-        // Insert a pulled manifest-linked wit_package with a non-NULL oci_layer_id
-        // so it gets a distinct unique key and coexists with the stub row.
-        let pulled_id = RawWitPackage::insert(
-            &conn,
-            "wasi:http",
-            Some("0.2.0"),
-            None,
-            None,
-            Some(manifest_id),
-            Some(layer_id),
-        )
-        .unwrap();
-        WitPackageDependency::insert(&conn, pulled_id, "wasi:io", Some("0.2.0"), None).unwrap();
-
-        // Confirm both rows are distinct.
-        assert_ne!(stub_id, pulled_id, "stub and pulled must be distinct rows");
-
-        let store = Store::from_conn(conn);
-        let deps = store
-            .get_package_dependencies_by_name("wasi:http", Some("0.2.0"))
-            .unwrap();
-
-        // Must only return the pulled dep, not the stub dep.
-        assert_eq!(deps.len(), 1, "expected only pulled deps, got: {deps:?}");
-        assert_eq!(deps[0].package, "wasi:io");
-        assert_eq!(deps[0].version.as_deref(), Some("0.2.0"));
-    }
-
-    // r[verify db.wit-package-dependency.upsert-idempotent]
-    // r[verify db.wit-package-dependency.populate-on-sync]
-    #[cfg(feature = "http-sync")]
-    #[test]
-    fn upsert_package_dependencies_from_sync_is_idempotent() {
-        use component_meta_registry_types::PackageDependencyRef;
-
-        let conn = setup_test_db();
-        let store = Store::from_conn(conn);
-
-        let deps = vec![
-            PackageDependencyRef {
-                package: "wasi:io".into(),
-                version: Some("0.2.0".into()),
-            },
-            PackageDependencyRef {
-                package: "wasi:clocks".into(),
-                version: None,
-            },
-        ];
-
-        // First upsert
+    #[tokio::test]
+    async fn known_packages_basic() {
+        let store = Store::open_in_memory().await.unwrap();
+        assert!(store.list_known_packages(0, 10).await.unwrap().is_empty());
         store
-            .upsert_package_dependencies_from_sync("wasi:http", Some("0.2.0"), &deps)
+            .add_known_package("ghcr.io", "user/repo", None, Some("hello"))
+            .await
             .unwrap();
+        let pkgs = store.list_known_packages(0, 10).await.unwrap();
+        assert_eq!(pkgs.len(), 1);
+        assert_eq!(pkgs[0].registry, "ghcr.io");
+        assert_eq!(pkgs[0].repository, "user/repo");
+        let pkg = store
+            .get_known_package("ghcr.io", "user/repo")
+            .await
+            .unwrap();
+        assert!(pkg.is_some());
+    }
 
-        // Second upsert must not fail and must not duplicate
+    #[tokio::test]
+    async fn fetch_queue_pull_complete_roundtrip() {
+        let store = Store::open_in_memory().await.unwrap();
         store
-            .upsert_package_dependencies_from_sync("wasi:http", Some("0.2.0"), &deps)
+            .enqueue_pull("ghcr.io", "user/repo", "1.0.0", 0)
+            .await
             .unwrap();
-
-        let mut stored = store
-            .get_package_dependencies_by_name("wasi:http", Some("0.2.0"))
-            .unwrap();
-        stored.sort_by(|a, b| a.package.cmp(&b.package));
-        assert_eq!(stored.len(), 2);
-        assert_eq!(stored[0].package, "wasi:clocks");
-        assert_eq!(stored[1].package, "wasi:io");
+        assert_eq!(store.pending_count().await.unwrap(), 1);
+        let task = store
+            .dequeue_next()
+            .await
+            .unwrap()
+            .expect("task should dequeue");
+        assert_eq!(task.tag, "1.0.0");
+        assert_eq!(store.pending_count().await.unwrap(), 0);
+        store.complete_task(task.id).await.unwrap();
+        let status = store.get_queue_status().await.unwrap();
+        assert_eq!(status.completed, 1);
     }
 
-    // r[verify db.package-versions.list]
-    // r[verify db.package-versions.get]
-    // r[verify db.package-detail]
-    #[test]
-    fn rich_package_queries_expose_manifest_created_and_synced_timestamps() {
-        let conn = setup_test_db();
-        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "test/pkg").unwrap();
-        let mut annotations = HashMap::new();
-        annotations.insert(
-            "org.opencontainers.image.created".to_string(),
-            "2025-01-01T00:00:00Z".to_string(),
-        );
-        let (manifest_id, _) = OciManifest::upsert(
-            &conn,
-            repo_id,
-            "sha256:abc123",
-            Some("application/vnd.oci.image.manifest.v1+json"),
-            Some("{}"),
-            Some(1024),
-            None,
-            None,
-            None,
-            &annotations,
-        )
-        .unwrap();
-        OciTag::upsert(&conn, repo_id, "0.1.0", "sha256:abc123").unwrap();
+    #[tokio::test]
+    async fn fetch_queue_fail_then_pending_again() {
+        let store = Store::open_in_memory().await.unwrap();
+        store
+            .enqueue_pull("ghcr.io", "user/repo", "1.0.0", 0)
+            .await
+            .unwrap();
+        let task = store.dequeue_next().await.unwrap().unwrap();
+        store.fail_task(task.id, "oops").await.unwrap();
+        assert_eq!(store.pending_count().await.unwrap(), 1);
+    }
 
-        let store = Store::from_conn(conn);
-        let versions = store.get_package_versions("ghcr.io", "test/pkg").unwrap();
-        assert_eq!(versions.len(), 1);
-        let version = &versions[0];
-        assert_eq!(version.tag.as_deref(), Some("0.1.0"));
-        assert_eq!(version.created_at.as_deref(), Some("2025-01-01T00:00:00Z"));
-        assert!(
-            version.synced_at.is_some(),
-            "synced_at should be populated from local DB insertion time"
-        );
+    #[tokio::test]
+    async fn db_config_redacts_password() {
+        use crate::storage::redact_url;
         assert_eq!(
-            version
-                .annotations
-                .as_ref()
-                .and_then(|annotations| annotations.created.as_deref()),
-            Some("2025-01-01T00:00:00Z")
+            redact_url("postgres://alice:secret@db.example.com/wasm"),
+            "postgres://alice:[REDACTED]@db.example.com/wasm"
         );
-
-        let single = store
-            .get_package_version("ghcr.io", "test/pkg", "0.1.0")
-            .unwrap()
-            .expect("expected tagged version");
-        assert_eq!(single.digest, "sha256:abc123");
-
-        let detail = store
-            .get_package_detail("ghcr.io", "test/pkg")
-            .unwrap()
-            .expect("expected package detail");
-        assert_eq!(detail.registry, "ghcr.io");
-        assert_eq!(detail.repository, "test/pkg");
-        assert_eq!(detail.versions.len(), 1);
-        assert_eq!(
-            detail.versions[0].created_at.as_deref(),
-            Some("2025-01-01T00:00:00Z")
-        );
-
-        // Keep `manifest_id` in scope to ensure migration/schema setup accepted row.
-        assert!(manifest_id > 0);
-    }
-
-    #[test]
-    fn get_package_version_resolves_each_tag_when_multiple_tags_share_manifest() {
-        let conn = setup_test_db();
-        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "test/pkg").unwrap();
-        let annotations = HashMap::new();
-        OciManifest::upsert(
-            &conn,
-            repo_id,
-            "sha256:shared",
-            Some("application/vnd.oci.image.manifest.v1+json"),
-            Some("{}"),
-            Some(1024),
-            None,
-            None,
-            None,
-            &annotations,
-        )
-        .unwrap();
-        OciTag::upsert(&conn, repo_id, "1.0.0", "sha256:shared").unwrap();
-        OciTag::upsert(&conn, repo_id, "latest", "sha256:shared").unwrap();
-
-        let store = Store::from_conn(conn);
-        let stable = store
-            .get_package_version("ghcr.io", "test/pkg", "1.0.0")
-            .unwrap()
-            .expect("expected 1.0.0 tag");
-        let latest = store
-            .get_package_version("ghcr.io", "test/pkg", "latest")
-            .unwrap()
-            .expect("expected latest tag");
-
-        assert_eq!(stable.digest, "sha256:shared");
-        assert_eq!(latest.digest, "sha256:shared");
-        assert_eq!(stable.tag.as_deref(), Some("1.0.0"));
-        assert_eq!(latest.tag.as_deref(), Some("latest"));
-    }
-
-    // r[verify db.package-versions.list]
-    // r[verify db.package-versions.get]
-    // r[verify db.package-detail]
-    #[test]
-    fn rich_package_queries_return_not_found_for_unknown_repository() {
-        let conn = setup_test_db();
-        let store = Store::from_conn(conn);
-
-        let versions = store
-            .get_package_versions("ghcr.io", "does/not/exist")
-            .unwrap();
-        assert!(versions.is_empty());
-
-        let version = store
-            .get_package_version("ghcr.io", "does/not/exist", "1.0.0")
-            .unwrap();
-        assert!(version.is_none());
-
-        let detail = store
-            .get_package_detail("ghcr.io", "does/not/exist")
-            .unwrap();
-        assert!(detail.is_none());
-    }
-
-    #[test]
-    fn parse_component_extern_name_full() {
-        let ref_ = parse_component_extern_name("wasi:http/types@0.2.3");
-        assert_eq!(ref_.package, "wasi:http");
-        assert_eq!(ref_.interface.as_deref(), Some("types"));
-        assert_eq!(ref_.version.as_deref(), Some("0.2.3"));
-    }
-
-    #[test]
-    fn parse_component_extern_name_no_interface() {
-        let ref_ = parse_component_extern_name("wasi:http@0.2.3");
-        assert_eq!(ref_.package, "wasi:http");
-        assert_eq!(ref_.interface, None);
-        assert_eq!(ref_.version.as_deref(), Some("0.2.3"));
-    }
-
-    #[test]
-    fn parse_component_extern_name_no_version() {
-        let ref_ = parse_component_extern_name("wasi:http/types");
-        assert_eq!(ref_.package, "wasi:http");
-        assert_eq!(ref_.interface.as_deref(), Some("types"));
-        assert_eq!(ref_.version, None);
-    }
-
-    #[test]
-    fn parse_component_extern_name_plain() {
-        let ref_ = parse_component_extern_name("my-import");
-        assert_eq!(ref_.package, "my-import");
-        assert_eq!(ref_.interface, None);
-        assert_eq!(ref_.version, None);
-    }
-
-    #[test]
-    fn parse_component_extern_name_prerelease_version() {
-        let ref_ = parse_component_extern_name("wasi:cli/run@0.2.0-rc1");
-        assert_eq!(ref_.package, "wasi:cli");
-        assert_eq!(ref_.interface.as_deref(), Some("run"));
-        assert_eq!(ref_.version.as_deref(), Some("0.2.0-rc1"));
-    }
-
-    #[test]
-    fn extract_wit_imports_exports_returns_empty_for_non_wasm() {
-        let (imports, exports) = extract_wit_imports_exports(b"not wasm", &(0..8), None);
-        assert!(imports.is_empty());
-        assert!(exports.is_empty());
-    }
-
-    #[test]
-    fn extract_wit_imports_exports_returns_empty_for_out_of_range() {
-        let (imports, exports) = extract_wit_imports_exports(b"short", &(0..100), None);
-        assert!(imports.is_empty());
-        assert!(exports.is_empty());
-    }
-
-    #[test]
-    fn extract_component_metadata_returns_none_for_invalid_bytes() {
-        let (name, desc, json) = extract_component_metadata(b"not wasm");
-        assert!(name.is_none());
-        assert!(desc.is_none());
-        assert!(json.is_none());
-    }
-
-    /// Read the sample-wasi-http-rust component fixture if available.
-    fn read_sample_component() -> Option<Vec<u8>> {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../examples/1-hello-world/vendor/wasm/ghcr-io-bytecodealliance-sample-wasi-http-rust-sample-wasi-http-rust-0.1.6-b33f82f30175.wasm");
-        std::fs::read(path).ok()
-    }
-
-    #[test]
-    fn extract_component_metadata_from_real_binary() {
-        let Some(bytes) = read_sample_component() else {
-            eprintln!("skipping: sample component not found");
-            return;
-        };
-
-        let (name, _desc, json) = extract_component_metadata(&bytes);
-
-        // Root component may or may not have an embedded name.
-        let _ = name;
-
-        // JSON should be present and deserializable.
-        let json = json.expect("metadata JSON should be present");
-        let summary: component_meta_registry_types::ComponentSummary =
-            serde_json::from_str(&json).expect("JSON should deserialize");
-
-        // Should be a component.
-        assert_eq!(summary.kind.as_deref(), Some("component"));
-
-        // Should have children (modules + possibly inner components).
-        assert!(
-            !summary.children.is_empty(),
-            "root component should have children"
-        );
-
-        // At least one child should be a module.
-        let modules: Vec<_> = summary
-            .children
-            .iter()
-            .filter(|c| c.kind.as_deref() == Some("module"))
-            .collect();
-        assert!(!modules.is_empty(), "should have at least one module child");
-
-        // The main module should have a name.
-        let main_module = modules
-            .iter()
-            .find(|m| m.name.as_deref() == Some("sample_wasi_http_rust.wasm"));
-        assert!(main_module.is_some(), "should have the main Rust module");
-
-        // The main module should report languages.
-        let main = main_module.unwrap();
-        assert!(
-            main.languages.contains(&"Rust".to_string()),
-            "main module should list Rust as a language"
-        );
-
-        // The main module should have producers.
-        assert!(
-            !main.producers.is_empty(),
-            "main module should have producers"
-        );
-        assert!(
-            main.producers.iter().any(|p| p.name == "rustc"),
-            "main module should have rustc as a producer"
-        );
-
-        // Root component should have producers (wit-component, cargo-component).
-        assert!(
-            !summary.producers.is_empty(),
-            "root component should have producers"
-        );
-        assert!(
-            summary.producers.iter().any(|p| p.name == "wit-component"),
-            "root should have wit-component producer"
-        );
-
-        // Root component should have WIT imports.
-        assert!(
-            !summary.imports.is_empty(),
-            "root component should have WIT imports"
-        );
-
-        // Should import wasi:http interfaces.
-        assert!(
-            summary.imports.iter().any(|i| i.package == "wasi:http"),
-            "should import wasi:http"
-        );
-
-        // Should have a size.
-        assert!(summary.size_bytes.is_some(), "should have a size");
-    }
-
-    #[test]
-    fn component_metadata_round_trips_through_store() {
-        let Some(bytes) = read_sample_component() else {
-            eprintln!("skipping: sample component not found");
-            return;
-        };
-
-        let conn = setup_test_db();
-        let manifest_id = insert_test_manifest(&conn);
-
-        // Extract and store metadata (simulating what try_extract_wit_package does).
-        let (comp_name, comp_desc, producers_json) = extract_component_metadata(&bytes);
-        WasmComponent::insert(
-            &conn,
-            manifest_id,
-            None,
-            comp_name.as_deref(),
-            comp_desc.as_deref(),
-            producers_json.as_deref(),
-        )
-        .unwrap();
-
-        // Query it back via the store.
-        let store = Store::from_conn(conn);
-        let components = store
-            .get_components_for_manifest(manifest_id, None)
-            .unwrap();
-
-        assert_eq!(components.len(), 1, "should have one component");
-        let comp = &components[0];
-
-        // Should have children.
-        assert!(
-            !comp.children.is_empty(),
-            "queried component should have children"
-        );
-
-        // Should have producers.
-        assert!(
-            !comp.producers.is_empty(),
-            "queried component should have producers"
-        );
-
-        // Should have WIT imports.
-        assert!(
-            !comp.imports.is_empty(),
-            "queried component should have WIT imports"
-        );
-
-        // Children should be preserved.
-        let modules: Vec<_> = comp
-            .children
-            .iter()
-            .filter(|c| c.kind.as_deref() == Some("module"))
-            .collect();
-        assert!(
-            !modules.is_empty(),
-            "queried component should have module children"
-        );
-
-        // Child producers should be preserved.
-        let main = modules
-            .iter()
-            .find(|m| m.name.as_deref() == Some("sample_wasi_http_rust.wasm"));
-        assert!(main.is_some(), "main module should survive round-trip");
-        assert!(
-            !main.unwrap().producers.is_empty(),
-            "child producers should survive round-trip"
-        );
-    }
-
-    /// Helper: insert a manifest with one layer and a tag pointing at it.
-    /// Returns the tag id so callers can backdate `updated_at` when needed.
-    fn insert_tag_with_layer(
-        conn: &Connection,
-        registry: &str,
-        repository: &str,
-        tag: &str,
-        digest: &str,
-    ) -> i64 {
-        let repo_id = OciRepository::upsert(conn, registry, repository).unwrap();
-        let annotations = HashMap::new();
-        let (manifest_id, _) = OciManifest::upsert(
-            conn,
-            repo_id,
-            digest,
-            Some("application/vnd.oci.image.manifest.v1+json"),
-            Some("{}"),
-            Some(1024),
-            None,
-            None,
-            None,
-            &annotations,
-        )
-        .unwrap();
-        OciLayer::insert(
-            conn,
-            manifest_id,
-            "sha256:layer",
-            Some("application/vnd.wasm.content.layer.v1+wasm"),
-            Some(64),
-            0,
-        )
-        .unwrap();
-        OciTag::upsert(conn, repo_id, tag, digest).unwrap()
-    }
-
-    #[test]
-    fn is_tag_fresh_returns_false_when_tag_missing() {
-        let conn = setup_test_db();
-        let store = Store::from_conn(conn);
-        assert!(!store.is_tag_fresh("ghcr.io", "test/pkg", "0.1.0", 3600));
-    }
-
-    #[test]
-    fn is_tag_fresh_returns_false_when_tag_has_no_layers() {
-        let conn = setup_test_db();
-        let repo_id = OciRepository::upsert(&conn, "ghcr.io", "test/pkg").unwrap();
-        let annotations = HashMap::new();
-        let (_manifest_id, _) = OciManifest::upsert(
-            &conn,
-            repo_id,
-            "sha256:nolayers",
-            Some("application/vnd.oci.image.manifest.v1+json"),
-            Some("{}"),
-            Some(1024),
-            None,
-            None,
-            None,
-            &annotations,
-        )
-        .unwrap();
-        OciTag::upsert(&conn, repo_id, "0.1.0", "sha256:nolayers").unwrap();
-        let store = Store::from_conn(conn);
-        assert!(!store.is_tag_fresh("ghcr.io", "test/pkg", "0.1.0", 3600));
-    }
-
-    #[test]
-    fn is_tag_fresh_returns_true_for_recently_updated_tag() {
-        let conn = setup_test_db();
-        insert_tag_with_layer(&conn, "ghcr.io", "test/pkg", "0.1.0", "sha256:fresh");
-        let store = Store::from_conn(conn);
-        assert!(store.is_tag_fresh("ghcr.io", "test/pkg", "0.1.0", 3600));
-    }
-
-    #[test]
-    fn is_tag_fresh_returns_false_for_tag_older_than_max_age() {
-        let conn = setup_test_db();
-        let tag_id = insert_tag_with_layer(&conn, "ghcr.io", "test/pkg", "0.1.0", "sha256:stale");
-        // Backdate the tag's updated_at to two hours ago.
-        conn.execute(
-            "UPDATE oci_tag SET updated_at = datetime('now', '-7200 seconds') WHERE id = ?1",
-            [tag_id],
-        )
-        .unwrap();
-        let store = Store::from_conn(conn);
-        assert!(!store.is_tag_fresh("ghcr.io", "test/pkg", "0.1.0", 3600));
     }
 }

@@ -14,25 +14,28 @@ use serde::Deserialize;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
-/// Shared application state wrapping a `Manager` in a `std::sync::Mutex`.
+/// Shared application state wrapping a `Manager` in a `tokio::sync::Mutex`.
 ///
-/// This is safe because all handler methods on `Manager` are synchronous
-/// (no `.await` while holding the lock).
+/// Handlers lock the `Manager` and may await async `Manager` methods while
+/// holding the mutex guard. This intentionally serializes access to
+/// `Manager`, which can simplify correctness if it must not be used
+/// concurrently, but it also reduces concurrency and may limit throughput
+/// because requests that need the manager run one at a time.
 ///
 /// # Example
 ///
 /// ```no_run
 /// use component_meta_registry::server::AppState;
 /// use component_package_manager::manager::Manager;
-/// use std::sync::{Arc, Mutex};
+/// use std::sync::Arc;
 ///
 /// # async fn example() -> anyhow::Result<()> {
 /// let manager = Manager::open().await?;
-/// let state: AppState = Arc::new(Mutex::new(manager));
+/// let state: AppState = Arc::new(tokio::sync::Mutex::new(manager));
 /// # Ok(())
 /// # }
 /// ```
-pub type AppState = Arc<std::sync::Mutex<Manager>>;
+pub type AppState = Arc<tokio::sync::Mutex<Manager>>;
 
 /// Query parameters for search.
 ///
@@ -96,11 +99,11 @@ fn default_limit() -> u32 {
 /// ```no_run
 /// use component_meta_registry::router;
 /// use component_package_manager::manager::Manager;
-/// use std::sync::{Arc, Mutex};
+/// use std::sync::Arc;
 ///
 /// # async fn example() -> anyhow::Result<()> {
 /// let manager = Manager::open().await?;
-/// let state = Arc::new(Mutex::new(manager));
+/// let state = Arc::new(tokio::sync::Mutex::new(manager));
 /// let app = router(state);
 ///
 /// let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
@@ -152,10 +155,8 @@ async fn health() -> impl IntoResponse {
 
 /// Fetch queue status.
 async fn get_queue_status(State(manager): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    let manager = manager
-        .lock()
-        .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
-    let status = manager.get_queue_status()?;
+    let manager = manager.lock().await;
+    let status = manager.get_queue_status().await?;
     Ok(Json(status))
 }
 
@@ -164,10 +165,10 @@ async fn search(
     State(manager): State<AppState>,
     Query(params): Query<SearchParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let manager = manager
-        .lock()
-        .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
-    let packages = manager.search_packages(&params.q, params.offset, params.limit)?;
+    let manager = manager.lock().await;
+    let packages = manager
+        .search_packages(&params.q, params.offset, params.limit)
+        .await?;
     Ok(Json(packages))
 }
 
@@ -176,10 +177,10 @@ async fn list_packages(
     State(manager): State<AppState>,
     Query(params): Query<ListParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let manager = manager
-        .lock()
-        .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
-    let packages = manager.list_known_packages(params.offset, params.limit)?;
+    let manager = manager.lock().await;
+    let packages = manager
+        .list_known_packages(params.offset, params.limit)
+        .await?;
     Ok(Json(packages))
 }
 
@@ -188,10 +189,10 @@ async fn list_recent_packages(
     State(manager): State<AppState>,
     Query(params): Query<ListParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let manager = manager
-        .lock()
-        .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
-    let packages = manager.list_recent_known_packages(params.offset, params.limit)?;
+    let manager = manager.lock().await;
+    let packages = manager
+        .list_recent_known_packages(params.offset, params.limit)
+        .await?;
     Ok(Json(packages))
 }
 
@@ -202,10 +203,8 @@ async fn get_package(
 ) -> Result<impl IntoResponse, AppError> {
     // Wildcard captures include a leading `/`; strip it.
     let repository = repository.trim_start_matches('/');
-    let manager = manager
-        .lock()
-        .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
-    match manager.get_known_package(&registry, repository)? {
+    let manager = manager.lock().await;
+    match manager.get_known_package(&registry, repository).await? {
         Some(package) => Ok(Json(package).into_response()),
         None => Ok(StatusCode::NOT_FOUND.into_response()),
     }
@@ -230,11 +229,10 @@ async fn search_by_import(
     State(manager): State<AppState>,
     Query(params): Query<InterfaceSearchParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let manager = manager
-        .lock()
-        .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
-    let packages =
-        manager.search_packages_by_import(&params.interface, params.offset, params.limit)?;
+    let manager = manager.lock().await;
+    let packages = manager
+        .search_packages_by_import(&params.interface, params.offset, params.limit)
+        .await?;
     Ok(Json(packages))
 }
 
@@ -244,11 +242,10 @@ async fn search_by_export(
     State(manager): State<AppState>,
     Query(params): Query<InterfaceSearchParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let manager = manager
-        .lock()
-        .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
-    let packages =
-        manager.search_packages_by_export(&params.interface, params.offset, params.limit)?;
+    let manager = manager.lock().await;
+    let packages = manager
+        .search_packages_by_export(&params.interface, params.offset, params.limit)
+        .await?;
     Ok(Json(packages))
 }
 
@@ -259,10 +256,8 @@ async fn get_package_detail_nested(
     Path((registry, repository)): Path<(String, String)>,
 ) -> Result<impl IntoResponse, AppError> {
     let repository = repository.trim_start_matches('/');
-    let manager = manager
-        .lock()
-        .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
-    match manager.get_package_detail(&registry, repository)? {
+    let manager = manager.lock().await;
+    match manager.get_package_detail(&registry, repository).await? {
         Some(detail) => Ok(Json(detail).into_response()),
         None => Ok(StatusCode::NOT_FOUND.into_response()),
     }
@@ -275,10 +270,8 @@ async fn get_package_versions_nested(
     Path((registry, repository)): Path<(String, String)>,
 ) -> Result<impl IntoResponse, AppError> {
     let repository = repository.trim_start_matches('/');
-    let manager = manager
-        .lock()
-        .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
-    match manager.get_package_detail(&registry, repository)? {
+    let manager = manager.lock().await;
+    match manager.get_package_detail(&registry, repository).await? {
         Some(detail) => Ok(Json(detail.versions).into_response()),
         None => Ok(StatusCode::NOT_FOUND.into_response()),
     }
@@ -291,10 +284,11 @@ async fn get_package_version_reordered(
     Path((registry, version, repository)): Path<(String, String, String)>,
 ) -> Result<impl IntoResponse, AppError> {
     let repository = repository.trim_start_matches('/');
-    let manager = manager
-        .lock()
-        .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
-    match manager.get_package_version(&registry, repository, &version)? {
+    let manager = manager.lock().await;
+    match manager
+        .get_package_version(&registry, repository, &version)
+        .await?
+    {
         Some(ver) => Ok(Json(ver).into_response()),
         None => Ok(StatusCode::NOT_FOUND.into_response()),
     }
@@ -339,14 +333,16 @@ async fn notify_new_version(
             .into_response());
     }
 
-    let manager = manager
-        .lock()
-        .map_err(|e| anyhow::anyhow!("lock poisoned: {e}"))?;
+    let manager = manager.lock().await;
 
     // Only allow notifications for packages we already know about. This
     // prevents arbitrary clients from filling the fetch queue with
     // unknown `(registry, repository, tag)` triples.
-    if manager.get_known_package(&registry, repository)?.is_none() {
+    if manager
+        .get_known_package(&registry, repository)
+        .await?
+        .is_none()
+    {
         return Ok((
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({
@@ -356,7 +352,9 @@ async fn notify_new_version(
             .into_response());
     }
 
-    let outcome = manager.notify_new_version(&registry, repository, tag)?;
+    let outcome = manager
+        .notify_new_version(&registry, repository, tag)
+        .await?;
     Ok((StatusCode::ACCEPTED, Json(outcome)).into_response())
 }
 
@@ -389,7 +387,7 @@ mod tests {
     #[tokio::test]
     async fn server_starts_and_listens() {
         let manager = Manager::open().await.expect("failed to open manager");
-        let state = Arc::new(std::sync::Mutex::new(manager));
+        let state = Arc::new(tokio::sync::Mutex::new(manager));
         let app = router(state);
 
         // Bind to port 0 so the OS assigns a random available port.
@@ -435,9 +433,10 @@ mod tests {
         let repository = format!("notify-test-{unique}");
         manager
             .add_known_package(registry, &repository, None, None)
+            .await
             .expect("failed to register known package");
 
-        let state = Arc::new(std::sync::Mutex::new(manager));
+        let state = Arc::new(tokio::sync::Mutex::new(manager));
         let app = router(state);
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

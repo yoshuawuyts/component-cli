@@ -1,6 +1,7 @@
 //! Component CLI command
 //!
 
+mod admin;
 mod compose;
 mod init;
 mod install;
@@ -56,6 +57,7 @@ impl Cli {
             Some(Command::Install(opts)) => opts.run(self.offline).await?,
             Some(Command::Publish(opts)) => opts.run(self.offline).await.map_err(into_miette)?,
             Some(Command::Self_(opts)) => opts.run().await.map_err(into_miette)?,
+            Some(Command::Admin(opts)) => opts.run().await.map_err(into_miette)?,
             None => {
                 // Apply the parsed color choice when printing help
                 Cli::command()
@@ -90,6 +92,9 @@ enum Command {
     #[clap(name = "self")]
     #[command(subcommand)]
     Self_(self_::Opts),
+    /// Administrative commands (database migrations, etc.)
+    #[command(subcommand)]
+    Admin(admin::Opts),
 }
 
 /// Compute the log directory for the application.
@@ -167,12 +172,24 @@ async fn main() -> miette::Result<()> {
 ///
 /// Identifies host flags as `--inherit-env`, `--inherit-network`,
 /// `--no-stdio`, `--global`/`-g`, plus value-taking flags `--env`,
-/// `--dir`, `--listen` (each followed by its value). A leading
-/// `-h`/`--help` before any positional triggers host help via clap
-/// in the usual way.
+/// `--no-stdio`, `--global`/`-g`, plus value-taking flags `--env`,
+/// `--dir`, `--listen` (each followed by its value). Global flags
+/// (`-v`/`--verbose`, `-q`/`--quiet`, `--offline`, `--color`) that
+/// clap allows before subcommand positionals are also recognized.
+/// A leading `-h`/`--help` before any positional triggers host help
+/// via clap in the usual way.
+///
+/// If an explicit `--` separator appears before the positional
+/// `<INPUT>`, the user has already quarantined the trailing args
+/// themselves, so the remainder is passed through unchanged. If an
+/// unrecognized dash-prefixed token appears before the positional,
+/// the original args are returned verbatim so clap can produce a
+/// proper "unknown option" error rather than mistakenly treating
+/// the flag as `<INPUT>`.
 fn quarantine_run_trailing_args(args: Vec<String>) -> Vec<String> {
     /// Host flags that take no value.
     const VALUELESS: &[&str] = &[
+        // `run`-specific flags.
         "--inherit-env",
         "--inherit-network",
         "--no-stdio",
@@ -180,9 +197,22 @@ fn quarantine_run_trailing_args(args: Vec<String>) -> Vec<String> {
         "-g",
         "-h",
         "--help",
+        // Global flags clap allows after the `run` subcommand token.
+        "-v",
+        "--verbose",
+        "-q",
+        "--quiet",
+        "--offline",
     ];
     /// Host flags that consume the next argument as a value.
-    const VALUED: &[&str] = &["--env", "--dir", "--listen"];
+    const VALUED: &[&str] = &[
+        // `run`-specific flags.
+        "--env",
+        "--dir",
+        "--listen",
+        // Global flags clap allows after the `run` subcommand token.
+        "--color",
+    ];
 
     let Some(run_idx) = args.iter().position(|a| a == "run") else {
         return args;
@@ -193,6 +223,15 @@ fn quarantine_run_trailing_args(args: Vec<String>) -> Vec<String> {
 
     let mut i = run_idx + 1;
     while let Some(token) = args.get(i) {
+        // Explicit `--` separator: the user has already quarantined the
+        // trailing args themselves. Pass everything through unchanged so
+        // clap can apply its `trailing_var_arg` semantics.
+        if token == "--" {
+            if let Some(rest) = args.get(i..) {
+                out.extend(rest.iter().cloned());
+            }
+            return out;
+        }
         if VALUELESS.iter().any(|f| f == token) {
             out.push(token.clone());
             i += 1;
@@ -217,6 +256,12 @@ fn quarantine_run_trailing_args(args: Vec<String>) -> Vec<String> {
             out.push(token.clone());
             i += 1;
             continue;
+        }
+        // Unknown dash-prefixed token before any positional: bail out and
+        // let clap produce a proper "unknown option" error rather than
+        // mistakenly treating it as the `<INPUT>` positional.
+        if token.starts_with('-') {
+            return args;
         }
         // First non-host token: this is the positional INPUT.
         out.push(token.clone());

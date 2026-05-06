@@ -78,7 +78,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Back-fill the queue history with tags that were pulled before the
     // queue was introduced, so the status page shows them immediately.
-    match server_manager.seed_completed_from_tags() {
+    match server_manager.seed_completed_from_tags().await {
         Ok(n) if n > 0 => info!(count = n, "Seeded queue history from existing tags"),
         Ok(_) => {}
         Err(e) => warn!(error = %e, "Failed to seed queue history (non-fatal)"),
@@ -87,7 +87,7 @@ async fn main() -> anyhow::Result<()> {
     if cli.reindex_wit_on_startup {
         // Enqueue reindex tasks for all cached packages.  The background
         // indexer will process them during its first cycle.
-        match server_manager.enqueue_reindex_all() {
+        match server_manager.enqueue_reindex_all().await {
             Ok(n) if n > 0 => info!(count = n, "Enqueued WIT reindex tasks"),
             Ok(_) => {}
             Err(e) => warn!(error = %e, "Failed to enqueue WIT reindex tasks (non-fatal)"),
@@ -96,7 +96,7 @@ async fn main() -> anyhow::Result<()> {
         info!("Skipping WIT re-index at startup (use --reindex-wit-on-startup to enable)");
     }
 
-    let state = Arc::new(std::sync::Mutex::new(server_manager));
+    let state = Arc::new(tokio::sync::Mutex::new(server_manager));
 
     // Start background indexer on a dedicated thread (Manager is !Sync)
     let indexer_config = config.clone();

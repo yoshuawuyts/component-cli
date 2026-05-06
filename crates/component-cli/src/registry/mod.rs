@@ -155,7 +155,7 @@ impl Opts {
                 Ok(())
             }
             Opts::List(_opts) => {
-                let images = store.list_all()?;
+                let images = store.list_all().await?;
                 if images.is_empty() {
                     println!("No installed packages");
                 } else {
@@ -164,7 +164,7 @@ impl Opts {
                 Ok(())
             }
             Opts::Known(opts) => {
-                let packages = store.list_known_packages(0, opts.limit)?;
+                let packages = store.list_known_packages(0, opts.limit).await?;
                 if packages.is_empty() {
                     println!("No known packages");
                 } else {

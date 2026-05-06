@@ -133,7 +133,7 @@ fn main() -> Result<()> {
         Xtask::Sql { command } => match command {
             SqlCommand::Migrate { name } => sql::migrate(&name)?,
             SqlCommand::Check => sql::check()?,
-            SqlCommand::Install => sql::install()?,
+            SqlCommand::Install => sql::install(),
         },
         Xtask::Readme { command } => {
             let root = workspace_root()?;

@@ -46,11 +46,48 @@ jobs:
     - name: Install cargo-nextest
       uses: taiki-e/install-action@cargo-nextest
 
-    - name: Install sqlite3def
-      run: cargo xtask sql install
-
     - name: Run xtask test
       run: cargo xtask test
+
+  postgres_migrations:
+    name: Postgres migrations
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: component_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+    - uses: actions/checkout@master
+
+    - name: Run sccache-cache only on non-release runs
+      if: github.event_name != 'release' && github.event_name != 'workflow_dispatch'
+      uses: mozilla-actions/sccache-action@v0.0.10
+
+    - name: Set Rust caching env vars only on non-release runs
+      if: github.event_name != 'release' && github.event_name != 'workflow_dispatch'
+      run: |
+        echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+        echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+
+    - name: Install stable toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+
+    - name: Apply migrations to Postgres
+      env:
+        COMPONENT_DATABASE_URL: postgres://postgres:postgres@localhost:5432/component_test
+      run: cargo xtask sql check
 
   check_docs:
     name: Checking docs

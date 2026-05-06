@@ -325,11 +325,11 @@ async fn load_from_global_cache(input: &str, offline: bool) -> miette::Result<Ve
     // exact WIT-name match exists, then to the local cache as a last resort.
     if !offline && component_package_manager::manager::install::looks_like_wit_name(input) {
         if let Ok(reference) =
-            component_package_manager::manager::install::resolve_wit_name(input, &manager)
+            component_package_manager::manager::install::resolve_wit_name(input, &manager).await
         {
             return fetch_oci_bytes(&reference, offline).await;
         }
-        if let Some(reference) = fuzzy_resolve_from_registry(&manager, input)? {
+        if let Some(reference) = fuzzy_resolve_from_registry(&manager, input).await? {
             return fetch_oci_bytes(&reference, offline).await;
         }
     }
@@ -337,7 +337,7 @@ async fn load_from_global_cache(input: &str, offline: bool) -> miette::Result<Ve
     let pattern = input.replace(':', "/");
     let suffix = format!("/{pattern}");
 
-    let entries = manager.list_all().map_err(crate::util::into_miette)?;
+    let entries = manager.list_all().await.map_err(crate::util::into_miette)?;
     let entry = entries
         .iter()
         .find(|e| e.ref_repository == pattern || e.ref_repository.ends_with(&suffix))
@@ -358,7 +358,7 @@ async fn load_from_global_cache(input: &str, offline: bool) -> miette::Result<Ve
 /// unique component matches, return its OCI reference. When multiple
 /// candidates match, returns an error listing the alternatives so the user
 /// can pick the right one.
-fn fuzzy_resolve_from_registry(
+async fn fuzzy_resolve_from_registry(
     manager: &Manager,
     input: &str,
 ) -> miette::Result<Option<component_package_manager::Reference>> {
@@ -373,6 +373,7 @@ fn fuzzy_resolve_from_registry(
 
     let matches = manager
         .search_packages(name_prefix, 0, 64)
+        .await
         .map_err(crate::util::into_miette)?;
 
     let candidates: Vec<&component_package_manager::storage::KnownPackage> = matches

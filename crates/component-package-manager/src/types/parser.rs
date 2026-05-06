@@ -54,6 +54,7 @@ pub(crate) struct WitMetadata {
     /// Dependencies on other WIT packages.
     pub dependencies: Vec<DependencyItem>,
     /// Whether this is a compiled component (true) or a WIT-only package (false).
+    #[allow(dead_code)]
     pub is_component: bool,
     /// Full WIT text representation.
     pub wit_text: String,

@@ -102,13 +102,12 @@ src/
 ├── components/
 │   └── models.rs       # Component data types
 ├── storage/
-│   ├── mod.rs          # Store facade
-│   ├── store.rs        # SQLite operations + cacache layer caching
-│   ├── config.rs       # StateInfo (cache dirs, database path, log dir)
-│   ├── models/         # RawKnownPackage, Migrations
-│   ├── known_package.rs # KnownPackage — re-exported from component-meta-registry-client
-│   ├── schema.sql      # Canonical database schema (source of truth)
-│   └── migrations/     # Auto-generated SQL migration files
+│   ├── mod.rs            # Store facade
+│   ├── store.rs          # SeaORM operations + cacache layer caching
+│   ├── db_config.rs      # COMPONENT_DATABASE_URL parsing & redaction
+│   ├── config.rs         # StateInfo (cache dirs, database path, log dir)
+│   ├── models/           # Migrations shim
+│   └── known_package.rs  # KnownPackage — re-exported from component-meta-registry-client
 ```
 
 ### component-meta-registry-client
@@ -123,10 +122,10 @@ from a `component-meta-registry` instance. It contains:
 ### Manager
 
 `Manager` is the main entry point. It composes a `Client` (OCI), a `Store`
-(SQLite + cacache), and a `Config`. Key operations:
+(SeaORM + cacache), and a `Config`. Key operations:
 
 - **`pull`** / **`pull_with_progress`** — fetch an OCI image, store layers in
-  cacache, record metadata in SQLite, and extract WIT interface information.
+  cacache, record metadata in the database, and extract WIT interface information.
 - **`install`** / **`install_with_progress`** — pull then hard-link (vendor)
   layers into a project-local directory.
 - **`delete`** — remove a cached package and its orphaned layers.
@@ -139,29 +138,35 @@ from a `component-meta-registry` instance. It contains:
 
 Storage is split into two systems:
 
-- **SQLite** (`wasm.db`) — stores all structured metadata (OCI manifests, tags,
-  WIT interfaces, worlds, components). Managed via `rusqlite` with
-  forward-only migrations.
+- **Relational metadata** — stores all structured metadata (OCI manifests,
+  tags, WIT interfaces, worlds, components). Managed via
+  [SeaORM](https://www.sea-ql.org/SeaORM/) with backend-portable migrations.
+  The default backend is SQLite (a file under the platform data directory);
+  setting `COMPONENT_DATABASE_URL=postgres://...` switches to PostgreSQL.
 - **cacache** — content-addressable blob store for OCI image layers.
   Deduplicates identical layers across packages. Vendoring uses hard links so
   disk usage is shared with the cache.
 
 ### Database Schema
 
-The SQLite schema (`schema.sql`) follows a three-layer design:
+The schema follows a three-layer design, defined under
+`crates/component-package-manager-migration/`:
 
 1. **OCI layer** — `oci_repository`, `oci_manifest`, `oci_tag`, `oci_layer`,
    `oci_referrer`, plus annotation tables. Models the OCI distribution spec.
-2. **WIT layer** — `wit_interface`, `wit_world`, `wit_world_import`,
-   `wit_world_export`, `wit_interface_dependency`. Models the WebAssembly
+2. **WIT layer** — `wit_package`, `wit_world`, `wit_world_import`,
+   `wit_world_export`, `wit_package_dependency`. Models the WebAssembly
    Interface Type system. Foreign keys link imports/exports/dependencies to
-   resolved interfaces (best-effort — NULL if the dependency is not yet
+   resolved packages (best-effort — NULL if the dependency is not yet
    cached).
 3. **Wasm layer** — `wasm_component`, `component_target`. Links compiled
    components to the worlds they target.
 
-To change the schema, edit `schema.sql` and run
-`cargo xtask sql migrate --name <description>`. Never hand-write migration files.
+To change the schema, hand-author a new migration module under
+`crates/component-package-manager-migration/src/migrations/` and register
+it in `Migrator::migrations()`. The same migration set drives both SQLite
+and PostgreSQL; per-backend SQL fragments (e.g. trigger bodies) live in
+`migrations/triggers.rs` and dispatch on `manager.get_database_backend()`.
 
 ## component-manifest
 
@@ -210,13 +215,15 @@ the full CI suite:
 2. `cargo test --doc` — doc tests (not supported by nextest)
 3. `cargo clippy` — lint check (with `-D warnings`)
 4. `cargo fmt --check` — formatting check
-5. `cargo xtask sql check` — verify migrations are in sync with `schema.sql`
+5. `cargo xtask sql check` — apply migrations to in-memory SQLite (and to
+   Postgres if `COMPONENT_DATABASE_URL` is set)
 6. README freshness check — ensures `README.md` matches `component --help` output
 
 [cargo-nextest]: https://nexte.st
 
-SQL migrations are managed through `cargo xtask sql migrate` and
-`cargo xtask sql install` (installs `sqlite3def`).
+SQL migrations are hand-authored as Rust modules under
+`crates/component-package-manager-migration/`; see
+[Database Schema](#database-schema) above.
 
 ## Project-Level Conventions
 

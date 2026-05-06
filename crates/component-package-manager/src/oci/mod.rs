@@ -1,14 +1,15 @@
 //! OCI-specific types and logic.
 //!
-//! This module groups all OCI registry and image concepts:
-//! client communication, data models, image entries, and
-//! pure logic for tag classification and layer management.
+//! Pure types and logic for OCI registry interactions. DB-backed wrapper
+//! structs (`OciRepository`, `OciManifest`, etc.) were folded into the
+//! SeaORM-based `storage::Store` during the SeaORM port. Use the entity
+//! types from `component_package_manager_migration::entities` directly when
+//! a typed row is needed.
 
 mod client;
 mod errors;
 mod image_entry;
 mod logic;
-mod models;
 mod raw;
 
 pub(crate) use client::Client;
@@ -18,7 +19,22 @@ pub use logic::{
     TagKind, classify_tag, classify_tags, compute_orphaned_layers, filter_wasm_layers,
     validate_single_wasm_layer,
 };
-pub use models::InsertResult;
-#[allow(unreachable_pub)]
-pub use models::{OciLayer, OciLayerAnnotation, OciManifest, OciReferrer, OciRepository, OciTag};
 pub(crate) use raw::RawImageEntry;
+
+/// Result of an insert operation.
+///
+/// # Example
+///
+/// ```
+/// use component_package_manager::oci::InsertResult;
+///
+/// let result = InsertResult::Inserted;
+/// assert_eq!(result, InsertResult::Inserted);
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InsertResult {
+    /// The entry was inserted successfully.
+    Inserted,
+    /// The entry already existed in the database.
+    AlreadyExists,
+}

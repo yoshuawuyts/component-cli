@@ -33,7 +33,7 @@
 //! ```no_run
 //! use component_meta_registry::{Config, Indexer, router};
 //! use component_package_manager::manager::Manager;
-//! use std::sync::{Arc, Mutex};
+//! use std::sync::Arc;
 //! use std::path::Path;
 //!
 //! #[tokio::main]
@@ -47,7 +47,7 @@
 //!
 //!     // Create the HTTP router backed by a package manager with its own data directory
 //!     let manager = Manager::open_at("/tmp/wasm-registry").await?;
-//!     let state = Arc::new(Mutex::new(manager));
+//!     let state = Arc::new(tokio::sync::Mutex::new(manager));
 //!     let app = router(state);
 //!
 //!     // Start the server

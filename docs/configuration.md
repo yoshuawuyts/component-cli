@@ -88,12 +88,18 @@ The storage directory has the following structure:
 
 ```
 ~/.local/share/wasm/
-├── store/              # Content-addressable blob storage
-│   ├── content/        # OCI image layers and artifacts
-│   └── index/          # Cache index files
+├── store/                # Content-addressable blob storage
+│   ├── content/          # OCI image layers and artifacts
+│   └── index/            # Cache index files
 └── db/
-    └── metadata.db3    # SQLite database with package metadata
+    └── metadata-v2.db3   # SQLite database with package metadata
 ```
+
+When `COMPONENT_DATABASE_URL` is set, the connection URL replaces this
+file path. Currently supported schemes:
+
+- `sqlite://path/to/file.db?mode=rwc` — explicit SQLite file.
+- `postgres://user:pass@host:port/db` — PostgreSQL.
 
 ### Components
 
@@ -105,9 +111,12 @@ The store directory uses [`cacache`](https://docs.rs/cacache/) for content-addre
 - **Deduplicated**: Identical content is stored only once
 - **OCI-Compatible**: Stores image layers and manifests following OCI specifications
 
-#### Metadata Database (`db/metadata.db3`)
+#### Metadata Database (`db/metadata-v2.db3`)
 
-The metadata database is a SQLite database that stores package metadata.
+The metadata database is a SQLite database that stores package metadata,
+managed via [SeaORM](https://www.sea-ql.org/SeaORM/). It can be replaced
+with a PostgreSQL database for production deployments by setting
+`COMPONENT_DATABASE_URL=postgres://...`.
 
 ## Storage Management
 
@@ -142,13 +151,26 @@ component package list
 
 ## Database Migrations
 
-The storage system uses a migration system to evolve the schema over time:
+The storage system uses [SeaORM](https://www.sea-ql.org/SeaORM/) migrations
+to evolve the schema over time. Migrations are defined as Rust modules
+under `crates/component-package-manager-migration/src/migrations/` and
+support both SQLite and PostgreSQL.
 
-- **Automatic**: Migrations run automatically when opening the database
-- **Versioned**: Each migration is numbered and tracked
-- **Forward-Only**: The system only supports forward migrations
+- **SQLite** (default): migrations are applied automatically when
+  opening the database.
+- **PostgreSQL**: migrations are applied explicitly via
+  `component admin migrate` to avoid races between replicas. The
+  package manager refuses to start when the database has pending
+  migrations.
 
-Current migrations include:
-1. Initial schema creation
-2. Known packages table
-3. Tag type classification
+## Environment Variables
+
+- `COMPONENT_DATABASE_URL` — connection URL. Defaults to a SQLite file
+  under the platform data directory.
+- `COMPONENT_DATABASE_MAX_CONNECTIONS` — PostgreSQL pool size
+  (default: 8).
+- `COMPONENT_DATABASE_CONNECT_TIMEOUT_SECS` — connection acquisition
+  timeout (default: 10).
+
+Passwords appearing in `COMPONENT_DATABASE_URL` are redacted when the
+tool emits diagnostics or log lines.

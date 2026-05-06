@@ -28,7 +28,7 @@
 //!     }
 //!
 //!     // List all cached images
-//!     let images = manager.list_all()?;
+//!     let images = manager.list_all().await?;
 //!     for image in &images {
 //!         println!("{} ({} bytes)", image.reference(), image.size_on_disk);
 //!     }
@@ -37,7 +37,6 @@
 //! }
 //! ```
 
-pub mod components;
 /// WAC-based component composition (requires the `compose` feature).
 #[cfg(feature = "compose")]
 pub mod compose;
