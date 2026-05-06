@@ -204,13 +204,10 @@ impl Opts {
                     Ok(deps) => {
                         resolved_transitive = deps;
                     }
-                    Err(ResolveError::NoSolution(msg)) => {
+                    Err(ResolveError::NoSolution(msg) | ResolveError::NoRuntime(msg)) => {
                         return Err(InstallError::DependencyConflict(msg).into());
                     }
                     Err(ResolveError::Db(_)) => {} // dep data not yet available; skip
-                    Err(ResolveError::NoRuntime(msg)) => {
-                        return Err(InstallError::DependencyConflict(msg).into());
-                    }
                 }
             }
 
