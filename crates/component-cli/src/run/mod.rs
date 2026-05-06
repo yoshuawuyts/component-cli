@@ -94,32 +94,40 @@ impl Opts {
         let local_path = PathBuf::from(input);
         let is_local = local_path.exists();
 
+        // Manifest keys use `scope:component` syntax; an optional `@version`
+        // suffix (e.g. `yoshuawuyts:wordmark@2.0.6`) is part of the input
+        // grammar but is not part of the key stored in `wasm.toml`. Strip the
+        // version when consulting the manifest/lockfile, but pass the original
+        // input — which still carries the version — to install/global-cache
+        // resolution so the requested version is honored.
+        let manifest_key = input.split_once('@').map_or(input, |(name, _)| name);
+
         // Try manifest key lookup (scope:component syntax).
         let mut manifest_path = if is_local {
             None
         } else {
-            resolve_manifest_key(input)?
+            resolve_manifest_key(manifest_key)?
         };
 
         // For inputs that look like manifest keys (`scope:component`) but are
         // not yet installed in the local project, auto-install into a local
         // manifest + lockfile by default. The `--global` flag bypasses local
         // installation and runs from the global cache instead.
-        let global_bytes = if !is_local && manifest_path.is_none() && looks_like_manifest_key(input)
-        {
-            if self.global {
-                Some(load_from_global_cache(input, offline).await?)
+        let global_bytes =
+            if !is_local && manifest_path.is_none() && looks_like_manifest_key(manifest_key) {
+                if self.global {
+                    Some(load_from_global_cache(input, offline).await?)
+                } else {
+                    auto_install(input, offline).await?;
+                    // Re-resolve the manifest key now that the install has
+                    // populated `wasm.toml`, `wasm.lock.toml`, and the
+                    // vendored Wasm file.
+                    manifest_path = resolve_manifest_key(manifest_key)?;
+                    None
+                }
             } else {
-                auto_install(input, offline).await?;
-                // Re-resolve the manifest key now that the install has
-                // populated `wasm.toml`, `wasm.lock.toml`, and the
-                // vendored Wasm file.
-                manifest_path = resolve_manifest_key(input)?;
                 None
-            }
-        } else {
-            None
-        };
+            };
 
         // Only try OCI when the input is not a local file and not a manifest key.
         let reference = if is_local || manifest_path.is_some() || global_bytes.is_some() {
@@ -334,7 +342,10 @@ async fn load_from_global_cache(input: &str, offline: bool) -> miette::Result<Ve
         }
     }
 
-    let pattern = input.replace(':', "/");
+    let pattern = input
+        .split_once('@')
+        .map_or(input, |(name, _)| name)
+        .replace(':', "/");
     let suffix = format!("/{pattern}");
 
     let entries = manager.list_all().map_err(crate::util::into_miette)?;
@@ -451,6 +462,10 @@ async fn fetch_oci_bytes(
 /// (e.g. `ghcr.io/user/repo:tag`). WIT-style names never contain dots or
 /// slashes, so rejecting those characters safely separates manifest keys
 /// from OCI references.
+///
+/// Callers that accept an optional `@version` suffix (e.g.
+/// `yoshuawuyts:wordmark@2.0.6`) must strip the suffix before invoking this
+/// check, since the version may legitimately contain `.` characters.
 fn looks_like_manifest_key(input: &str) -> bool {
     let Some((scope, component)) = input.split_once(':') else {
         return false;
@@ -619,4 +634,32 @@ async fn run_library_component(
         std::process::exit(outcome.exit_code);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::looks_like_manifest_key;
+
+    #[test]
+    fn manifest_key_basic() {
+        assert!(looks_like_manifest_key("wasi:http"));
+        assert!(looks_like_manifest_key("yoshuawuyts:wordmark"));
+    }
+
+    #[test]
+    fn manifest_key_rejects_oci_references() {
+        assert!(!looks_like_manifest_key("ghcr.io/user/repo:tag"));
+        assert!(!looks_like_manifest_key("docker.io/library/nginx:latest"));
+    }
+
+    /// A `scope:name@version` input must be stripped of its `@version` suffix
+    /// before being checked, since versions may legitimately contain `.`
+    /// characters that would otherwise be rejected.
+    #[test]
+    fn manifest_key_strip_version_then_check() {
+        let input = "yoshuawuyts:wordmark@2.0.6";
+        let stripped = input.split_once('@').map_or(input, |(name, _)| name);
+        assert_eq!(stripped, "yoshuawuyts:wordmark");
+        assert!(looks_like_manifest_key(stripped));
+    }
 }
