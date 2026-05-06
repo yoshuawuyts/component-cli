@@ -147,8 +147,8 @@ async fn apply_sqlite_pragmas(db: &DatabaseConnection) -> anyhow::Result<()> {
 /// MUST NOT change, or different binaries could contend on different lock keys.
 const POSTGRES_MIGRATION_ADVISORY_LOCK_KEY: i64 = 7_164_506_197_438_460_449;
 
-/// Maximum time Postgres should wait to acquire the migration advisory lock.
-const POSTGRES_MIGRATION_LOCK_TIMEOUT: &str = "60s";
+const POSTGRES_MIGRATION_SET_TIMEOUT_SQL: &str =
+    "SET lock_timeout = '60s'; SET statement_timeout = '60s';";
 
 /// Run SeaORM migrations for Postgres while holding a session-scoped advisory
 /// lock on a dedicated single-connection pool.
@@ -165,36 +165,31 @@ async fn run_postgres_migrations_with_advisory_lock(
         .await
         .with_context(|| format!("failed to connect to database at {}", cfg.redacted_url()))?;
 
-    db.execute_unprepared(&format!(
-        "SET lock_timeout = '{POSTGRES_MIGRATION_LOCK_TIMEOUT}'; \
-         SET statement_timeout = '{POSTGRES_MIGRATION_LOCK_TIMEOUT}';"
-    ))
-    .await
-    .context("failed to configure Postgres migration lock timeouts")?;
+    db.execute_unprepared(POSTGRES_MIGRATION_SET_TIMEOUT_SQL)
+        .await
+        .context("failed to configure Postgres migration lock timeouts")?;
 
-    db.execute_unprepared(&format!(
-        "SELECT pg_advisory_lock({POSTGRES_MIGRATION_ADVISORY_LOCK_KEY});"
-    ))
-    .await
-    .with_context(|| {
-        format!(
-            "failed to acquire Postgres migration advisory lock (key {POSTGRES_MIGRATION_ADVISORY_LOCK_KEY})"
-        )
-    })?;
+    let lock_stmt = Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "SELECT pg_advisory_lock($1);",
+        [POSTGRES_MIGRATION_ADVISORY_LOCK_KEY.into()],
+    );
+    db.execute_raw(lock_stmt)
+        .await
+        .with_context(|| "failed to acquire Postgres migration advisory lock")?;
 
     let migration_result = Migrator::up(&db, None)
         .await
         .context("failed to run database migrations");
+    let unlock_stmt = Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "SELECT pg_advisory_unlock($1);",
+        [POSTGRES_MIGRATION_ADVISORY_LOCK_KEY.into()],
+    );
     let unlock_result = db
-        .execute_unprepared(&format!(
-            "SELECT pg_advisory_unlock({POSTGRES_MIGRATION_ADVISORY_LOCK_KEY});"
-        ))
+        .execute_raw(unlock_stmt)
         .await
-        .with_context(|| {
-            format!(
-                "failed to release Postgres migration advisory lock (key {POSTGRES_MIGRATION_ADVISORY_LOCK_KEY})"
-            )
-        });
+        .with_context(|| "failed to release Postgres migration advisory lock");
 
     if let Err(migration_err) = migration_result {
         unlock_result?;
