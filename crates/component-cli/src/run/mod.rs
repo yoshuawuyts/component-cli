@@ -100,7 +100,7 @@ impl Opts {
         // version when consulting the manifest/lockfile, but pass the original
         // input — which still carries the version — to install/global-cache
         // resolution so the requested version is honored.
-        let manifest_key = input.split_once('@').map_or(input, |(name, _)| name);
+        let manifest_key = strip_at_version(input);
 
         // Try manifest key lookup (scope:component syntax).
         let mut manifest_path = if is_local {
@@ -342,10 +342,7 @@ async fn load_from_global_cache(input: &str, offline: bool) -> miette::Result<Ve
         }
     }
 
-    let pattern = input
-        .split_once('@')
-        .map_or(input, |(name, _)| name)
-        .replace(':', "/");
+    let pattern = strip_at_version(input).replace(':', "/");
     let suffix = format!("/{pattern}");
 
     let entries = manager.list_all().map_err(crate::util::into_miette)?;
@@ -453,6 +450,13 @@ async fn fetch_oci_bytes(
         .await
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to read cached component for {key}"))
+}
+
+/// Strip an optional `@version` suffix from a `scope:name@version` input,
+/// returning just the manifest-key portion (`scope:name`). Inputs without an
+/// `@` are returned unchanged.
+fn strip_at_version(input: &str) -> &str {
+    input.split_once('@').map_or(input, |(name, _version)| name)
 }
 
 /// Check whether `input` looks like a manifest key (`scope:component`).
@@ -638,7 +642,7 @@ async fn run_library_component(
 
 #[cfg(test)]
 mod tests {
-    use super::looks_like_manifest_key;
+    use super::{looks_like_manifest_key, strip_at_version};
 
     #[test]
     fn manifest_key_basic() {
@@ -652,13 +656,20 @@ mod tests {
         assert!(!looks_like_manifest_key("docker.io/library/nginx:latest"));
     }
 
+    #[test]
+    fn strip_at_version_no_at_sign_is_passthrough() {
+        assert_eq!(
+            strip_at_version("yoshuawuyts:wordmark"),
+            "yoshuawuyts:wordmark"
+        );
+    }
+
     /// A `scope:name@version` input must be stripped of its `@version` suffix
     /// before being checked, since versions may legitimately contain `.`
     /// characters that would otherwise be rejected.
     #[test]
-    fn manifest_key_strip_version_then_check() {
-        let input = "yoshuawuyts:wordmark@2.0.6";
-        let stripped = input.split_once('@').map_or(input, |(name, _)| name);
+    fn strip_at_version_then_manifest_key_check() {
+        let stripped = strip_at_version("yoshuawuyts:wordmark@2.0.6");
         assert_eq!(stripped, "yoshuawuyts:wordmark");
         assert!(looks_like_manifest_key(stripped));
     }
